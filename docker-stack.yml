@@ -32,6 +32,8 @@ services:
       - "5173:80"
     networks:
       - sistema-familiar-network
+      # Conectar à rede do Nginx Proxy Manager (ajuste o nome se necessário)
+      - nginx_public
     deploy:
       replicas: 1
       restart_policy:
@@ -51,4 +53,8 @@ networks:
   db_network:
     external: true
     name: db_network
+  # Rede externa do Nginx Proxy Manager (ajuste o nome se necessário)
+  nginx_public:
+    external: true
+    name: nginx_public
 
