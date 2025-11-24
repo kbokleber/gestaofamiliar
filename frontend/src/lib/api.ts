@@ -3,18 +3,35 @@ import { useAuthStore } from '../stores/authStore'
 
 // URL da API - usar variável de ambiente em produção ou URL relativa
 // Em desenvolvimento, o Vite faz proxy de /api para http://localhost:8001
-// Em produção, usar VITE_API_URL se definido, senão usar URL relativa (funciona com DNS e IP)
+// Em produção, usar URL relativa para evitar Mixed Content (HTTPS -> HTTP)
 const getApiBaseUrl = () => {
+  // Se estiver em desenvolvimento, usar a URL do Vite proxy
+  if (import.meta.env.DEV) {
+    return '/api/v1'
+  }
+  
   const envUrl = import.meta.env.VITE_API_URL
   
-  // Se a variável de ambiente está definida e válida, usar ela
-  if (envUrl && envUrl.trim() !== '' && !envUrl.startsWith(':')) {
+  // Se a variável de ambiente está definida e é uma URL relativa, usar ela
+  if (envUrl && envUrl.trim() !== '' && envUrl.startsWith('/')) {
     return envUrl
   }
   
-  // Se começar com : (sem protocolo), adicionar http:// e IP
-  if (envUrl && envUrl.startsWith(':')) {
-    return `http://89.116.186.192${envUrl}`
+  // Se a URL começa com http:// e a página está em HTTPS, usar URL relativa
+  // Isso evita Mixed Content errors
+  if (envUrl && envUrl.startsWith('http://')) {
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      console.warn('⚠️ URL HTTP detectada em página HTTPS. Usando URL relativa para evitar Mixed Content.')
+      // Extrair o path da URL HTTP
+      try {
+        const url = new URL(envUrl)
+        return url.pathname || '/api/v1'
+      } catch {
+        return '/api/v1'
+      }
+    }
+    // Se a página também é HTTP, pode usar a URL HTTP
+    return envUrl
   }
   
   // Fallback: usar URL relativa (funciona tanto com DNS quanto com IP direto)

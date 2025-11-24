@@ -15,6 +15,8 @@ services:
       - sistema-familiar-network
       # Conectar à rede do banco de dados externo
       - db_network
+      # Conectar à rede do Nginx Proxy Manager para acesso via DNS
+      - nginx_public
     deploy:
       replicas: 1
       restart_policy:
