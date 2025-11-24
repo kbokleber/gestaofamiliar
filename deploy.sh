@@ -31,10 +31,15 @@ fi
 echo -e "${GREEN}📦 Construindo imagens Docker...${NC}"
 docker build -t sistema-familiar-backend:latest ./backend
 
-# Obter IP do servidor (ou usar o IP fornecido via variável de ambiente)
-SERVER_IP=${SERVER_IP:-89.116.186.192}
-echo -e "${GREEN}📦 Construindo frontend com API URL: http://${SERVER_IP}:8001/api/v1${NC}"
-docker build --build-arg VITE_API_URL=http://${SERVER_IP}:8001/api/v1 -t sistema-familiar-frontend:latest ./frontend
+# Build do frontend - usar URL relativa por padrão (funciona com DNS e IP)
+# Se precisar de URL específica, defina VITE_API_URL antes de executar o script
+if [ -n "$VITE_API_URL" ]; then
+  echo -e "${GREEN}📦 Construindo frontend com API URL: ${VITE_API_URL}${NC}"
+  docker build --build-arg VITE_API_URL="${VITE_API_URL}" -t sistema-familiar-frontend:latest ./frontend
+else
+  echo -e "${GREEN}📦 Construindo frontend com URL relativa (funciona com DNS e IP)${NC}"
+  docker build -t sistema-familiar-frontend:latest ./frontend
+fi
 
 # Verificar se .env existe
 if [ ! -f ".env" ]; then

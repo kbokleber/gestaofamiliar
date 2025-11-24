@@ -1,9 +1,9 @@
 import axios from 'axios'
 import { useAuthStore } from '../stores/authStore'
 
-// URL da API - usar variável de ambiente em produção ou URL relativa em desenvolvimento
+// URL da API - usar variável de ambiente em produção ou URL relativa
 // Em desenvolvimento, o Vite faz proxy de /api para http://localhost:8001
-// Em produção, usar VITE_API_URL se definido, senão usar URL completa com IP padrão
+// Em produção, usar VITE_API_URL se definido, senão usar URL relativa (funciona com DNS e IP)
 const getApiBaseUrl = () => {
   const envUrl = import.meta.env.VITE_API_URL
   
@@ -17,8 +17,9 @@ const getApiBaseUrl = () => {
     return `http://89.116.186.192${envUrl}`
   }
   
-  // Fallback: usar URL completa com IP padrão
-  return 'http://89.116.186.192:8001/api/v1'
+  // Fallback: usar URL relativa (funciona tanto com DNS quanto com IP direto)
+  // O NPM ou o servidor vai fazer o proxy para o backend
+  return '/api/v1'
 }
 
 const API_BASE_URL = getApiBaseUrl()
