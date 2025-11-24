@@ -3,8 +3,34 @@ import { useAuthStore } from '../stores/authStore'
 
 // URL da API - usar variável de ambiente em produção ou URL relativa em desenvolvimento
 // Em desenvolvimento, o Vite faz proxy de /api para http://localhost:8001
-// Em produção, usar VITE_API_URL se definido, senão usar /api/v1 (relativo)
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1'
+// Em produção, usar VITE_API_URL se definido, senão usar URL completa com IP padrão
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL
+  
+  // Se a variável de ambiente está definida e válida, usar ela
+  if (envUrl && envUrl.trim() !== '' && !envUrl.startsWith(':')) {
+    return envUrl
+  }
+  
+  // Se começar com : (sem protocolo), adicionar http:// e IP
+  if (envUrl && envUrl.startsWith(':')) {
+    return `http://89.116.186.192${envUrl}`
+  }
+  
+  // Fallback: usar URL completa com IP padrão
+  return 'http://89.116.186.192:8001/api/v1'
+}
+
+const API_BASE_URL = getApiBaseUrl()
+
+// Debug: log da URL da API (sempre logar para debug)
+if (typeof window !== 'undefined') {
+  console.log('🔧 API Configuration:')
+  console.log('  - API Base URL:', API_BASE_URL)
+  console.log('  - VITE_API_URL env:', import.meta.env.VITE_API_URL)
+  console.log('  - Mode:', import.meta.env.MODE)
+  console.log('  - Dev:', import.meta.env.DEV)
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
