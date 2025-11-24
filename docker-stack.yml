@@ -9,14 +9,14 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+    ports:
+      - "8001:8001"
     networks:
       - sistema-familiar-network
       # Conectar à rede do banco de dados externo
       - db_network
-      # Conectar à rede do Nginx externo
-      - nginx_public
     deploy:
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -25,16 +25,15 @@ services:
         parallelism: 1
         delay: 10s
         failure_action: rollback
-    # Não expor portas diretamente - será acessado via Nginx externo
 
   frontend:
     image: sistema-familiar-frontend:latest
+    ports:
+      - "5173:80"
     networks:
       - sistema-familiar-network
-      # Conectar à rede do Nginx externo
-      - nginx_public
     deploy:
-      replicas: 2
+      replicas: 1
       restart_policy:
         condition: on-failure
         delay: 5s
@@ -43,7 +42,6 @@ services:
         parallelism: 1
         delay: 10s
         failure_action: rollback
-    # Não expor portas diretamente - será acessado via Nginx externo
 
 networks:
   sistema-familiar-network:
@@ -53,8 +51,4 @@ networks:
   db_network:
     external: true
     name: db_network
-  # Rede externa do Nginx Proxy Manager
-  nginx_public:
-    external: true
-    name: nginx_public
 

@@ -30,7 +30,11 @@ fi
 # Build das imagens
 echo -e "${GREEN}📦 Construindo imagens Docker...${NC}"
 docker build -t sistema-familiar-backend:latest ./backend
-docker build -t sistema-familiar-frontend:latest ./frontend
+
+# Obter IP do servidor (ou usar o IP fornecido via variável de ambiente)
+SERVER_IP=${SERVER_IP:-89.116.186.192}
+echo -e "${GREEN}📦 Construindo frontend com API URL: http://${SERVER_IP}:8001/api/v1${NC}"
+docker build --build-arg VITE_API_URL=http://${SERVER_IP}:8001/api/v1 -t sistema-familiar-frontend:latest ./frontend
 
 # Verificar se .env existe
 if [ ! -f ".env" ]; then
