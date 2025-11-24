@@ -74,10 +74,23 @@ fi
 
 # Carregar variáveis de ambiente
 # Criar um arquivo temporário limpo sem comentários
+# Filtrar apenas linhas válidas no formato VAR=valor
 TMP_ENV=$(mktemp)
-grep -v '^[[:space:]]*#' .env | grep -v '^[[:space:]]*$' | sed 's/#.*$//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | grep -v '^$' > "$TMP_ENV"
+while IFS= read -r line || [ -n "$line" ]; do
+    # Ignorar linhas vazias e comentários
+    if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+        # Remover comentários inline
+        line="${line%%#*}"
+        # Remover espaços em branco no início e fim
+        line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        # Incluir apenas linhas que contêm = e têm pelo menos um caractere antes e depois
+        if [[ -n "$line" && "$line" =~ ^[^=]+=.+$ ]]; then
+            echo "$line" >> "$TMP_ENV"
+        fi
+    fi
+done < .env
 set -a
-source "$TMP_ENV"
+source "$TMP_ENV" 2>/dev/null || true
 set +a
 rm -f "$TMP_ENV"
 
