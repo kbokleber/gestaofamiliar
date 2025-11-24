@@ -1,0 +1,62 @@
+version: '3.8'
+
+# Versão simplificada sem Traefik - use com proxy reverso (Nginx) ou portas diretas
+# Usa banco de dados PostgreSQL externo existente
+services:
+  backend:
+    image: sistema-familiar-backend:latest
+    environment:
+      # Conectar ao banco de dados externo existente
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+    networks:
+      - sistema-familiar-network
+      # Conectar à rede do banco de dados externo (ajustar nome da rede conforme necessário)
+      - external_db_network
+      # Conectar à rede do Nginx externo (ajustar nome da rede conforme necessário)
+      - nginx_network
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+    # Não expor portas diretamente - será acessado via Nginx externo
+
+  frontend:
+    image: sistema-familiar-frontend:latest
+    networks:
+      - sistema-familiar-network
+      # Conectar à rede do Nginx externo (ajustar nome da rede conforme necessário)
+      - nginx_network
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+    # Não expor portas diretamente - será acessado via Nginx externo
+
+networks:
+  sistema-familiar-network:
+    driver: overlay
+    attachable: true
+  # Rede externa do banco de dados (ajustar nome conforme sua configuração)
+  external_db_network:
+    external: true
+    name: nome-da-rede-do-banco  # Substitua pelo nome real da rede
+  # Rede externa do Nginx (ajustar nome conforme sua configuração)
+  nginx_network:
+    external: true
+    name: nome-da-rede-do-nginx  # Substitua pelo nome real da rede do Nginx
+

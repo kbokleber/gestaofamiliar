@@ -1,0 +1,148 @@
+/**
+ * Utilitários para formatação de datas no padrão brasileiro
+ */
+
+/**
+ * Formata uma data ISO para o formato brasileiro DD/MM/YYYY
+ * Lida com datas sem considerar timezone para evitar mudança de dia
+ */
+export const formatDateBR = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-'
+  
+  // Se a data vier como YYYY-MM-DD (sem hora), processar diretamente
+  const dateOnly = dateString.split('T')[0]
+  const parts = dateOnly.split('-')
+  
+  if (parts.length === 3) {
+    const [year, month, day] = parts
+    return `${day}/${month}/${year}`
+  }
+  
+  // Fallback para datas com formato diferente
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return '-'
+  
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const year = date.getFullYear()
+  
+  return `${day}/${month}/${year}`
+}
+
+/**
+ * Formata uma data ISO para o formato brasileiro DD/MM/YYYY HH:MM
+ */
+export const formatDateTimeBR = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-'
+  
+  const date = new Date(dateString)
+  
+  // Verificar se a data é válida
+  if (isNaN(date.getTime())) return '-'
+  
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const year = date.getFullYear()
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  
+  return `${day}/${month}/${year} ${hours}:${minutes}`
+}
+
+/**
+ * Converte uma data ISO para o formato usado em inputs date (YYYY-MM-DD)
+ * Lida com datas sem considerar timezone
+ */
+export const toDateInputValue = (dateString: string | null | undefined): string => {
+  if (!dateString) return ''
+  
+  // Se a data vier como YYYY-MM-DD (sem hora), retornar diretamente
+  const dateOnly = dateString.split('T')[0]
+  
+  // Validar formato YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+    return dateOnly
+  }
+  
+  // Fallback para datas com formato diferente
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return ''
+  
+  const year = date.getFullYear()
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+  
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Converte uma data ISO para o formato usado em inputs datetime-local (YYYY-MM-DDTHH:mm)
+ */
+export const toDateTimeInputValue = (dateString: string | null | undefined): string => {
+  if (!dateString) return ''
+  
+  const date = new Date(dateString)
+  
+  // Verificar se a data é válida
+  if (isNaN(date.getTime())) return ''
+  
+  const year = date.getFullYear()
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+/**
+ * Calcula a idade a partir de uma data de nascimento
+ */
+export const calculateAge = (birthDate: string): number => {
+  const today = new Date()
+  const birth = new Date(birthDate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  
+  return age
+}
+
+/**
+ * Formata uma data para o formato por extenso em português
+ * Ex: "6 de Novembro de 2025"
+ */
+export const formatDateFullBR = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-'
+  
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ]
+  
+  // Se a data vier como YYYY-MM-DD (sem hora), processar diretamente
+  const dateOnly = dateString.split('T')[0]
+  const parts = dateOnly.split('-')
+  
+  if (parts.length === 3) {
+    const [year, month, day] = parts
+    const monthIndex = parseInt(month, 10) - 1
+    if (monthIndex >= 0 && monthIndex < 12) {
+      return `${parseInt(day, 10)} de ${months[monthIndex]} de ${year}`
+    }
+  }
+  
+  // Fallback para datas com formato diferente
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return '-'
+  
+  const day = date.getDate()
+  const monthIndex = date.getMonth()
+  const year = date.getFullYear()
+  
+  return `${day} de ${months[monthIndex]} de ${year}`
+}
+
