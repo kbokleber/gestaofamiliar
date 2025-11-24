@@ -507,7 +507,7 @@ export default function Procedures() {
                       <div className="flex items-center">
                         <div className="text-sm font-medium text-gray-900">{procedure.procedure_name}</div>
                         {procedure.documents && (
-                          <Paperclip className="h-4 w-4 text-blue-500 ml-2" title="Possui documentos anexados" />
+                          <Paperclip className="h-4 w-4 text-blue-500 ml-2" aria-label="Possui documentos anexados" />
                         )}
                       </div>
                     </td>
