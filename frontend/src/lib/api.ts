@@ -22,7 +22,9 @@ api.interceptors.request.use(
     }
     // Debug em desenvolvimento
     if (import.meta.env.DEV) {
-      console.log('API Request:', config.method?.toUpperCase(), config.baseURL + config.url)
+      const method = config.method?.toUpperCase() || 'UNKNOWN'
+      const url = (config.baseURL || '') + (config.url || '')
+      console.log('API Request:', method, url)
     }
     return config
   },
