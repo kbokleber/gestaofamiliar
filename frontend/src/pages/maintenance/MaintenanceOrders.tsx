@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Clock, Plus, Edit2, Trash2, X, Save, Eye, Filter, FileSpreadsheet, ArrowLeft } from 'lucide-react'
+import { Clock, Plus, Edit2, Trash2, X, Save, Filter, FileSpreadsheet, ArrowLeft } from 'lucide-react'
 import api from '../../lib/api'
 import Modal from '../../components/Modal'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
-import { formatDateBR, toDateInputValue, formatDateFullBR } from '../../utils/dateUtils'
+import { toDateInputValue, formatDateFullBR } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
 
 interface Equipment {
@@ -35,13 +35,6 @@ const STATUS_OPTIONS = [
   { value: 'EM_ANDAMENTO', label: 'Em Andamento' },
   { value: 'CONCLUIDA', label: 'Concluída' },
   { value: 'CANCELADA', label: 'Cancelada' }
-]
-
-const PRIORITY_OPTIONS = [
-  { value: 'BAIXA', label: 'Baixa' },
-  { value: 'MEDIA', label: 'Média' },
-  { value: 'ALTA', label: 'Alta' },
-  { value: 'URGENTE', label: 'Urgente' }
 ]
 
 export default function MaintenanceOrders() {
@@ -693,7 +686,7 @@ export default function MaintenanceOrders() {
       )}
 
       {/* Modal de Criar */}
-      <Modal isOpen={isModalOpen} onClose={closeModal}>
+      <Modal isOpen={isModalOpen} onClose={closeModal} title="Nova Ordem de Manutenção">
         <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
           <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between z-10">
             <h3 className="text-lg md:text-xl font-semibold text-gray-900">

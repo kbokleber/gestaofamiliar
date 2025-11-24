@@ -211,16 +211,6 @@ export default function FamilyMembers() {
     }
   }
 
-
-  const getGenderLabel = (gender: string) => {
-    const genders: Record<string, string> = {
-      'M': 'Masculino',
-      'F': 'Feminino',
-      'O': 'Outro'
-    }
-    return genders[gender] || gender
-  }
-
   const getRelationshipLabel = (relationship?: string) => {
     if (!relationship) return null
     const relationships: Record<string, string> = {

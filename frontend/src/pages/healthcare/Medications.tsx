@@ -477,7 +477,7 @@ export default function Medications() {
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-semibold text-gray-900">{medication.name}</h3>
                       {medication.documents && (
-                        <Paperclip className="h-4 w-4 text-blue-500" title="Possui documentos anexados" />
+                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
                       )}
                     </div>
                     <div className="flex items-center text-sm text-gray-500 mt-1">
@@ -592,7 +592,7 @@ export default function Medications() {
                     <div className="flex items-center gap-2">
                       <div className="text-sm font-medium text-gray-900">{medication.name}</div>
                       {medication.documents && (
-                        <Paperclip className="h-4 w-4 text-blue-500" title="Possui documentos anexados" />
+                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
                       )}
                     </div>
                     {medication.prescribed_by && (
@@ -842,7 +842,7 @@ export default function Medications() {
       )}
 
       {/* Modal de Criar */}
-      <Modal isOpen={isModalOpen} onClose={closeModal}>
+      <Modal isOpen={isModalOpen} onClose={closeModal} title="Novo Medicamento">
         <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
           <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between z-10">
             <h3 className="text-lg md:text-xl font-semibold text-gray-900">
