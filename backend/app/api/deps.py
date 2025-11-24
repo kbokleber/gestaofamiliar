@@ -33,3 +33,14 @@ async def get_current_user(
     
     return user
 
+async def get_current_admin(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Verifica se o usuário atual é administrador"""
+    if not current_user.is_superuser and not current_user.is_staff:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Apenas administradores podem acessar este recurso."
+        )
+    return current_user
+

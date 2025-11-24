@@ -298,18 +298,49 @@ export default function MaintenanceOrders() {
   }
 
   const getStatusColor = (status: string) => {
+    // Normalizar status para maiúsculas para garantir compatibilidade
+    const normalizedStatus = status?.toUpperCase() || ''
     const colors: Record<string, string> = {
       'PENDENTE': 'bg-red-100 text-red-800',
       'EM_ANDAMENTO': 'bg-yellow-100 text-yellow-800',
       'CONCLUIDA': 'bg-green-100 text-green-800',
       'CANCELADA': 'bg-gray-100 text-gray-800'
     }
-    return colors[status] || 'bg-gray-100 text-gray-800'
+    return colors[normalizedStatus] || 'bg-gray-100 text-gray-800'
   }
 
   const getStatusLabel = (status: string) => {
-    const option = STATUS_OPTIONS.find(opt => opt.value === status)
-    return option ? option.label : status
+    if (!status) return 'Desconhecido'
+    
+    // Normalizar status para maiúsculas e remover espaços
+    const normalizedStatus = status.toUpperCase().trim()
+    
+    // Mapeamento direto (mais confiável e rápido)
+    const statusMap: Record<string, string> = {
+      'PENDENTE': 'Pendente',
+      'EM_ANDAMENTO': 'Em Andamento',
+      'CONCLUIDA': 'Concluída',
+      'CANCELADA': 'Cancelada'
+    }
+    
+    // Buscar no mapeamento primeiro (cobre todos os casos normalizados)
+    const label = statusMap[normalizedStatus]
+    if (label) {
+      return label
+    }
+    
+    // Se não encontrar, buscar no STATUS_OPTIONS como fallback
+    const option = STATUS_OPTIONS.find(opt => opt.value === normalizedStatus || opt.value.toUpperCase() === normalizedStatus)
+    if (option) {
+      return option.label
+    }
+    
+    // Último fallback: formatar o status manualmente
+    // Converte "em_andamento" para "Em Andamento"
+    return normalizedStatus
+      .split('_')
+      .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+      .join(' ')
   }
 
   const getEquipmentName = (equipmentId: number) => {
@@ -419,7 +450,7 @@ export default function MaintenanceOrders() {
         </div>
       </div>
 
-      {/* Tabela */}
+      {/* Lista de Ordens */}
       {filteredOrders.length === 0 ? (
         <div className="bg-white shadow rounded-lg p-6">
           <p className="text-gray-600 text-center py-8">
@@ -427,8 +458,80 @@ export default function MaintenanceOrders() {
           </p>
         </div>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+        <>
+          {/* Visualização em Cards para Mobile/Tablet */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4 mb-6">
+            {filteredOrders.map((order) => (
+              <div key={order.id} className="bg-white shadow rounded-lg p-4 space-y-3">
+                {/* Cabeçalho do Card */}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900">{getEquipmentName(order.equipment_id)}</h3>
+                    {order.service_provider && (
+                      <div className="text-sm text-gray-500 mt-1">
+                        {order.service_provider}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                      {getStatusLabel(order.status || '')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Informações do Card */}
+                <div className="space-y-2 text-sm">
+                  {order.completion_date && (
+                    <div>
+                      <span className="font-medium text-gray-700">Data da Manutenção:</span>
+                      <span className="ml-2 text-gray-900">{formatDateFullBR(order.completion_date)}</span>
+                    </div>
+                  )}
+                  {order.cost && (
+                    <div>
+                      <span className="font-medium text-gray-700">Custo:</span>
+                      <span className="ml-2 text-gray-900">{formatCurrency(order.cost)}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-medium text-gray-700">Garantia até:</span>
+                    <span className="ml-2 text-gray-900">
+                      {order.warranty_expiration ? formatDateFullBR(order.warranty_expiration) : 'Sem garantia'}
+                    </span>
+                  </div>
+                  {order.description && (
+                    <div>
+                      <span className="font-medium text-gray-700">Descrição:</span>
+                      <span className="ml-2 text-gray-900 line-clamp-2">{order.description}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Ações do Card */}
+                <div className="flex gap-2 pt-3 border-t border-gray-200">
+                  <button 
+                    onClick={() => startEdit(order)}
+                    className="flex-1 flex items-center justify-center px-3 py-2 bg-yellow-100 text-yellow-600 text-sm rounded-md hover:bg-yellow-200"
+                  >
+                    <Edit2 className="h-4 w-4 mr-1" />
+                    Editar
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(order.id)}
+                    className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Visualização em Tabela para Desktop */}
+          <div className="hidden lg:block bg-white shadow rounded-lg overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -478,7 +581,7 @@ export default function MaintenanceOrders() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                      {getStatusLabel(order.status)}
+                      {getStatusLabel(order.status || '')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -504,10 +607,13 @@ export default function MaintenanceOrders() {
             </tbody>
           </table>
         </div>
+        </>
       )}
         </>
-      ) : (
-        /* Formulário de Edição na Tela */
+      ) : null}
+
+      {/* Formulário de Edição na Tela */}
+      {isEditingInline && (
         <div className="bg-white shadow rounded-lg p-4 md:p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center">

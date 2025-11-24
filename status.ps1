@@ -6,26 +6,37 @@ Write-Host ""
 
 # Verificar Backend (porta 8001)
 $backendPort = 8001
-$backendProcess = Get-NetTCPConnection -LocalPort $backendPort -ErrorAction SilentlyContinue
+$backendConnections = Get-NetTCPConnection -LocalPort $backendPort -State Listen -ErrorAction SilentlyContinue
 
-if ($backendProcess) {
-    $backendPID = $backendProcess.OwningProcess | Select-Object -First 1
-    $backendProc = Get-Process -Id $backendPID -ErrorAction SilentlyContinue
-    Write-Host "[OK] Backend: RODANDO" -ForegroundColor Green
-    Write-Host "   Porta: $backendPort" -ForegroundColor Gray
-    Write-Host "   PID: $backendPID" -ForegroundColor Gray
-    if ($backendProc) {
-        $memoriaMB = [math]::Round($backendProc.WorkingSet64 / 1MB, 2)
-        Write-Host "   Processo: $($backendProc.ProcessName)" -ForegroundColor Gray
-        Write-Host "   Memoria: $memoriaMB MB" -ForegroundColor Gray
-    }
-    
-    # Testar conexao
-    try {
-        $response = Invoke-WebRequest -Uri "http://localhost:$backendPort/health" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
-        Write-Host "   Status API: Respondendo" -ForegroundColor Green
-    } catch {
-        Write-Host "   Status API: Nao respondeu" -ForegroundColor Yellow
+if ($backendConnections) {
+    $backendPID = $backendConnections.OwningProcess | Select-Object -First 1 -Unique
+    # Filtrar PID 0 (Idle) e PIDs inválidos
+    if ($backendPID -and $backendPID -gt 0) {
+        $backendProc = Get-Process -Id $backendPID -ErrorAction SilentlyContinue
+        if ($backendProc) {
+            Write-Host "[OK] Backend: RODANDO" -ForegroundColor Green
+            Write-Host "   Porta: $backendPort" -ForegroundColor Gray
+            Write-Host "   PID: $backendPID" -ForegroundColor Gray
+            $memoriaMB = [math]::Round($backendProc.WorkingSet64 / 1MB, 2)
+            Write-Host "   Processo: $($backendProc.ProcessName)" -ForegroundColor Gray
+            Write-Host "   Memoria: $memoriaMB MB" -ForegroundColor Gray
+            
+            # Testar conexao
+            try {
+                $response = Invoke-WebRequest -Uri "http://localhost:$backendPort/health" -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
+                Write-Host "   Status API: Respondendo" -ForegroundColor Green
+            } catch {
+                Write-Host "   Status API: Nao respondeu" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "[?] Backend: PORTA EM USO MAS PROCESSO NAO ENCONTRADO" -ForegroundColor Yellow
+            Write-Host "   Porta $backendPort esta em uso (PID: $backendPID) mas processo nao existe" -ForegroundColor Gray
+            Write-Host "   Pode ser que o processo foi finalizado mas a porta ainda nao foi liberada" -ForegroundColor Gray
+            Write-Host "   Aguarde alguns segundos e execute status.ps1 novamente" -ForegroundColor Gray
+        }
+    } else {
+        Write-Host "[X] Backend: PARADO" -ForegroundColor Red
+        Write-Host "   Porta $backendPort nao esta em uso (ou apenas em estado TIME_WAIT)" -ForegroundColor Gray
     }
 } else {
     Write-Host "[X] Backend: PARADO" -ForegroundColor Red

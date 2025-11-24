@@ -143,7 +143,12 @@ async def create_maintenance_order(
             detail="Equipamento não encontrado"
         )
     
-    order = MaintenanceOrder(**order_data.model_dump(exclude_none=False), created_by_id=current_user.id)
+    order_data_dict = order_data.model_dump(exclude_none=False)
+    # Normalizar status para maiúsculas
+    if 'status' in order_data_dict and order_data_dict['status']:
+        order_data_dict['status'] = order_data_dict['status'].upper()
+    
+    order = MaintenanceOrder(**order_data_dict, created_by_id=current_user.id)
     db.add(order)
     db.commit()
     db.refresh(order)
@@ -207,6 +212,9 @@ async def update_maintenance_order(
         )
     
     for field, value in order_data.model_dump(exclude_unset=True).items():
+        # Normalizar status para maiúsculas se estiver sendo atualizado
+        if field == 'status' and value:
+            value = value.upper()
         setattr(order, field, value)
     
     db.commit()

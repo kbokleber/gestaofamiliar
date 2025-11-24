@@ -2,7 +2,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity
+  Heart, Menu, X, Activity, Shield
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -38,6 +38,18 @@ export default function Layout() {
     },
   ]
 
+  // Adicionar menu de admin se for superuser ou staff
+  const isAdmin = user?.is_superuser || user?.is_staff
+  const adminNavigation = isAdmin ? [{
+    name: 'Administração',
+    icon: Shield,
+    children: [
+      { name: 'Usuários', href: '/admin/users', icon: Users },
+    ]
+  }] : []
+
+  const allNavigation = [...navigation, ...adminNavigation]
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile menu button */}
@@ -65,7 +77,7 @@ export default function Layout() {
         </div>
 
         <nav className="px-3 mt-6 space-y-1">
-          {navigation.map((item) => (
+          {allNavigation.map((item) => (
             <div key={item.name}>
               {item.children ? (
                 <div className="space-y-1">

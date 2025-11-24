@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db.base import get_db
 from app.models.user import User, Profile
-from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate
-from app.api.deps import get_current_user
+from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate
+from app.api.deps import get_current_user, get_current_admin
+from app.core.security import get_password_hash
 
 router = APIRouter()
 
@@ -48,6 +49,67 @@ async def update_my_profile(
     
     return current_user
 
+@router.get("/", response_model=List[UserSchema])
+async def list_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Listar todos os usuários"""
+    users = db.query(User).offset(skip).limit(limit).all()
+    return users
+
+# Rotas específicas devem vir ANTES das rotas genéricas
+@router.put("/{user_id}/password", response_model=UserSchema)
+async def update_user_password(
+    user_id: int,
+    password_data: PasswordUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Atualizar senha de um usuário (apenas administradores)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado"
+        )
+    
+    # Atualizar senha
+    user.password = get_password_hash(password_data.new_password)
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
+@router.put("/{user_id}/activate", response_model=UserSchema)
+async def toggle_user_active(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Ativar/desativar usuário (apenas administradores)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado"
+        )
+    
+    # Não permitir desativar a si mesmo
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode desativar sua própria conta"
+        )
+    
+    user.is_active = not user.is_active
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
 @router.get("/{user_id}", response_model=UserSchema)
 async def read_user(
     user_id: int,
@@ -62,14 +124,3 @@ async def read_user(
             detail="Usuário não encontrado"
         )
     return user
-
-@router.get("/", response_model=List[UserSchema])
-async def list_users(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Listar todos os usuários"""
-    users = db.query(User).offset(skip).limit(limit).all()
-    return users

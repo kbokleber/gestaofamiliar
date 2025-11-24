@@ -40,6 +40,9 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     password: Optional[str] = None
 
+class PasswordUpdate(BaseModel):
+    new_password: str
+
 class User(UserBase):
     id: int
     is_active: bool
