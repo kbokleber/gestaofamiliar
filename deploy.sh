@@ -73,7 +73,13 @@ if ! docker network ls | grep -q "nginx_public"; then
 fi
 
 # Carregar variáveis de ambiente
-export $(cat .env | grep -v '^#' | xargs)
+# Criar um arquivo temporário limpo sem comentários
+TMP_ENV=$(mktemp)
+grep -v '^[[:space:]]*#' .env | grep -v '^[[:space:]]*$' | sed 's/#.*$//' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//' | grep -v '^$' > "$TMP_ENV"
+set -a
+source "$TMP_ENV"
+set +a
+rm -f "$TMP_ENV"
 
 # Deploy do stack
 echo -e "${GREEN}🚀 Fazendo deploy do stack...${NC}"
