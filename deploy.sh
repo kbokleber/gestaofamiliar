@@ -43,15 +43,34 @@ if [ ! -f ".env" ]; then
 fi
 
 # Verificar se DATABASE_URL está configurada
-if ! grep -q "DATABASE_URL=" .env || grep -q "DATABASE_URL=postgresql://usuario:senha" .env; then
+if ! grep -q "DATABASE_URL=" .env || grep -q "DATABASE_URL=postgresql://usuario:senha" .env || grep -q "DATABASE_URL=postgresql://usuario:senha@host:5432/nome_do_banco" .env; then
     echo -e "${RED}❌ Erro: DATABASE_URL não está configurada corretamente no .env!${NC}"
     echo "Configure a URL de conexão com seu banco de dados PostgreSQL existente."
+    echo "Formato: postgresql://usuario:senha@host:porta/database"
     exit 1
 fi
 
-# Verificar se a rede externa do banco existe (se necessário)
-echo -e "${GREEN}ℹ️  Certifique-se de que a rede do banco de dados está acessível.${NC}"
-echo -e "${YELLOW}   Se o banco estiver em outra rede Docker, crie uma rede externa ou ajuste o docker-stack.yml${NC}"
+# Verificar se SECRET_KEY está configurada
+if ! grep -q "SECRET_KEY=" .env || grep -q "SECRET_KEY=sua-chave-secreta" .env; then
+    echo -e "${RED}❌ Erro: SECRET_KEY não está configurada no .env!${NC}"
+    echo "Gere uma chave secreta com: openssl rand -hex 32"
+    exit 1
+fi
+
+# Verificar se as redes externas existem
+echo -e "${GREEN}🔍 Verificando redes Docker...${NC}"
+
+if ! docker network ls | grep -q "db_network"; then
+    echo -e "${YELLOW}⚠️  Rede 'db_network' não encontrada!${NC}"
+    echo -e "${YELLOW}   Certifique-se de que o banco de dados está rodando e a rede existe.${NC}"
+    echo -e "${YELLOW}   Você pode verificar com: docker network ls${NC}"
+fi
+
+if ! docker network ls | grep -q "nginx_public"; then
+    echo -e "${YELLOW}⚠️  Rede 'nginx_public' não encontrada!${NC}"
+    echo -e "${YELLOW}   Certifique-se de que o Nginx Proxy Manager está rodando e a rede existe.${NC}"
+    echo -e "${YELLOW}   Você pode verificar com: docker network ls${NC}"
+fi
 
 # Carregar variáveis de ambiente
 export $(cat .env | grep -v '^#' | xargs)
