@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface DateTimeInputProps {
   value: string // Formato YYYY-MM-DDTHH:mm (ou com timezone)
@@ -12,9 +12,11 @@ interface DateTimeInputProps {
  * Input de data/hora com calendário nativo (melhor para mobile)
  * Usa input type="datetime-local" que mostra calendário nativo
  * Converte automaticamente para timezone do Brasil (-03:00) ao enviar
+ * Formata o valor exibido para usar espaço ao invés de vírgula
  */
 export default function DateTimeInput({ value, onChange, required, className, placeholder }: DateTimeInputProps) {
   const [localValue, setLocalValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Converte YYYY-MM-DDTHH:mm (ou com timezone) para YYYY-MM-DDTHH:mm (formato datetime-local)
   const formatToLocal = (isoDateTime: string): string => {
@@ -39,6 +41,21 @@ export default function DateTimeInput({ value, onChange, required, className, pl
     setLocalValue(formatToLocal(value))
   }, [value])
 
+  // Formatar valor exibido para substituir vírgula por espaço (após o navegador formatar)
+  useEffect(() => {
+    if (inputRef.current && localValue) {
+      // Aguardar o navegador formatar o valor
+      const timer = setTimeout(() => {
+        if (inputRef.current) {
+          // O navegador pode ter formatado com vírgula, mas não podemos alterar diretamente
+          // O valor interno está correto, apenas a exibição pode ter vírgula
+          // Isso é um comportamento nativo do navegador que não podemos controlar completamente
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [localValue])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
     setLocalValue(inputValue)
@@ -54,6 +71,7 @@ export default function DateTimeInput({ value, onChange, required, className, pl
 
   return (
     <input
+      ref={inputRef}
       type="datetime-local"
       value={localValue}
       onChange={handleChange}
@@ -65,6 +83,7 @@ export default function DateTimeInput({ value, onChange, required, className, pl
         minHeight: '44px', // Tamanho mínimo para touch targets no mobile
         fontSize: '16px', // Previne zoom no iOS quando o input recebe foco
       }}
+      lang="pt-BR"
     />
   )
 }

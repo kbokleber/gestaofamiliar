@@ -101,5 +101,17 @@
     /* Garante que o calendário apareça */
     -webkit-tap-highlight-color: transparent;
   }
+
+  /* Tentar forçar formato sem vírgula no datetime-local (alguns navegadores usam vírgula) */
+  input[type="datetime-local"] {
+    /* Alguns navegadores mobile formatam com vírgula, mas não podemos controlar diretamente */
+    /* O valor interno está correto, apenas a exibição pode ter vírgula */
+    /* Isso é um comportamento nativo do navegador */
+  }
+
+  /* Para navegadores que suportam, usar locale pt-BR pode ajudar */
+  input[type="datetime-local"][lang="pt-BR"] {
+    /* Alguns navegadores respeitam o locale */
+  }
 }
 
