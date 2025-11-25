@@ -35,8 +35,13 @@ export default function DateInput({ value, onChange, required, className, placeh
       value={localValue}
       onChange={handleChange}
       required={required}
-      className={className}
+      className={`${className || ''} date-input-mobile`}
       placeholder={placeholder}
+      autoComplete="off"
+      style={{
+        minHeight: '44px', // Tamanho mínimo para touch targets no mobile
+        fontSize: '16px', // Previne zoom no iOS quando o input recebe foco
+      }}
     />
   )
 }

@@ -58,3 +58,48 @@
   }
 }
 
+/* Estilos para inputs de data no mobile - garante que o calendário nativo apareça */
+@layer utilities {
+  /* Inputs de data e datetime-local */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"] {
+    /* Garante tamanho mínimo para touch targets no mobile */
+    min-height: 44px;
+    /* Previne zoom automático no iOS quando o input recebe foco */
+    font-size: 16px !important;
+    /* Garante que o input seja clicável e mostre o calendário */
+    -webkit-appearance: none;
+    appearance: none;
+    /* Remove qualquer estilo que possa interferir */
+    cursor: pointer;
+  }
+
+  /* No mobile, garantir que o calendário apareça ao tocar */
+  @media (max-width: 768px) {
+    input[type="date"]:focus,
+    input[type="datetime-local"]:focus,
+    input[type="time"]:focus {
+      /* Garante que o calendário nativo apareça */
+      outline: none;
+      /* Remove qualquer transformação que possa interferir */
+      transform: none;
+    }
+
+    /* Garante que o input não seja bloqueado por overflow */
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"] {
+      position: relative;
+      z-index: 1;
+    }
+  }
+
+  /* Classes específicas para melhor compatibilidade */
+  .date-input-mobile,
+  .datetime-input-mobile {
+    /* Garante que o calendário apareça */
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
