@@ -31,13 +31,23 @@ export const formatDateBR = (dateString: string | null | undefined): string => {
 
 /**
  * Formata uma data ISO para o formato brasileiro DD/MM/YYYY HH:MM
+ * Extrai diretamente da string para evitar problemas de timezone
  */
 export const formatDateTimeBR = (dateString: string | null | undefined): string => {
   if (!dateString) return '-'
   
-  const date = new Date(dateString)
+  // Remover timezone se presente (ex: -03:00 ou +00:00 ou Z)
+  const cleaned = dateString.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '')
   
-  // Verificar se a data é válida
+  // Tentar extrair diretamente da string (formato: YYYY-MM-DDTHH:mm:ss ou YYYY-MM-DDTHH:mm)
+  const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/)
+  if (match) {
+    const [, year, month, day, hours, minutes] = match
+    return `${day}/${month}/${year} ${hours}:${minutes}`
+  }
+  
+  // Fallback: usar Date (pode ter problemas de timezone, mas é melhor que nada)
+  const date = new Date(dateString)
   if (isNaN(date.getTime())) return '-'
   
   const day = date.getDate().toString().padStart(2, '0')
@@ -77,13 +87,23 @@ export const toDateInputValue = (dateString: string | null | undefined): string 
 
 /**
  * Converte uma data ISO para o formato usado em inputs datetime-local (YYYY-MM-DDTHH:mm)
+ * Extrai diretamente da string para evitar problemas de timezone
  */
 export const toDateTimeInputValue = (dateString: string | null | undefined): string => {
   if (!dateString) return ''
   
-  const date = new Date(dateString)
+  // Remover timezone se presente (ex: -03:00 ou +00:00 ou Z)
+  const cleaned = dateString.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '')
   
-  // Verificar se a data é válida
+  // Tentar extrair diretamente da string (formato: YYYY-MM-DDTHH:mm:ss ou YYYY-MM-DDTHH:mm)
+  const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/)
+  if (match) {
+    const [, year, month, day, hours, minutes] = match
+    return `${year}-${month}-${day}T${hours}:${minutes}`
+  }
+  
+  // Fallback: usar Date (pode ter problemas de timezone, mas é melhor que nada)
+  const date = new Date(dateString)
   if (isNaN(date.getTime())) return ''
   
   const year = date.getFullYear()

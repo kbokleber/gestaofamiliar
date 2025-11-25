@@ -1,115 +1,65 @@
 import { useState, useEffect } from 'react'
 
 interface DateTimeInputProps {
-  value: string // Formato YYYY-MM-DDTHH:mm
-  onChange: (value: string) => void // Retorna YYYY-MM-DDTHH:mm
+  value: string // Formato YYYY-MM-DDTHH:mm (ou com timezone)
+  onChange: (value: string) => void // Retorna YYYY-MM-DDTHH:mm:ss-03:00
   required?: boolean
   className?: string
   placeholder?: string
 }
 
 /**
- * Input de data/hora customizado que exibe no formato DD/MM/YYYY HH:MM
- * Mas trabalha internamente com YYYY-MM-DDTHH:mm para compatibilidade com o backend
+ * Input de data/hora com calendário nativo (melhor para mobile)
+ * Usa input type="datetime-local" que mostra calendário nativo
+ * Converte automaticamente para timezone do Brasil (-03:00) ao enviar
  */
 export default function DateTimeInput({ value, onChange, required, className, placeholder }: DateTimeInputProps) {
-  const [displayValue, setDisplayValue] = useState('')
+  const [localValue, setLocalValue] = useState('')
 
-  // Converte YYYY-MM-DDTHH:mm para DD/MM/YYYY HH:MM
-  const formatToDisplay = (isoDateTime: string): string => {
+  // Converte YYYY-MM-DDTHH:mm (ou com timezone) para YYYY-MM-DDTHH:mm (formato datetime-local)
+  const formatToLocal = (isoDateTime: string): string => {
     if (!isoDateTime) return ''
-    const [datePart, timePart] = isoDateTime.split('T')
-    if (datePart) {
-      const parts = datePart.split('-')
-      if (parts.length === 3) {
-        const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`
-        return timePart ? `${formattedDate} ${timePart}` : formattedDate
-      }
-    }
-    return ''
+    // Remover timezone se presente (ex: -03:00 ou +00:00 ou Z)
+    const cleaned = isoDateTime.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '')
+    // Extrair apenas YYYY-MM-DDTHH:mm (remover segundos se houver)
+    const match = cleaned.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/)
+    return match ? match[1] : ''
   }
 
-  // Converte DD/MM/YYYY HH:MM para YYYY-MM-DDTHH:mm
-  const formatToISO = (brDateTime: string): string => {
-    const cleaned = brDateTime.replace(/[^\d]/g, '')
-    if (cleaned.length >= 12) {
-      const day = cleaned.substring(0, 2)
-      const month = cleaned.substring(2, 4)
-      const year = cleaned.substring(4, 8)
-      const hour = cleaned.substring(8, 10)
-      const minute = cleaned.substring(10, 12)
-      return `${year}-${month}-${day}T${hour}:${minute}`
-    }
-    return ''
+  // Converte YYYY-MM-DDTHH:mm (do datetime-local) para YYYY-MM-DDTHH:mm:ss-03:00 (timezone do Brasil)
+  const formatToISO = (localDateTime: string): string => {
+    if (!localDateTime) return ''
+    // Adicionar segundos e timezone do Brasil (UTC-3)
+    // O backend espera DateTime(timezone=True), então precisamos enviar com timezone
+    return `${localDateTime}:00-03:00`
   }
 
-  // Aplica máscara DD/MM/YYYY HH:MM
-  const applyMask = (input: string): string => {
-    const cleaned = input.replace(/[^\d]/g, '')
-    let masked = cleaned
-    
-    if (cleaned.length > 2) {
-      masked = cleaned.substring(0, 2) + '/' + cleaned.substring(2)
-    }
-    if (cleaned.length > 4) {
-      masked = cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4) + '/' + cleaned.substring(4)
-    }
-    if (cleaned.length > 8) {
-      masked = cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4) + '/' + 
-               cleaned.substring(4, 8) + ' ' + cleaned.substring(8)
-    }
-    if (cleaned.length > 10) {
-      masked = cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4) + '/' + 
-               cleaned.substring(4, 8) + ' ' + cleaned.substring(8, 10) + ':' + 
-               cleaned.substring(10, 12)
-    }
-    
-    return masked
-  }
-
-  // Sincronizar valor externo com display
+  // Sincronizar valor externo com input local
   useEffect(() => {
-    setDisplayValue(formatToDisplay(value))
+    setLocalValue(formatToLocal(value))
   }, [value])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target.value
-    const masked = applyMask(input)
-    setDisplayValue(masked)
-
-    // Se a data/hora está completa (16 caracteres: DD/MM/YYYY HH:MM), converter e notificar
-    if (masked.length === 16) {
-      const isoDateTime = formatToISO(masked)
-      if (isoDateTime) {
-        onChange(isoDateTime)
-      }
-    } else if (input === '') {
-      onChange('')
+    const inputValue = e.target.value
+    setLocalValue(inputValue)
+    
+    // Converter para formato com timezone e notificar
+    if (inputValue) {
+      const isoDateTime = formatToISO(inputValue)
+      onChange(isoDateTime)
     } else {
-      // Campo incompleto - notificar com string vazia
-      onChange('')
-    }
-  }
-
-  const handleBlur = () => {
-    // Ao sair do campo, validar se está completo
-    if (displayValue && displayValue.length < 16) {
-      alert('Por favor, preencha a data e hora completamente no formato DD/MM/AAAA HH:MM')
-      setDisplayValue('')
       onChange('')
     }
   }
 
   return (
     <input
-      type="text"
-      value={displayValue}
+      type="datetime-local"
+      value={localValue}
       onChange={handleChange}
-      onBlur={handleBlur}
       required={required}
       className={className}
-      placeholder={placeholder || 'DD/MM/AAAA HH:MM'}
-      maxLength={16}
+      placeholder={placeholder}
     />
   )
 }

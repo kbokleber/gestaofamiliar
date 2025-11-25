@@ -2,16 +2,25 @@
 
 Sistema completo de gestão familiar com foco em **saúde** e **manutenção de equipamentos**. Desenvolvido com tecnologias modernas e arquitetura escalável.
 
-## 📋 Índice
+## 📚 Documentação Completa
+
+**👉 Consulte [DOCUMENTACAO.md](./DOCUMENTACAO.md) para a documentação completa e detalhada.**
+
+A documentação inclui:
+- ✅ Instalação e setup local
+- ✅ Deploy em VPS
+- ✅ Configuração do Nginx Proxy Manager
+- ✅ Configuração de banco de dados
+- ✅ Comandos úteis
+- ✅ Troubleshooting completo
+- ✅ Estrutura do projeto
+
+## 📋 Índice Rápido
 
 - [Tecnologias](#-tecnologias)
 - [Funcionalidades](#-funcionalidades)
-- [Requisitos](#-requisitos)
-- [Instalação](#-instalação)
-- [Configuração](#-configuração)
-- [Execução](#-execução)
+- [Quick Start](#-quick-start)
 - [Estrutura do Projeto](#-estrutura-do-projeto)
-- [API Documentation](#-api-documentation)
 
 ## 🚀 Tecnologias
 
@@ -64,189 +73,47 @@ Sistema completo de gestão familiar com foco em **saúde** e **manutenção de 
 - **PostgreSQL** 14+
 - **npm** ou **yarn**
 
-## 🛠 Instalação
+## ⚡ Quick Start
 
-### 1. Clone o repositório
+### Setup Automático (Windows)
 
-\`\`\`bash
-git clone <repository-url>
-cd SistemaFamiliar2.0
-\`\`\`
+```powershell
+# Execute o script de setup
+.\setup.ps1
 
-### 2. Configure o PostgreSQL
+# Inicie os servidores
+.\start.ps1
+```
 
-Certifique-se de que o PostgreSQL está rodando e crie o banco de dados:
+### Setup Manual
 
-\`\`\`sql
-CREATE DATABASE sistema_familiar_db;
-CREATE USER sistema_familiar_user WITH PASSWORD 'SuaSenhaSeguraParaDB2024#';
-GRANT ALL PRIVILEGES ON DATABASE sistema_familiar_db TO sistema_familiar_user;
-\`\`\`
+1. **Backend:**
+   ```bash
+   cd backend
+   python -m venv venv
+   .\venv\Scripts\activate  # Windows
+   pip install -r requirements.txt
+   copy .env.example .env
+   # Edite o .env com suas configurações
+   ```
 
-**Ou use o Docker Compose do projeto antigo:**
+2. **Frontend:**
+   ```bash
+   cd frontend
+   npm install
+   ```
 
-\`\`\`bash
-cd "C:\\Projetos\\Sistema Familiar"
-docker-compose up -d db
-\`\`\`
+3. **Iniciar:**
+   ```powershell
+   .\start.ps1
+   ```
 
-### 3. Backend Setup
+4. **Acessar:**
+   - Frontend: http://localhost:5173
+   - Backend: http://localhost:8001
+   - API Docs: http://localhost:8001/api/v1/docs
 
-\`\`\`bash
-cd backend
-
-# Criar ambiente virtual (Windows)
-python -m venv venv
-.\\venv\\Scripts\\activate
-
-# Instalar dependências
-pip install -r requirements.txt
-
-# Criar arquivo .env
-copy .env.example .env
-# Edite o .env com suas configurações
-\`\`\`
-
-**Importante:** Edite o arquivo `.env` com suas credenciais do PostgreSQL e gere uma SECRET_KEY segura:
-
-\`\`\`env
-DATABASE_URL=postgresql://sistema_familiar_user:SuaSenhaSeguraParaDB2024#@localhost:5432/sistema_familiar_db
-SECRET_KEY=gere-uma-chave-secreta-aqui
-\`\`\`
-
-### 4. Frontend Setup
-
-\`\`\`bash
-cd frontend
-
-# Instalar dependências
-npm install
-
-# Adicionar dependência faltante
-npm install tailwindcss-animate
-
-# Criar arquivo .env
-copy .env.example .env.local
-\`\`\`
-
-## ⚙️ Configuração
-
-### Migração do Banco de Dados
-
-Como você já tem um banco de dados existente do Django, a estrutura das tabelas já está criada. O SQLAlchemy irá se conectar às tabelas existentes.
-
-**Se precisar criar as tabelas do zero:**
-
-\`\`\`bash
-cd backend
-# Criar arquivo de migração (opcional)
-alembic init alembic
-alembic revision --autogenerate -m "Initial migration"
-alembic upgrade head
-\`\`\`
-
-**Ou via Python:**
-
-\`\`\`python
-from app.db.base import engine
-from app.models import *
-
-# Criar todas as tabelas
-Base.metadata.create_all(bind=engine)
-\`\`\`
-
-### Criar Super Usuário (Opcional)
-
-\`\`\`python
-# backend/create_admin.py
-from app.db.base import SessionLocal
-from app.models.user import User, Profile
-from app.core.security import get_password_hash
-
-db = SessionLocal()
-
-admin = User(
-    username="admin",
-    email="admin@sistemafamiliar.com",
-    password=get_password_hash("admin123"),
-    first_name="Admin",
-    last_name="Sistema",
-    is_active=True,
-    is_staff=True,
-    is_superuser=True
-)
-
-db.add(admin)
-db.commit()
-db.refresh(admin)
-
-# Criar perfil
-profile = Profile(user_id=admin.id)
-db.add(profile)
-db.commit()
-
-print(f"Admin criado: {admin.username}")
-\`\`\`
-
-Execute:
-
-\`\`\`bash
-cd backend
-python create_admin.py
-\`\`\`
-
-## 🚀 Execução
-
-### Desenvolvimento Local
-
-**Terminal 1 - Backend:**
-
-\`\`\`bash
-cd backend
-.\\venv\\Scripts\\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-\`\`\`
-
-O backend estará disponível em:
-- **API:** http://localhost:8001
-- **Documentação interativa (Swagger):** http://localhost:8001/api/v1/docs
-- **ReDoc:** http://localhost:8001/api/v1/redoc
-
-**Terminal 2 - Frontend:**
-
-\`\`\`bash
-cd frontend
-npm run dev
-\`\`\`
-
-O frontend estará disponível em: **http://localhost:5173**
-
-### Build para Produção
-
-**Backend:**
-
-\`\`\`bash
-cd backend
-pip install gunicorn
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
-\`\`\`
-
-**Frontend:**
-
-\`\`\`bash
-cd frontend
-npm run build
-# Os arquivos estarão em: frontend/dist
-\`\`\`
-
-Para servir o build:
-
-\`\`\`bash
-npm install -g serve
-serve -s dist -p 5173
-\`\`\`
+**📖 Para instruções detalhadas, consulte [DOCUMENTACAO.md](./DOCUMENTACAO.md)**
 
 ## 📁 Estrutura do Projeto
 
@@ -389,31 +256,23 @@ Desenvolvido com ❤️ para gestão familiar
 
 ## 🚨 Troubleshooting
 
-### Erro ao conectar no PostgreSQL
+Para troubleshooting completo, consulte a seção **Troubleshooting** em [DOCUMENTACAO.md](./DOCUMENTACAO.md).
 
-Verifique se:
-1. O PostgreSQL está rodando
-2. As credenciais no `.env` estão corretas
-3. O banco de dados foi criado
-4. O firewall não está bloqueando a porta 5432
-
-### Erro de CORS no frontend
-
-Verifique se o backend está rodando e se o CORS está configurado corretamente em `backend/app/main.py`.
-
-### Dependências não encontradas
-
-Execute novamente:
-- Backend: \`pip install -r requirements.txt\`
-- Frontend: \`npm install\`
-
-### Port já em uso
-
-Mude a porta no comando de execução:
-- Backend: \`uvicorn app.main:app --reload --port 8001\`
-- Frontend: \`vite --port 5174\`
+**Problemas comuns:**
+- Erro 502 Bad Gateway → Ver seção de Troubleshooting na documentação
+- Erro ao conectar no PostgreSQL → Verificar configuração do banco
+- Erro de CORS → Verificar se backend está rodando
+- Port já em uso → Parar processos ou mudar porta
 
 ---
+
+**📚 Consulte [DOCUMENTACAO.md](./DOCUMENTACAO.md) para informações completas sobre:**
+- ✅ Instalação detalhada
+- ✅ Deploy em VPS
+- ✅ Configuração do Nginx Proxy Manager
+- ✅ Troubleshooting completo
+- ✅ Comandos úteis
+- ✅ Estrutura do projeto
 
 **🎉 Pronto! Seu Sistema Familiar está configurado e funcionando!**
 

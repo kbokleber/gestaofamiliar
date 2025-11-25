@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, Plus, Edit2, Trash2, X, Save, Filter, FileSpreadsheet, ArrowLeft } from 'lucide-react'
+import { Clock, Plus, Edit2, Trash2, X, Save, Filter, FileSpreadsheet, ArrowLeft, Paperclip } from 'lucide-react'
 import api from '../../lib/api'
 import Modal from '../../components/Modal'
 import DateInput from '../../components/DateInput'
@@ -26,6 +26,7 @@ interface MaintenanceOrder {
   warranty_terms: string
   invoice_number: string
   notes: string
+  documents?: string | null  // JSON string com array de documentos (igual às outras telas)
   created_at: string
   updated_at: string
 }
@@ -183,6 +184,10 @@ export default function MaintenanceOrders() {
     }
     
     try {
+      // IMPORTANTE: Sempre enviar o campo documents, mesmo que seja null ou string vazia
+      // Isso garante que o backend saiba que o campo foi enviado e pode processá-lo
+      const documentsJson = documents.length > 0 ? JSON.stringify(documents) : null
+      
       const dataToSend = {
         ...formData,
         title: formData.title || formData.description.substring(0, 100) || 'Manutenção', // Usar descrição como título se não fornecido
@@ -190,13 +195,25 @@ export default function MaintenanceOrders() {
         completion_date: formData.completion_date || null,
         warranty_expiration: formData.warranty_expiration || null,
         cost: formData.cost ? parseFloat(formData.cost.replace(',', '.')) : null,
-        documents: documents.length > 0 ? JSON.stringify(documents) : null
+        documents: documentsJson  // Sempre incluir, mesmo que seja null
       }
       
+      // Debug: verificar o que está sendo enviado
+      console.log('Enviando dados:', {
+        ...dataToSend,
+        documents: documents.length > 0 ? `${documents.length} documentos (${documentsJson?.length} chars)` : 'null (sem documentos)'
+      })
+      console.log('Documentos array:', documents)
+      console.log('Documentos JSON:', documentsJson ? documentsJson.substring(0, 100) + '...' : 'null')
+      
       if (editingOrder) {
-        await api.put(`/maintenance/orders/${editingOrder.id}`, dataToSend)
+        console.log(`Atualizando ordem ${editingOrder.id} com ${documents.length} documentos`)
+        const response = await api.put(`/maintenance/orders/${editingOrder.id}`, dataToSend)
+        console.log('Resposta da atualização:', response.data)
       } else {
-        await api.post('/maintenance/orders', dataToSend)
+        console.log(`Criando nova ordem com ${documents.length} documentos`)
+        const response = await api.post('/maintenance/orders', dataToSend)
+        console.log('Resposta da criação:', response.data)
       }
       fetchOrders()
       if (isEditingInline) {
@@ -231,7 +248,7 @@ export default function MaintenanceOrders() {
     }
   }
 
-  const startEdit = (order: MaintenanceOrder) => {
+  const startEdit = async (order: MaintenanceOrder) => {
     setEditingOrder(order)
     setFormData({
       equipment_id: order.equipment_id,
@@ -247,7 +264,20 @@ export default function MaintenanceOrders() {
       invoice_number: order.invoice_number || '',
       notes: order.notes || ''
     })
-    setDocuments([])
+    
+    // Carregar documentos existentes se houver (igual às outras telas)
+    if (order.documents) {
+      try {
+        const parsedDocs = JSON.parse(order.documents)
+        setDocuments(Array.isArray(parsedDocs) ? parsedDocs : [])
+      } catch (e) {
+        console.error('Erro ao parsear documentos:', e)
+        setDocuments([])
+      }
+    } else {
+      setDocuments([])
+    }
+    
     setIsEditingInline(true)
   }
 
@@ -466,7 +496,12 @@ export default function MaintenanceOrders() {
                 {/* Cabeçalho do Card */}
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">{getEquipmentName(order.equipment_id)}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-gray-900">{getEquipmentName(order.equipment_id)}</h3>
+                      {order.documents && (
+                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                      )}
+                    </div>
                     {order.service_provider && (
                       <div className="text-sm text-gray-500 mt-1">
                         {order.service_provider}
@@ -561,7 +596,12 @@ export default function MaintenanceOrders() {
               {filteredOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{getEquipmentName(order.equipment_id)}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium text-gray-900">{getEquipmentName(order.equipment_id)}</div>
+                      {order.documents && (
+                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{order.service_provider || '-'}</div>

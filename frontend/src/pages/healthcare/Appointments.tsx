@@ -512,8 +512,13 @@ export default function Appointments() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <User className="h-5 w-5 text-gray-400 mr-2" />
-                      <div className="text-sm font-medium text-gray-900">
-                        {getMemberName(appointment.family_member_id)}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium text-gray-900">
+                          {getMemberName(appointment.family_member_id)}
+                        </div>
+                        {appointment.documents && (
+                          <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                        )}
                       </div>
                     </div>
                   </td>

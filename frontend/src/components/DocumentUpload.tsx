@@ -87,6 +87,10 @@ export default function DocumentUpload({
   }
 
   const removeDocument = (index: number) => {
+    const doc = documents[index]
+    if (!confirm(`Deseja realmente excluir o arquivo "${doc.name}"?`)) {
+      return
+    }
     const newDocuments = documents.filter((_, i) => i !== index)
     onChange(newDocuments)
   }

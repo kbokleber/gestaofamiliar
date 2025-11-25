@@ -7,12 +7,69 @@ Write-Host ""
 # Verificar status atual
 $backendPort = 8001
 $frontendPort = 5173
-$backendRunning = Get-NetTCPConnection -LocalPort $backendPort -ErrorAction SilentlyContinue
-$frontendRunning = Get-NetTCPConnection -LocalPort $frontendPort -ErrorAction SilentlyContinue
+
+# Função para verificar se porta está realmente em uso por processo válido
+function Test-PortInUse {
+    param([int]$Port)
+    
+    # Verificar apenas estado Listen (servidor ativo), não TimeWait
+    # TimeWait é normal após parar um processo e não impede iniciar um novo
+    $connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if (-not $connections) {
+        # Verificar se há conexões em TimeWait (isso é OK, não impede iniciar)
+        $timeWaitConnections = Get-NetTCPConnection -LocalPort $Port -State TimeWait -ErrorAction SilentlyContinue
+        if ($timeWaitConnections) {
+            Write-Host "   Porta $Port em estado TIME_WAIT (normal após parar processo)" -ForegroundColor Gray
+            Write-Host "   Isso não impede iniciar o servidor - continuando..." -ForegroundColor Gray
+        }
+        return $false
+    }
+    
+    $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $_ -gt 0 }
+    $hasValidProcess = $false
+    
+    foreach ($processId in $pids) {
+        $proc = Get-Process -Id $processId -ErrorAction SilentlyContinue
+        if ($proc) {
+            $hasValidProcess = $true
+            break
+        }
+    }
+    
+    if ($hasValidProcess) {
+        return $true  # Processo válido encontrado
+    }
+    
+    # Se chegou aqui, são processos zombie - limpar
+    Write-Host "Limpando processos zombie na porta $Port..." -ForegroundColor Yellow
+    foreach ($processId in $pids) {
+        try {
+            & cmd.exe /c "taskkill /F /PID $processId /T" 2>$null | Out-Null
+        } catch {
+            # Ignorar
+        }
+    }
+    Start-Sleep -Milliseconds 1000
+    
+    # Verificar novamente após limpar
+    $finalCheck = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    return (-not $finalCheck)  # Retorna false se não há mais nada na porta
+}
+
+# Verificar se portas estão realmente em uso
+$backendRunning = Test-PortInUse -Port $backendPort
+$frontendRunning = Test-PortInUse -Port $frontendPort
 
 if ($backendRunning) {
     Write-Host "Backend ja esta rodando na porta $backendPort" -ForegroundColor Yellow
+    Write-Host "   Se houver erro ao iniciar, execute: .\limpar-porta-8001.ps1" -ForegroundColor Gray
 } else {
+    # Verificar se há conexões em TimeWait (isso é OK)
+    $timeWait = Get-NetTCPConnection -LocalPort $backendPort -State TimeWait -ErrorAction SilentlyContinue
+    if ($timeWait) {
+        Write-Host "Porta $backendPort em estado TIME_WAIT (normal após parar processo)" -ForegroundColor Gray
+        Write-Host "   Isso não impede iniciar o servidor - continuando..." -ForegroundColor Gray
+    }
     Write-Host "Iniciando Backend..." -ForegroundColor Green
 }
 

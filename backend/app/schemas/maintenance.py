@@ -78,6 +78,7 @@ class MaintenanceOrderBase(BaseModel):
 
 class MaintenanceOrderCreate(MaintenanceOrderBase):
     equipment_id: int
+    documents: Optional[str] = None  # JSON string com array de documentos
 
 class MaintenanceOrderUpdate(BaseModel):
     title: Optional[str] = None
@@ -91,11 +92,13 @@ class MaintenanceOrderUpdate(BaseModel):
     warranty_terms: Optional[str] = None
     invoice_number: Optional[str] = None
     notes: Optional[str] = None
+    documents: Optional[str] = None  # JSON string com array de documentos
 
 class MaintenanceOrder(MaintenanceOrderBase):
     id: int
     equipment_id: int
     invoice_file: Optional[str] = None
+    documents: Optional[str] = None  # JSON string com array de documentos
     created_by_id: int
     created_at: datetime
     updated_at: datetime
@@ -126,5 +129,6 @@ class EquipmentDetail(Equipment):
     attachments: List[EquipmentAttachment] = []
 
 class MaintenanceOrderDetail(MaintenanceOrder):
+    # Manter compatibilidade com frontend que pode esperar images
     images: List[MaintenanceImage] = []
 

@@ -1,10 +1,27 @@
 import { useState, useEffect } from 'react'
-import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft } from 'lucide-react'
+import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Modal from '../../components/Modal'
 import DateInput from '../../components/DateInput'
 import { formatDateBR, calculateAge, toDateInputValue } from '../../utils/dateUtils'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface FamilyMember {
   id: number
@@ -64,7 +81,9 @@ export default function FamilyMembers() {
       }
       
       const response = await api.get('/healthcare/members')
-      setMembers(response.data)
+      // Ordenar membros por order (menor número primeiro)
+      const sortedMembers = [...response.data].sort((a, b) => (a.order || 0) - (b.order || 0))
+      setMembers(sortedMembers)
       setError(null)
     } catch (err: any) {
       console.error('Erro ao carregar membros:', err)
@@ -100,8 +119,14 @@ export default function FamilyMembers() {
         dataToSend.photo = await base64Promise
       }
 
-      console.log('Enviando dados:', dataToSend)
-      console.log('Campo order:', dataToSend.order, 'Tipo:', typeof dataToSend.order)
+      // Remover order do dataToSend - a ordem será gerenciada pelo drag and drop
+      delete dataToSend.order
+
+      // Se for novo membro, definir order como o último + 1
+      if (!editingMember) {
+        const maxOrder = members.length > 0 ? Math.max(...members.map(m => m.order || 0)) : -1
+        dataToSend.order = maxOrder + 1
+      }
 
       if (editingMember) {
         await api.put(`/healthcare/members/${editingMember.id}`, dataToSend)
@@ -259,6 +284,136 @@ export default function FamilyMembers() {
     return `data:image/jpeg;base64,${photo}`
   }
 
+  // Configurar sensores para drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  // Função para lidar com o fim do arraste
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = members.findIndex((m) => m.id === active.id)
+      const newIndex = members.findIndex((m) => m.id === over.id)
+
+      // Reordenar localmente
+      const newMembers = arrayMove(members, oldIndex, newIndex)
+      setMembers(newMembers)
+
+      // Atualizar ordem no backend
+      try {
+        const orderData = newMembers.map((member, index) => ({
+          id: member.id,
+          order: index
+        }))
+        await api.put('/healthcare/members/reorder', orderData)
+      } catch (err: any) {
+        console.error('Erro ao atualizar ordem:', err)
+        alert('Erro ao salvar a nova ordem. Recarregando...')
+        fetchMembers() // Recarregar em caso de erro
+      }
+    }
+  }
+
+  // Componente SortableItem para cada card
+  interface SortableItemProps {
+    member: FamilyMember
+  }
+
+  const SortableItem = ({ member }: SortableItemProps) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: member.id })
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    }
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all overflow-hidden"
+      >
+        <div className="p-6">
+          {/* Handle de arraste */}
+          <div
+            {...attributes}
+            {...listeners}
+            className="flex justify-center mb-2 cursor-grab active:cursor-grabbing"
+            title="Arraste para reordenar"
+          >
+            <GripVertical className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+          </div>
+
+          {/* Avatar */}
+          <div className="flex justify-center mb-4">
+            <div className={`w-32 h-32 rounded-full ${getAvatarColor(member.name)} flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden`}>
+              {getPhotoUrl(member.photo) ? (
+                <img src={getPhotoUrl(member.photo)!} alt={member.name} className="w-full h-full object-cover" />
+              ) : (
+                getInitials(member.name)
+              )}
+            </div>
+          </div>
+
+          {/* Nome */}
+          <h3 className="text-xl font-semibold text-gray-900 text-center mb-4">
+            {member.name}
+          </h3>
+
+          {/* Informações */}
+          <div className="space-y-3 mb-4">
+            <div className="flex items-center text-gray-600">
+              <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span className="text-sm">{formatDateBR(member.birth_date)}</span>
+            </div>
+            <div className="flex items-center text-gray-600">
+              <User className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span className="text-sm">{calculateAge(member.birth_date)} anos</span>
+            </div>
+            {getRelationshipLabel(member.relationship_type) && (
+              <div className="flex items-center justify-center">
+                <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
+                  {getRelationshipLabel(member.relationship_type)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Ações */}
+          <div className="flex gap-2 pt-4 border-t border-gray-100">
+            <button
+              onClick={() => startEdit(member)}
+              className="flex-1 flex items-center justify-center px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+            >
+              <Edit2 className="h-4 w-4 mr-1" />
+              Editar
+            </button>
+            <button
+              onClick={() => handleDelete(member.id)}
+              className="flex-1 flex items-center justify-center px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Excluir
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><p className="text-gray-600">Carregando...</p></div>
@@ -297,69 +452,22 @@ export default function FamilyMembers() {
           <p className="text-gray-500 text-sm">Clique em "Novo Membro" para começar.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {members.map((member) => (
-            <div 
-              key={member.id}
-              className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all overflow-hidden"
-            >
-              <div className="p-6">
-                {/* Avatar */}
-                <div className="flex justify-center mb-4">
-                  <div className={`w-32 h-32 rounded-full ${getAvatarColor(member.name)} flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden`}>
-                    {getPhotoUrl(member.photo) ? (
-                      <img src={getPhotoUrl(member.photo)!} alt={member.name} className="w-full h-full object-cover" />
-                    ) : (
-                      getInitials(member.name)
-                    )}
-                  </div>
-                </div>
-
-                {/* Nome */}
-                <h3 className="text-xl font-semibold text-gray-900 text-center mb-4">
-                  {member.name}
-                </h3>
-
-                {/* Informações */}
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center text-gray-600">
-                    <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
-                    <span className="text-sm">{formatDateBR(member.birth_date)}</span>
-                  </div>
-                  <div className="flex items-center text-gray-600">
-                    <User className="h-4 w-4 mr-2 flex-shrink-0" />
-                    <span className="text-sm">{calculateAge(member.birth_date)} anos</span>
-                  </div>
-                  {getRelationshipLabel(member.relationship_type) && (
-                    <div className="flex items-center justify-center">
-                      <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
-                        {getRelationshipLabel(member.relationship_type)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Ações */}
-                <div className="flex gap-2 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={() => startEdit(member)}
-                    className="flex-1 flex items-center justify-center px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                  >
-                    <Edit2 className="h-4 w-4 mr-1" />
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDelete(member.id)}
-                    className="flex-1 flex items-center justify-center px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Excluir
-                  </button>
-                </div>
-              </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={members.map(m => m.id)}
+            strategy={rectSortingStrategy}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {members.map((member) => (
+                <SortableItem key={member.id} member={member} />
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       )}
         </>
       ) : (
@@ -527,23 +635,6 @@ export default function FamilyMembers() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ordem de Exibição</label>
-              <input 
-                type="number" 
-                value={formData.order} 
-                onChange={(e) => {
-                  const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10)
-                  setFormData(prev => ({...prev, order: isNaN(value) ? 0 : value}))
-                }} 
-                min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="0"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                Define a ordem em que este membro aparece nos cards (menor número aparece primeiro)
-              </p>
-            </div>
 
             <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200">
               <button 

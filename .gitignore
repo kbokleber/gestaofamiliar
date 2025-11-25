@@ -62,9 +62,26 @@ alembic/versions/*.py
 # Arquivos temporários de teste
 backend/test_*.py
 backend/create_user_admin.py
+backend/adicionar_campo_documents.py
+backend/update_image_field.py
+
+# Scripts temporários de migração
+adicionar-campo-documents.ps1
+atualizar-banco-imagens.ps1
+verificar-banco-imagens.ps1
+diagnostico-porta-8001.ps1
+limpar-porta-8001.ps1
+parar-forcado-8001.ps1
+parar-frontend-forcado.ps1
+test-stop.ps1
+verificar-status.ps1
+
+# Documentação temporária
+PARAR-FRONTEND-MANUAL.md
+RESUMO-SCRIPTS-STOP-START.md
+SOLUCAO-PORTA-8001.md
 
 # Arquivos de exemplo do frontend
 frontend/src/counter.ts
-frontend/src/main.ts
 frontend/src/typescript.svg
 

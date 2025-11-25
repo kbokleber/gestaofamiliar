@@ -70,6 +70,7 @@ class MaintenanceOrder(Base):
     invoice_number = Column(String(50), nullable=False, default='')
     invoice_file = Column(String(100), nullable=True)  # FileField do Django
     notes = Column(Text, nullable=False, default='')
+    documents = Column(Text, nullable=True)  # JSON com array de documentos em base64 (igual às outras telas)
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=False)
@@ -88,7 +89,7 @@ class MaintenanceImage(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("maintenance_maintenanceorder.id"), nullable=False)
-    image = Column(String(100), nullable=False)  # ImageField do Django
+    image = Column(Text, nullable=False)  # Armazena base64 completo (pode ser muito grande)
     description = Column(String(200), nullable=False, default='')
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     

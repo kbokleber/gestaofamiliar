@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+import json
 from app.db.base import get_db
 from app.models.user import User
-from app.models.maintenance import Equipment, MaintenanceOrder, EquipmentAttachment, MaintenanceImage
+from app.models.maintenance import Equipment, MaintenanceOrder, EquipmentAttachment
 from app.schemas.maintenance import (
     Equipment as EquipmentSchema,
     EquipmentCreate, EquipmentUpdate, EquipmentDetail,
@@ -143,15 +144,28 @@ async def create_maintenance_order(
             detail="Equipamento não encontrado"
         )
     
-    order_data_dict = order_data.model_dump(exclude_none=False)
-    # Normalizar status para maiúsculas
-    if 'status' in order_data_dict and order_data_dict['status']:
-        order_data_dict['status'] = order_data_dict['status'].upper()
+    # Usar model_dump (Pydantic v2) para garantir que campos None sejam incluídos
+    # Isso é importante para campos opcionais como documents
+    data_dict = order_data.model_dump(exclude_none=False)
     
-    order = MaintenanceOrder(**order_data_dict, created_by_id=current_user.id)
+    # Normalizar status para maiúsculas
+    if 'status' in data_dict and data_dict['status']:
+        data_dict['status'] = data_dict['status'].upper()
+    
+    # Log para debug
+    print(f"[DEBUG] CREATE ORDER - documents presente: {'documents' in data_dict}")
+    if data_dict.get('documents'):
+        print(f"[DEBUG] CREATE ORDER - documents tamanho: {len(str(data_dict.get('documents')))} caracteres")
+    
+    order = MaintenanceOrder(**data_dict, created_by_id=current_user.id)
     db.add(order)
     db.commit()
     db.refresh(order)
+    
+    print(f"[DEBUG] CREATE ORDER - Salvo com ID: {order.id}")
+    if hasattr(order, 'documents') and order.documents:
+        print(f"[DEBUG] CREATE ORDER - documents salvo: {len(order.documents)} caracteres")
+    
     return order
 
 @router.get("/orders", response_model=List[MaintenanceOrderSchema])
@@ -200,26 +214,87 @@ async def update_maintenance_order(
     current_user: User = Depends(get_current_user)
 ):
     """Atualizar ordem de manutenção"""
-    order = db.query(MaintenanceOrder).join(Equipment).filter(
-        MaintenanceOrder.id == order_id,
-        Equipment.owner_id == current_user.id
-    ).first()
-    
-    if not order:
+    print(f"[DEBUG] ===== INÍCIO UPDATE ORDER {order_id} =====")
+    try:
+        order = db.query(MaintenanceOrder).join(Equipment).filter(
+            MaintenanceOrder.id == order_id,
+            Equipment.owner_id == current_user.id
+        ).first()
+        
+        if not order:
+            print(f"[ERROR] Ordem {order_id} não encontrada")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Ordem de manutenção não encontrada"
+            )
+        
+        print(f"[DEBUG] Ordem {order_id} encontrada")
+        
+        # IMPORTANTE: Para campos opcionais como documents, precisamos garantir que sejam processados
+        # mesmo quando são None. O problema é que exclude_unset=True pode não incluir campos None
+        # se eles não foram explicitamente definidos no request.
+        
+        # Primeiro, obter todos os dados (incluindo None)
+        all_data = order_data.model_dump(exclude_unset=False)
+        
+        # Depois, obter apenas campos que foram definidos (exclude_unset=True)
+        update_dict = order_data.model_dump(exclude_unset=True)
+        
+        # CRÍTICO: Se documents está presente em all_data (mesmo que None), significa que foi enviado
+        # e deve ser atualizado. Se não está em update_dict mas está em all_data, adicionar.
+        if 'documents' in all_data:
+            update_dict['documents'] = all_data['documents']
+            print(f"[DEBUG] UPDATE ORDER {order_id} - documents presente: {all_data['documents'] is not None}")
+            if all_data['documents']:
+                print(f"[DEBUG] UPDATE ORDER {order_id} - documents tamanho: {len(str(all_data['documents']))} caracteres")
+        
+        # Atualizar campos (incluindo documents agora)
+        for field, value in update_dict.items():
+            # Normalizar status para maiúsculas se estiver sendo atualizado
+            if field == 'status' and value:
+                value = value.upper()
+            setattr(order, field, value)
+        
+        try:
+            print(f"[DEBUG] Fazendo commit da ordem {order_id}...")
+            db.commit()
+            print(f"[DEBUG] ✅ Commit realizado com sucesso")
+            db.refresh(order)
+            print(f"[DEBUG] ✅ Ordem {order_id} atualizada com sucesso")
+            print(f"[DEBUG] ===== FIM UPDATE ORDER {order_id} (SUCESSO) =====")
+            return order
+        except Exception as e:
+            db.rollback()
+            print(f"[ERROR] ❌ Erro ao fazer commit da ordem {order_id}: {e}")
+            print(f"[ERROR] Tipo do erro: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
+            
+            # Verificar se é erro de tamanho de campo
+            error_str = str(e).lower()
+            if 'value too long' in error_str or 'string too long' in error_str or 'data too long' in error_str:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Documento muito grande. O campo image no banco pode não ter sido atualizado corretamente. Execute: python backend/update_image_field.py"
+                )
+            
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Erro ao salvar ordem de manutenção: {str(e)}"
+            )
+    except HTTPException:
+        # Re-raise HTTPException para que FastAPI trate corretamente
+        raise
+    except Exception as e:
+        # Capturar qualquer outro erro não tratado
+        print(f"[ERROR] ❌❌❌ ERRO NÃO TRATADO no update_maintenance_order: {e}")
+        import traceback
+        traceback.print_exc()
+        db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Ordem de manutenção não encontrada"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro inesperado ao atualizar ordem de manutenção: {str(e)}"
         )
-    
-    for field, value in order_data.model_dump(exclude_unset=True).items():
-        # Normalizar status para maiúsculas se estiver sendo atualizado
-        if field == 'status' and value:
-            value = value.upper()
-        setattr(order, field, value)
-    
-    db.commit()
-    db.refresh(order)
-    return order
 
 @router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_maintenance_order(

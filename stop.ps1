@@ -8,6 +8,53 @@ Write-Host ""
 $backendPort = 8001
 $backendStopped = $false
 
+# Função para limpar processos zombie (porta em uso mas processo não existe)
+function Clear-ZombieProcess {
+    param([int]$Port)
+    
+    Write-Host "Verificando processos zombie na porta $Port..." -ForegroundColor Yellow
+    $connections = Get-NetTCPConnection -LocalPort $Port -State Listen,Established,TimeWait -ErrorAction SilentlyContinue
+    if ($connections) {
+        $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $_ -gt 0 }
+        foreach ($processId in $pids) {
+            $proc = Get-Process -Id $processId -ErrorAction SilentlyContinue
+            if (-not $proc) {
+                Write-Host "   Processo zombie detectado (PID: $processId), limpando..." -ForegroundColor Yellow
+                try {
+                    # Tentar taskkill mesmo que o processo não exista (pode limpar a porta)
+                    $result = & cmd.exe /c "taskkill /F /PID $processId /T" 2>&1
+                    Start-Sleep -Milliseconds 1000
+                    
+                    # Verificar estado da conexão
+                    $connectionState = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty State
+                    
+                    # Verificar se limpou (apenas Listen, não TimeWait)
+                    $check = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+                    if (-not $check) {
+                        Write-Host "   Processo zombie removido!" -ForegroundColor Green
+                        return $true
+                    } elseif ($connectionState -eq 'TimeWait') {
+                        Write-Host "   Porta em estado TIME_WAIT (será liberada automaticamente em alguns segundos)" -ForegroundColor Gray
+                        Write-Host "   Isso é normal após parar um processo - a porta será liberada em breve" -ForegroundColor Gray
+                        return $true  # Considerar como limpo se está apenas em TIME_WAIT
+                    } else {
+                        Write-Host "   Porta ainda em uso (Estado: $connectionState)" -ForegroundColor Yellow
+                    }
+                } catch {
+                    # Ignorar
+                }
+            }
+        }
+    }
+    return $false
+}
+
+# Limpar processos zombie primeiro
+$zombieCleared = Clear-ZombieProcess -Port $backendPort
+if ($zombieCleared) {
+    Start-Sleep -Milliseconds 1000
+}
+
 # Função auxiliar para parar processo de forma agressiva
 function Stop-ProcessAggressively {
     param([int]$ProcessId)
@@ -102,6 +149,9 @@ function Stop-ProcessAggressively {
         return $false
     }
 }
+
+# Aguardar um pouco após limpar zombies
+Start-Sleep -Milliseconds 500
 
 try {
     # Buscar apenas conexões em estado Listen (servidor ativo)
@@ -276,12 +326,44 @@ if ($backendStopped) {
         Write-Host "Backend ja esta parado" -ForegroundColor Gray
     } else {
         $remainingPID = $checkPort.OwningProcess | Select-Object -First 1 -Unique
+        $connectionState = $checkPort.State | Select-Object -First 1
+        
         if ($remainingPID -and $remainingPID -gt 0) {
-            Write-Host "Aviso: Processo ainda rodando na porta $backendPort (PID: $remainingPID)" -ForegroundColor Yellow
-            Write-Host "   Tente fechar manualmente as janelas do PowerShell que iniciaram o backend" -ForegroundColor Gray
-            Write-Host "   Ou execute: Get-Process -Id $remainingPID | Stop-Process -Force" -ForegroundColor Cyan
+            # Verificar se é processo zombie
+            $proc = Get-Process -Id $remainingPID -ErrorAction SilentlyContinue
+            if (-not $proc) {
+                # Verificar estado da conexão
+                if ($connectionState -eq 'TimeWait') {
+                    Write-Host "Backend parado (porta em estado TIME_WAIT - será liberada automaticamente)" -ForegroundColor Green
+                    Write-Host "   A porta será liberada em alguns segundos automaticamente" -ForegroundColor Gray
+                } else {
+                    Write-Host "Processo zombie detectado (PID: $remainingPID, Estado: $connectionState), tentando limpar..." -ForegroundColor Yellow
+                    Clear-ZombieProcess -Port $backendPort | Out-Null
+                    Start-Sleep -Milliseconds 1000
+                    $finalCheck = Get-NetTCPConnection -LocalPort $backendPort -State Listen -ErrorAction SilentlyContinue
+                    if (-not $finalCheck) {
+                        Write-Host "Backend parado (processo zombie removido)" -ForegroundColor Green
+                    } else {
+                        $finalState = (Get-NetTCPConnection -LocalPort $backendPort -ErrorAction SilentlyContinue | Select-Object -First 1).State
+                        if ($finalState -eq 'TimeWait') {
+                            Write-Host "Backend parado (porta em estado TIME_WAIT - será liberada automaticamente)" -ForegroundColor Green
+                        } else {
+                            Write-Host "Aviso: Porta ainda em uso (Estado: $finalState)" -ForegroundColor Yellow
+                            Write-Host "   Aguarde alguns segundos - a porta será liberada automaticamente" -ForegroundColor Gray
+                        }
+                    }
+                }
+            } else {
+                Write-Host "Aviso: Processo ainda rodando na porta $backendPort (PID: $remainingPID)" -ForegroundColor Yellow
+                Write-Host "   Tente fechar manualmente as janelas do PowerShell que iniciaram o backend" -ForegroundColor Gray
+                Write-Host "   Ou execute: Get-Process -Id $remainingPID | Stop-Process -Force" -ForegroundColor Cyan
+            }
         } else {
-            Write-Host "Backend ja esta parado (porta pode estar em estado TIME_WAIT)" -ForegroundColor Gray
+            if ($connectionState -eq 'TimeWait') {
+                Write-Host "Backend parado (porta em estado TIME_WAIT - será liberada automaticamente)" -ForegroundColor Green
+            } else {
+                Write-Host "Backend ja esta parado" -ForegroundColor Gray
+            }
         }
     }
 }
