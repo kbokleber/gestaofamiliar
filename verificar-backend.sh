@@ -54,7 +54,35 @@ echo ""
 
 # 7. Verificar conectividade na rede
 echo "7️⃣ Verificando rede nginx_public:"
-docker service inspect sistema-familiar_backend 2>/dev/null | grep -q nginx_public && echo "✅ Backend está na rede nginx_public" || echo "❌ Backend NÃO está na rede nginx_public"
+NETWORK_CHECK=$(docker service inspect sistema-familiar_backend 2>/dev/null | grep -A 10 "Networks" | grep nginx_public)
+if [ -n "$NETWORK_CHECK" ]; then
+    echo "✅ Backend está na rede nginx_public"
+    echo "   Detalhes: $NETWORK_CHECK"
+else
+    echo "❌ Backend NÃO está na rede nginx_public"
+    echo "   Tentando verificar de outra forma..."
+    docker service inspect sistema-familiar_backend 2>/dev/null | grep -A 20 "Networks"
+fi
+echo ""
+
+# 8. Testar conectividade do NPM para o backend
+echo "8️⃣ Testando conectividade do NPM:"
+NPM_CONTAINER=$(docker ps -q -f name=nginx-proxy-manager)
+if [ -n "$NPM_CONTAINER" ]; then
+    echo "   Container NPM: $NPM_CONTAINER"
+    echo "   Testando: wget http://sistema-familiar_backend:8001/health"
+    docker exec $NPM_CONTAINER wget -O- http://sistema-familiar_backend:8001/health --timeout=5 2>&1 | head -3
+    if [ ${PIPESTATUS[0]} -eq 0 ]; then
+        echo "   ✅ NPM consegue alcançar o backend"
+    else
+        echo "   ❌ NPM NÃO consegue alcançar o backend"
+        echo "   Verificando se o nome do serviço está correto..."
+        docker service ls | grep sistema-familiar
+    fi
+else
+    echo "   ⚠️  Container do NPM não encontrado (pode estar com outro nome)"
+    docker ps | grep nginx
+fi
 echo ""
 
 echo "📋 PRÓXIMOS PASSOS:"
