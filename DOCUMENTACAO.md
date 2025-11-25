@@ -1,4 +1,4 @@
-# 📚 Documentação Completa - Sistema Familiar 2.0
+# 📚 Documentação Completa - Gestão Familiar 2.0
 
 Sistema completo de gestão familiar com foco em **saúde** e **manutenção de equipamentos**. Desenvolvido com tecnologias modernas e arquitetura escalável.
 
@@ -1031,5 +1031,5 @@ Desenvolvido com ❤️ para gestão familiar
 
 ---
 
-**🎉 Pronto! Seu Sistema Familiar está configurado e funcionando!**
+**🎉 Pronto! Seu Gestão Familiar está configurado e funcionando!**
 

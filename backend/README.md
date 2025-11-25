@@ -1,6 +1,6 @@
-# Backend - Sistema Familiar
+# Backend - Gestão Familiar
 
-API RESTful construída com FastAPI para o Sistema Familiar.
+API RESTful construída com FastAPI para o Gestão Familiar.
 
 ## 🚀 Quick Start
 

@@ -1,4 +1,4 @@
-# 🏠 Sistema Familiar 2.0
+# 🏠 Gestão Familiar 2.0
 
 Sistema completo de gestão familiar com foco em **saúde** e **manutenção de equipamentos**. Desenvolvido com tecnologias modernas e arquitetura escalável.
 

@@ -120,7 +120,7 @@ export default function Dashboard() {
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Bem-vindo!</h2>
           <p className="text-gray-600">
-            Este é o Sistema Familiar, uma plataforma completa para gerenciar a saúde da sua família e
+            Este é o Gestão Familiar, uma plataforma completa para gerenciar a saúde da sua família e
             manutenção de equipamentos domésticos.
           </p>
           <div className="mt-4 space-y-2">

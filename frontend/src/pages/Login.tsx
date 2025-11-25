@@ -53,7 +53,7 @@ export default function Login() {
             <Heart className="h-12 w-12 text-indigo-600" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Sistema Familiar
+            Gestão Familiar
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Entre com sua conta

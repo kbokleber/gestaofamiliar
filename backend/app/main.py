@@ -35,7 +35,7 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/")
 async def root():
     return {
-        "message": "Sistema Familiar API",
+        "message": "Gestão Familiar API",
         "version": "1.0.0",
         "docs": f"{settings.API_V1_STR}/docs"
     }

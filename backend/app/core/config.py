@@ -4,7 +4,7 @@ from typing import Optional
 class Settings(BaseSettings):
     # API Configuration
     API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "Sistema Familiar"
+    PROJECT_NAME: str = "Gestão Familiar"
     
     # Database
     DATABASE_URL: str

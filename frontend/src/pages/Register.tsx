@@ -48,7 +48,7 @@ export default function Register() {
             Criar Conta
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Cadastre-se no Sistema Familiar
+            Cadastre-se no Gestão Familiar
           </p>
         </div>
 
