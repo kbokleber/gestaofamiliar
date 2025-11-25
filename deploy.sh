@@ -33,6 +33,7 @@ docker build -t sistema-familiar-backend:latest ./backend
 
 # Build do frontend - usar URL relativa por padrão (funciona com DNS e IP)
 # Se precisar de URL específica, defina VITE_API_URL antes de executar o script
+# Usar --no-cache apenas se necessário (mais lento, mas garante rebuild completo)
 if [ -n "$VITE_API_URL" ]; then
   echo -e "${GREEN}📦 Construindo frontend com API URL: ${VITE_API_URL}${NC}"
   docker build --build-arg VITE_API_URL="${VITE_API_URL}" -t sistema-familiar-frontend:latest ./frontend
@@ -40,6 +41,10 @@ else
   echo -e "${GREEN}📦 Construindo frontend com URL relativa (funciona com DNS e IP)${NC}"
   docker build -t sistema-familiar-frontend:latest ./frontend
 fi
+
+# Se precisar forçar rebuild sem cache (descomente as linhas abaixo):
+# docker build --no-cache -t sistema-familiar-backend:latest ./backend
+# docker build --no-cache -t sistema-familiar-frontend:latest ./frontend
 
 # Verificar se .env existe
 if [ ! -f ".env" ]; then

@@ -378,6 +378,8 @@ docker ps | grep sistema-familiar
 
 ### Passo 7: Atualizar após Mudanças no Código
 
+#### Opção 1: Atualizar Tudo (Backend + Frontend)
+
 ```bash
 cd /opt/sistema-familiar
 
@@ -389,9 +391,32 @@ docker build -t sistema-familiar-backend:latest ./backend
 docker build -t sistema-familiar-frontend:latest ./frontend
 
 # 3. Atualizar serviços
-docker service update --image sistema-familiar-backend:latest sistema-familiar_backend
-docker service update --image sistema-familiar-frontend:latest sistema-familiar_frontend
+docker service update --force --image sistema-familiar-backend:latest sistema-familiar_backend
+docker service update --force --image sistema-familiar-frontend:latest sistema-familiar_frontend
 ```
+
+#### Opção 2: Atualizar Apenas Frontend (após mudanças no frontend)
+
+**No Windows (local):**
+```powershell
+.\rebuild-frontend.ps1
+```
+
+**No Linux (VPS):**
+```bash
+cd /opt/sistema-familiar
+
+# 1. Fazer pull das mudanças
+git pull
+
+# 2. Reconstruir apenas frontend
+docker build -t sistema-familiar-frontend:latest ./frontend
+
+# 3. Atualizar serviço frontend
+docker service update --force --image sistema-familiar-frontend:latest sistema-familiar_frontend
+```
+
+**⚠️ IMPORTANTE:** Após atualizar o frontend, limpe o cache do navegador (Ctrl+Shift+R ou Cmd+Shift+R) para ver as mudanças!
 
 ---
 
