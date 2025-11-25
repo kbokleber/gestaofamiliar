@@ -54,7 +54,10 @@ export default function Layout() {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Sistema Familiar</h1>
+        <div>
+          <h1 className="text-lg font-semibold">Sistema Familiar</h1>
+          <p className="text-xs text-gray-500">v1.0</p>
+        </div>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
           className="text-gray-600 hover:text-gray-900"
@@ -73,6 +76,7 @@ export default function Layout() {
       >
         <div className="p-6">
           <h1 className="text-xl font-bold text-gray-900">Sistema Familiar</h1>
+          <p className="text-xs text-gray-500 mt-0.5">v1.0</p>
           <p className="text-sm text-gray-600 mt-1">Olá, {user?.first_name || user?.username}!</p>
         </div>
 
