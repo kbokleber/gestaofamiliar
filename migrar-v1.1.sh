@@ -366,20 +366,29 @@ try:
         check_query = text("""
             SELECT column_name 
             FROM information_schema.columns 
-            WHERE table_name='healthcare_familymember' AND column_name='family_id'
+            WHERE table_name = :table_name AND column_name = :column_name
         """)
-        result = conn.execute(check_query)
+        result = conn.execute(check_query, {"table_name": "healthcare_familymember", "column_name": "family_id"})
         exists = result.fetchone() is not None
         if not exists:
             print("[INFO] Adicionando coluna family_id...")
+            # Adicionar coluna primeiro
             alter_query = text("""
                 ALTER TABLE healthcare_familymember 
-                ADD COLUMN family_id INTEGER,
-                ADD CONSTRAINT fk_healthcare_familymember_family 
-                FOREIGN KEY (family_id) REFERENCES families(id)
+                ADD COLUMN family_id INTEGER
             """)
             conn.execute(alter_query)
             conn.commit()
+            
+            # Adicionar constraint separadamente
+            fk_query = text("""
+                ALTER TABLE healthcare_familymember 
+                ADD CONSTRAINT fk_healthcare_familymember_family 
+                FOREIGN KEY (family_id) REFERENCES families(id)
+            """)
+            conn.execute(fk_query)
+            conn.commit()
+            
             index_query = text("""
                 CREATE INDEX IF NOT EXISTS ix_healthcare_familymember_family_id 
                 ON healthcare_familymember(family_id)
@@ -389,8 +398,8 @@ try:
             print("[OK] Coluna family_id adicionada!")
             
             # Associar membros existentes à família padrão
-            family_query = text("SELECT id FROM families WHERE codigo_unico = 'DEFAULT' LIMIT 1")
-            result = conn.execute(family_query)
+            family_query = text("SELECT id FROM families WHERE codigo_unico = :codigo LIMIT 1")
+            result = conn.execute(family_query, {"codigo": "DEFAULT"})
             family_row = result.fetchone()
             if family_row:
                 default_family_id = family_row[0]
@@ -406,6 +415,8 @@ try:
             print("[INFO] Coluna family_id ja existe.")
 except Exception as e:
     print(f"[ERRO] Erro: {e}")
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 '
 if run_script "check_family_member_table.py" "$CONTAINER" || run_python_code "$CHECK_FAMILY_MEMBER_CODE" "$CONTAINER" "Adicionar family_id em healthcare_familymember"; then
