@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Heart, Wrench, Users, Calendar } from 'lucide-react'
+import { Heart, Users, Calendar, Settings, Clock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api'
 import { isFutureDateTime } from '../utils/dateUtils'
@@ -9,6 +9,7 @@ interface DashboardStats {
   totalAppointments: number
   totalEquipment: number
   activeMedications: number
+  totalMaintenanceOrders: number
 }
 
 export default function Dashboard() {
@@ -16,7 +17,8 @@ export default function Dashboard() {
     totalMembers: 0,
     totalAppointments: 0,
     totalEquipment: 0,
-    activeMedications: 0
+    activeMedications: 0,
+    totalMaintenanceOrders: 0
   })
   const [loading, setLoading] = useState(true)
 
@@ -27,11 +29,12 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
-      const [membersRes, appointmentsRes, equipmentRes, medicationsRes] = await Promise.all([
+      const [membersRes, appointmentsRes, equipmentRes, medicationsRes, ordersRes] = await Promise.all([
         api.get('/healthcare/members'),
         api.get('/healthcare/appointments'),
         api.get('/maintenance/equipment'),
-        api.get('/healthcare/medications', { params: { active_only: true } })
+        api.get('/healthcare/medications', { params: { active_only: true } }),
+        api.get('/maintenance/orders')
       ])
 
       // Filtrar apenas consultas futuras (sem problemas de timezone)
@@ -43,7 +46,8 @@ export default function Dashboard() {
         totalMembers: membersRes.data.length,
         totalAppointments: upcomingAppointments.length,
         totalEquipment: equipmentRes.data.length,
-        activeMedications: medicationsRes.data.length
+        activeMedications: medicationsRes.data.length,
+        totalMaintenanceOrders: ordersRes.data.length
       })
     } catch (error) {
       console.error('Erro ao carregar dados do dashboard:', error)
@@ -70,7 +74,7 @@ export default function Dashboard() {
     {
       name: 'Equipamentos',
       value: loading ? '...' : stats.totalEquipment.toString(),
-      icon: Wrench,
+      icon: Settings,
       href: '/maintenance/equipment',
       color: 'bg-orange-500',
     },
@@ -81,13 +85,20 @@ export default function Dashboard() {
       href: '/healthcare/medications',
       color: 'bg-red-500',
     },
+    {
+      name: 'Ordens de Manutenção',
+      value: loading ? '...' : stats.totalMaintenanceOrders.toString(),
+      icon: Clock,
+      href: '/maintenance/orders',
+      color: 'bg-purple-500',
+    },
   ]
 
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {dashboardCards.map((stat) => (
           <Link
             key={stat.name}
@@ -113,54 +124,6 @@ export default function Dashboard() {
             </div>
           </Link>
         ))}
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Bem-vindo!</h2>
-          <p className="text-gray-600">
-            Este é o Gestão Familiar, uma plataforma completa para gerenciar a saúde da sua família e
-            manutenção de equipamentos domésticos.
-          </p>
-          <div className="mt-4 space-y-2">
-            <p className="text-sm text-gray-600">
-              • Gerencie consultas médicas e medicamentos
-            </p>
-            <p className="text-sm text-gray-600">
-              • Acompanhe a saúde de cada membro da família
-            </p>
-            <p className="text-sm text-gray-600">
-              • Organize manutenções de equipamentos
-            </p>
-            <p className="text-sm text-gray-600">
-              • Acesse de qualquer dispositivo
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h2>
-          <div className="space-y-3">
-            <Link
-              to="/healthcare/members"
-              className="block w-full text-left px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-md transition-colors"
-            >
-              + Adicionar Membro da Família
-            </Link>
-            <Link
-              to="/healthcare/appointments"
-              className="block w-full text-left px-4 py-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-md transition-colors"
-            >
-              + Nova Consulta
-            </Link>
-            <Link
-              to="/maintenance/equipment"
-              className="block w-full text-left px-4 py-3 bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-md transition-colors"
-            >
-              + Registrar Equipamento
-            </Link>
-          </div>
-        </div>
       </div>
     </div>
   )
