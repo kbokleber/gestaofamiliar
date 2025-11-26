@@ -4,7 +4,19 @@
 
 A versão 1.1 introduz o sistema multi-tenant com famílias. **É necessário executar scripts de migração ANTES do redeploy** para evitar erros.
 
-## 📋 Checklist Pré-Redeploy
+## 🚀 Migração Automática (Recomendado)
+
+**Para facilitar, use o script automático:**
+
+```bash
+cd /opt/sistema-familiar
+chmod +x migrar-v1.1.sh
+./migrar-v1.1.sh
+```
+
+Este script executa todas as migrações automaticamente na ordem correta.
+
+## 📋 Checklist Pré-Redeploy (Manual)
 
 ### 1. Backup do Banco de Dados
 ```bash
