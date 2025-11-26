@@ -78,7 +78,7 @@ export default function Layout() {
         <div className="p-6">
           <h1 className="text-xl font-bold text-gray-900">Gestão Familiar</h1>
           <p className="text-xs text-gray-500 mt-0.5">v1.1</p>
-          <p className="text-sm text-gray-600 mt-1">Olá, {user?.first_name || user?.username}!</p>
+          <p className="text-sm text-gray-600 mt-1">Olá, {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}`.trim() : user?.first_name || user?.last_name || user?.username}!</p>
         </div>
 
         <nav className="px-3 mt-6 space-y-1">
