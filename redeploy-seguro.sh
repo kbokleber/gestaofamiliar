@@ -325,25 +325,43 @@ echo ""
 
 # 10. Reiniciar NPM para limpar cache e garantir conectividade
 echo "10. Reiniciando NPM para limpar cache..."
+
+# Procurar serviço do NPM (pode estar em stack diferente)
 NPM_SERVICE=$(docker service ls | grep -i nginx | grep -i app | awk '{print $1}' | head -n 1)
 
 if [ -n "$NPM_SERVICE" ]; then
-    echo "   Serviço NPM: $NPM_SERVICE"
-    docker service update --force "$NPM_SERVICE"
+    SERVICE_NAME=$(docker service ls --filter "id=$NPM_SERVICE" --format "{{.Name}}")
+    echo "   Serviço NPM encontrado: $SERVICE_NAME"
+    
+    # Verificar quantas replicas estão rodando
+    REPLICAS=$(docker service ls --filter "id=$NPM_SERVICE" --format "{{.Replicas}}")
+    echo "   Replicas atuais: $REPLICAS"
+    
+    # Reiniciar o serviço
+    docker service update --force "$SERVICE_NAME"
     
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ NPM reiniciado${NC}"
-        echo "   Aguardando NPM estabilizar (15 segundos)..."
-        sleep 15
-        echo -e "${GREEN}✓ NPM está pronto${NC}"
+        echo -e "${GREEN}✓ Comando de reinício do NPM executado${NC}"
+        echo "   Aguardando NPM estabilizar (20 segundos)..."
+        sleep 20
+        
+        # Verificar se está rodando corretamente
+        NEW_REPLICAS=$(docker service ls --filter "id=$NPM_SERVICE" --format "{{.Replicas}}")
+        if echo "$NEW_REPLICAS" | grep -q "1/1"; then
+            echo -e "${GREEN}✓ NPM está rodando corretamente (1/1)${NC}"
+        else
+            echo -e "${YELLOW}⚠ NPM ainda não está estável (Status: $NEW_REPLICAS)${NC}"
+            echo "   Aguarde mais alguns segundos"
+        fi
     else
         echo -e "${YELLOW}⚠ Aviso: Não foi possível reiniciar o NPM automaticamente${NC}"
-        echo "   Reinicie manualmente: docker service update --force $NPM_SERVICE"
+        echo "   Reinicie manualmente: docker service update --force $SERVICE_NAME"
+        echo "   OU use o script: ./reiniciar-npm.sh"
     fi
 else
-    echo -e "${YELLOW}⚠ Serviço NPM não encontrado (pode estar em outro stack)${NC}"
-    echo "   Se o NPM estiver em um stack separado, reinicie manualmente:"
-    echo "   docker service update --force <nome-serviço-npm>"
+    echo -e "${YELLOW}⚠ Serviço NPM não encontrado em Docker Swarm${NC}"
+    echo "   O NPM pode estar rodando como container direto ou em outro stack"
+    echo "   Para reiniciar manualmente, use: ./reiniciar-npm.sh"
 fi
 
 echo ""
