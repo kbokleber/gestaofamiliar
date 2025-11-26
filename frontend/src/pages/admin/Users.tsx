@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
-import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus } from 'lucide-react'
+import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus, Edit } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 
@@ -529,6 +529,13 @@ export default function AdminUsers() {
                           <span className="text-gray-400">-</span>
                         )}
                         <button
+                          onClick={() => handleOpenEditModal(user)}
+                          className="ml-2 text-blue-600 hover:text-blue-900 text-xs"
+                          title="Editar dados do usuário"
+                        >
+                          ✏️
+                        </button>
+                        <button
                           onClick={() => {
                             setSelectedUser(user)
                             // Inicializar family_ids se for admin
@@ -542,7 +549,7 @@ export default function AdminUsers() {
                           className="ml-2 text-purple-600 hover:text-purple-900 text-xs"
                           title="Editar permissões"
                         >
-                          ✏️
+                          🔒
                         </button>
                       </div>
                     </td>
