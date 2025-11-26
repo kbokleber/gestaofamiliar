@@ -498,7 +498,6 @@ export default function AdminUsers() {
             </table>
           </div>
         </>
-        </>
       )}
 
       {/* Modal de alteração de senha */}
