@@ -58,6 +58,9 @@ export default function Login() {
           <p className="mt-2 text-sm text-gray-600">
             Entre com sua conta
           </p>
+          <p className="mt-1 text-xs text-gray-500">
+            Versão 1.2
+          </p>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

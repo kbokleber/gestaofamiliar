@@ -57,7 +57,7 @@ export default function Layout() {
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Gestão Familiar</h1>
-          <p className="text-xs text-gray-500">v1.1</p>
+          <p className="text-xs text-gray-500">v1.2</p>
         </div>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
