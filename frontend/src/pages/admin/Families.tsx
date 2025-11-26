@@ -338,7 +338,7 @@ export default function AdminFamilies() {
         isOpen={showCreateModal}
         onClose={() => {
           setShowCreateModal(false)
-          setFamilyData({ name: '', codigo_unico: '' })
+          setFamilyData({ name: '' })
           setError('')
         }}
         title="Criar Nova Família"
@@ -377,7 +377,7 @@ export default function AdminFamilies() {
               variant="outline"
               onClick={() => {
                 setShowCreateModal(false)
-                setFamilyData({ name: '', codigo_unico: '' })
+                setFamilyData({ name: '' })
                 setError('')
               }}
             >
@@ -399,7 +399,7 @@ export default function AdminFamilies() {
         onClose={() => {
           setShowEditModal(false)
           setSelectedFamily(null)
-          setFamilyData({ name: '', codigo_unico: '' })
+          setFamilyData({ name: '' })
           setError('')
         }}
         title={`Editar Família - ${selectedFamily?.name}`}
@@ -434,7 +434,7 @@ export default function AdminFamilies() {
               onClick={() => {
                 setShowEditModal(false)
                 setSelectedFamily(null)
-                setFamilyData({ name: '', codigo_unico: '' })
+                setFamilyData({ name: '' })
                 setError('')
               }}
             >

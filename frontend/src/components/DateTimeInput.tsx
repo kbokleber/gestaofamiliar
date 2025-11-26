@@ -16,7 +16,6 @@ interface DateTimeInputProps {
 export default function DateTimeInput({ value, onChange, required, className, placeholder }: DateTimeInputProps) {
   const [displayValue, setDisplayValue] = useState('')
   const [localValue, setLocalValue] = useState('')
-  const [isFocused, setIsFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const displayRef = useRef<HTMLInputElement>(null)
 
@@ -60,7 +59,6 @@ export default function DateTimeInput({ value, onChange, required, className, pl
         inputRef.current.focus()
       }
     }
-    setIsFocused(true)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,7 +78,6 @@ export default function DateTimeInput({ value, onChange, required, className, pl
   }
 
   const handleBlur = () => {
-    setIsFocused(false)
     // Garantir que o valor de exibição está correto
     if (value) {
       setDisplayValue(formatDateTimeBR(value))
@@ -111,7 +108,6 @@ export default function DateTimeInput({ value, onChange, required, className, pl
         value={localValue}
         onChange={handleInputChange}
         onBlur={handleBlur}
-        onFocus={() => setIsFocused(true)}
         required={required}
         className="absolute inset-0 opacity-0 cursor-pointer pointer-events-none w-full h-full"
         style={{

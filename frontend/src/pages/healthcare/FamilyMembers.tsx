@@ -62,8 +62,6 @@ export default function FamilyMembers() {
     order: 0
   })
 
-  const isAdmin = currentUser?.is_superuser
-
   useEffect(() => {
     fetchMembers()
   }, [])
