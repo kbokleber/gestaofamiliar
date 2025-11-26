@@ -4,7 +4,7 @@ from typing import List
 from app.db.base import get_db
 from app.models.user import User, Profile
 from app.models.family import Family
-from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate
+from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate, UserUpdate
 from app.api.deps import get_current_user, get_current_admin
 from app.core.security import get_password_hash
 
@@ -268,6 +268,45 @@ async def update_user_permissions(
     db.commit()
     db.refresh(user)
     
+    return user
+
+@router.put("/{user_id}", response_model=UserSchema)
+async def update_user(
+    user_id: int,
+    user_data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Atualizar dados básicos de um usuário (apenas administradores)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado"
+        )
+    
+    # Atualizar campos básicos
+    if user_data.email is not None:
+        # Verificar se o email já está em uso por outro usuário
+        existing_user = db.query(User).filter(User.email == user_data.email, User.id != user_id).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email já está em uso por outro usuário"
+            )
+        user.email = user_data.email
+    
+    if user_data.first_name is not None:
+        user.first_name = user_data.first_name
+    
+    if user_data.last_name is not None:
+        user.last_name = user_data.last_name
+    
+    # Nota: username não pode ser alterado por questões de segurança
+    # Nota: password deve ser alterado através do endpoint específico /{user_id}/password
+    
+    db.commit()
+    db.refresh(user)
     return user
 
 @router.get("/{user_id}", response_model=UserSchema)

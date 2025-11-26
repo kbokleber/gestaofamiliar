@@ -36,6 +36,13 @@ export default function AdminUsers() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showPermissionsModal, setShowPermissionsModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editUserData, setEditUserData] = useState({
+    email: '',
+    first_name: '',
+    last_name: ''
+  })
+  const [editUserError, setEditUserError] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
@@ -143,6 +150,25 @@ export default function AdminUsers() {
     },
     onError: (error: any) => {
       setCreateUserError(error.response?.data?.detail || 'Erro ao criar usuário')
+    }
+  })
+
+  // Mutação para atualizar dados básicos do usuário
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, userData }: { userId: number; userData: { email: string; first_name: string; last_name: string } }) => {
+      const response = await api.put(`/users/${userId}`, userData)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowEditModal(false)
+      setSelectedUser(null)
+      setEditUserData({ email: '', first_name: '', last_name: '' })
+      setEditUserError('')
+      alert('Usuário atualizado com sucesso!')
+    },
+    onError: (error: any) => {
+      setEditUserError(error.response?.data?.detail || 'Erro ao atualizar usuário')
     }
   })
 
@@ -403,6 +429,12 @@ export default function AdminUsers() {
                       </button>
                     )}
                   </div>
+                  <button
+                    onClick={() => handleOpenEditModal(user)}
+                    className="w-full flex items-center justify-center px-3 py-2 border border-blue-600 text-blue-600 text-sm rounded-md hover:bg-blue-50 mb-2"
+                  >
+                    Editar Dados
+                  </button>
                   <button
                     onClick={() => {
                       setSelectedUser(user)
@@ -964,6 +996,113 @@ export default function AdminUsers() {
               disabled={updatePermissionsMutation.isPending}
             >
               {updatePermissionsMutation.isPending ? 'Salvando...' : 'Salvar Permissões'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de edição de dados do usuário */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false)
+          setSelectedUser(null)
+          setEditUserData({ email: '', first_name: '', last_name: '' })
+          setEditUserError('')
+        }}
+        title={`Editar Usuário - ${selectedUser?.username}`}
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-blue-800">
+              <strong>Nota:</strong> O nome de usuário (username) não pode ser alterado por questões de segurança.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nome de Usuário
+            </label>
+            <input
+              type="text"
+              value={selectedUser?.username || ''}
+              disabled
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email *
+            </label>
+            <input
+              type="email"
+              value={editUserData.email}
+              onChange={(e) => {
+                setEditUserData({ ...editUserData, email: e.target.value })
+                setEditUserError('')
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="usuario@exemplo.com"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Primeiro Nome
+            </label>
+            <input
+              type="text"
+              value={editUserData.first_name}
+              onChange={(e) => {
+                setEditUserData({ ...editUserData, first_name: e.target.value })
+                setEditUserError('')
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="João"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sobrenome
+            </label>
+            <input
+              type="text"
+              value={editUserData.last_name}
+              onChange={(e) => {
+                setEditUserData({ ...editUserData, last_name: e.target.value })
+                setEditUserError('')
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Silva"
+            />
+          </div>
+
+          {editUserError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">{editUserError}</p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditModal(false)
+                setSelectedUser(null)
+                setEditUserData({ email: '', first_name: '', last_name: '' })
+                setEditUserError('')
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleUpdateUser}
+              disabled={updateUserMutation.isPending}
+            >
+              {updateUserMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
             </Button>
           </div>
         </div>
