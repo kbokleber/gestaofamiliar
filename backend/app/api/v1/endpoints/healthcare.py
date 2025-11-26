@@ -41,6 +41,12 @@ async def create_family_member(
     
     member_data_dict = member_data.model_dump(exclude_none=False)
     member_data_dict['family_id'] = family_id
+    
+    # Remover campos que devem ser gerenciados pelo banco de dados
+    member_data_dict.pop('created_at', None)
+    member_data_dict.pop('updated_at', None)
+    member_data_dict.pop('id', None)
+    
     member = FamilyMember(**member_data_dict)
     
     db.add(member)
@@ -281,7 +287,14 @@ async def create_appointment(
         )
     
     # Usar model_dump para garantir que campos opcionais sejam incluídos
-    appointment = MedicalAppointment(**appointment_data.model_dump(exclude_none=False))
+    appointment_dict = appointment_data.model_dump(exclude_none=False)
+    
+    # Remover campos que devem ser gerenciados pelo banco de dados
+    appointment_dict.pop('created_at', None)
+    appointment_dict.pop('updated_at', None)
+    appointment_dict.pop('id', None)
+    
+    appointment = MedicalAppointment(**appointment_dict)
     db.add(appointment)
     db.commit()
     db.refresh(appointment)
@@ -439,6 +452,11 @@ async def create_medication(
     # Usar model_dump (Pydantic v2) para garantir que campos None sejam incluídos
     # Isso é importante para campos opcionais como documents
     data_dict = medication_data.model_dump(exclude_none=False)
+    
+    # Remover campos que devem ser gerenciados pelo banco de dados
+    data_dict.pop('created_at', None)
+    data_dict.pop('updated_at', None)
+    data_dict.pop('id', None)
     
     # Log detalhado para debug
     logger.info(f"🔵 CREATE MEDICATION - Recebido:")
@@ -656,7 +674,14 @@ async def create_procedure(
             detail="Membro da família não encontrado"
         )
     
-    procedure = MedicalProcedure(**procedure_data.model_dump(exclude_none=False))
+    procedure_dict = procedure_data.model_dump(exclude_none=False)
+    
+    # Remover campos que devem ser gerenciados pelo banco de dados
+    procedure_dict.pop('created_at', None)
+    procedure_dict.pop('updated_at', None)
+    procedure_dict.pop('id', None)
+    
+    procedure = MedicalProcedure(**procedure_dict)
     db.add(procedure)
     db.commit()
     db.refresh(procedure)

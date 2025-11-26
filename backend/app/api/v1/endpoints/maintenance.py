@@ -39,6 +39,11 @@ async def create_equipment(
         equipment_dict = equipment_data.model_dump(exclude_none=False)
         equipment_dict['family_id'] = family_id
         
+        # Remover campos que devem ser gerenciados pelo banco de dados
+        equipment_dict.pop('created_at', None)
+        equipment_dict.pop('updated_at', None)
+        equipment_dict.pop('id', None)
+        
         # Garantir que campos obrigatórios tenham valores padrão
         if 'service_provider' not in equipment_dict or equipment_dict['service_provider'] is None:
             equipment_dict['service_provider'] = ''
@@ -261,6 +266,11 @@ async def create_maintenance_order(
     # Usar model_dump (Pydantic v2) para garantir que campos None sejam incluídos
     # Isso é importante para campos opcionais como documents
     data_dict = order_data.model_dump(exclude_none=False)
+    
+    # Remover campos que devem ser gerenciados pelo banco de dados
+    data_dict.pop('created_at', None)
+    data_dict.pop('updated_at', None)
+    data_dict.pop('id', None)
     
     # Normalizar status para maiúsculas
     if 'status' in data_dict and data_dict['status']:
