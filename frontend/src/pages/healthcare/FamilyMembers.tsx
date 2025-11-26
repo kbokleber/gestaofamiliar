@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical } from 'lucide-react'
+import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical, Camera, Image } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Modal from '../../components/Modal'
@@ -46,6 +46,7 @@ export default function FamilyMembers() {
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [showPhotoMenu, setShowPhotoMenu] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     birth_date: '',
@@ -213,7 +214,9 @@ export default function FamilyMembers() {
     setEditingMember(null)
     setPhotoPreview(null)
     setPhotoFile(null)
+    setShowPhotoMenu(false)
   }
+
 
   // Função para converter arquivo para base64 (igual ao DocumentUpload)
   const fileToBase64 = (file: File): Promise<string> => {
@@ -230,13 +233,17 @@ export default function FamilyMembers() {
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file) {
+      setShowPhotoMenu(false)
+      return
+    }
 
     // Validar tamanho (max 10MB)
     const maxSizeMB = 10
     if (file.size > maxSizeMB * 1024 * 1024) {
       alert(`A foto é maior que ${maxSizeMB}MB`)
       e.target.value = '' // Limpar input
+      setShowPhotoMenu(false)
       return
     }
 
@@ -245,11 +252,13 @@ export default function FamilyMembers() {
     if (!validTypes.includes(file.type)) {
       alert('A foto deve ser JPG, PNG ou GIF')
       e.target.value = '' // Limpar input
+      setShowPhotoMenu(false)
       return
     }
 
     try {
       setPhotoFile(file)
+      setShowPhotoMenu(false)
       
       // Criar preview (com prefixo data: para exibição)
       const reader = new FileReader()
@@ -261,6 +270,14 @@ export default function FamilyMembers() {
       console.error('Erro ao processar foto:', error)
       alert('Erro ao processar a foto')
       e.target.value = '' // Limpar input
+      setShowPhotoMenu(false)
+    }
+  }
+
+  const triggerCameraInput = (inputId: string) => {
+    const input = document.getElementById(inputId) as HTMLInputElement
+    if (input) {
+      input.click()
     }
   }
 
@@ -699,16 +716,59 @@ export default function FamilyMembers() {
                   <Users className="h-16 w-16" />
                 )}
               </div>
-              <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg z-10 pointer-events-auto" title="Adicionar foto" htmlFor="photo-input-modal">
+              <div className="absolute bottom-0 right-0">
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoMenu(!showPhotoMenu)}
+                  className="bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg z-10"
+                  title="Adicionar foto"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
+                
+                {showPhotoMenu && (
+                  <div className="absolute bottom-12 right-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[180px] z-20">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPhotoMenu(false)
+                        triggerCameraInput('photo-camera-modal')
+                      }}
+                      className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center space-x-3"
+                    >
+                      <Camera className="h-5 w-5 text-blue-600" />
+                      <span className="text-gray-700">Câmera</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPhotoMenu(false)
+                        triggerCameraInput('photo-gallery-modal')
+                      }}
+                      className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center space-x-3 border-t border-gray-200"
+                    >
+                      <Image className="h-5 w-5 text-green-600" />
+                      <span className="text-gray-700">Galeria</span>
+                    </button>
+                  </div>
+                )}
+                
                 <input 
-                  id="photo-input-modal"
+                  id="photo-camera-modal"
+                  type="file" 
+                  accept="image/jpeg,image/jpg,image/png,image/gif" 
+                  capture="environment"
+                  className="hidden" 
+                  onChange={handlePhotoChange}
+                />
+                <input 
+                  id="photo-gallery-modal"
                   type="file" 
                   accept="image/jpeg,image/jpg,image/png,image/gif" 
                   className="hidden" 
                   onChange={handlePhotoChange}
                 />
-                <Edit2 className="h-4 w-4" />
-              </label>
+              </div>
             </div>
           </div>
 
