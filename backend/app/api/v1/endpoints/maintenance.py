@@ -206,6 +206,7 @@ async def delete_equipment(
 ):
     """Excluir equipamento"""
     from app.api.deps import get_user_family_ids
+    from sqlalchemy.orm import noload
     
     # Se for admin sem family_id especificado, verificar se o equipamento pertence a alguma das famílias do admin
     if (current_user.is_superuser or current_user.is_staff) and family_id is None:
@@ -215,7 +216,11 @@ async def delete_equipment(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Equipamento não encontrado"
             )
-        equipment = db.query(Equipment).filter(
+        # Usar noload para evitar carregar relacionamentos que podem ter problemas de schema
+        equipment = db.query(Equipment).options(
+            noload(Equipment.maintenance_orders),
+            noload(Equipment.attachments)
+        ).filter(
             Equipment.id == equipment_id,
             Equipment.family_id.in_(family_ids)
         ).first()
@@ -223,7 +228,11 @@ async def delete_equipment(
         # Usuário normal ou admin com family_id específico
         if family_id is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
-        equipment = db.query(Equipment).filter(
+        # Usar noload para evitar carregar relacionamentos que podem ter problemas de schema
+        equipment = db.query(Equipment).options(
+            noload(Equipment.maintenance_orders),
+            noload(Equipment.attachments)
+        ).filter(
             Equipment.id == equipment_id,
             Equipment.family_id == family_id
         ).first()
@@ -234,8 +243,17 @@ async def delete_equipment(
             detail="Equipamento não encontrado"
         )
     
-    db.delete(equipment)
-    db.commit()
+    try:
+        db.delete(equipment)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao excluir equipamento: {str(e)}"
+        )
 
 # ===== MAINTENANCE ORDERS =====
 @router.post("/orders", response_model=MaintenanceOrderSchema, status_code=status.HTTP_201_CREATED)
