@@ -269,10 +269,22 @@ export default function Medications() {
 
   const isActive = (medication: Medication) => {
     const today = new Date()
-    const startDate = new Date(medication.start_date)
-    const endDate = medication.end_date ? new Date(medication.end_date) : null
+    // Normalizar hoje para o início do dia (00:00:00)
+    today.setHours(0, 0, 0, 0)
     
-    return startDate <= today && (!endDate || endDate >= today)
+    const startDate = new Date(medication.start_date)
+    startDate.setHours(0, 0, 0, 0)
+    
+    // Se não tem data de término, está ativo
+    if (!medication.end_date) {
+      return startDate <= today
+    }
+    
+    // Se tem data de término, considerar ativo até o final do dia (23:59:59)
+    const endDate = new Date(medication.end_date)
+    endDate.setHours(23, 59, 59, 999) // Final do dia da data de término
+    
+    return startDate <= today && endDate >= today
   }
 
   const getMemberName = (memberId: number) => {
