@@ -90,21 +90,22 @@ run_script() {
     local script_name=$1
     local container=$2
     
-    print_info "Executando: $script_name"
-    
     # Tentar usar o caminho encontrado se existir
     if [ -n "$FOUND_PATH" ]; then
         local script_path="$FOUND_PATH/$script_name"
         if docker exec "$container" test -f "$script_path" 2>/dev/null; then
+            print_info "Executando script: $script_path"
             if docker exec -it "$container" python "$script_path" 2>&1; then
                 print_success "$script_name executado com sucesso"
                 return 0
+            else
+                print_error "Falha ao executar $script_name"
+                return 1
             fi
         fi
     fi
     
-    # Se não encontrou o arquivo, tentar executar inline
-    print_warning "Script não encontrado, executando código inline..."
+    # Se não encontrou o arquivo, retornar 1 para que o código inline seja executado
     return 1
 }
 
@@ -182,22 +183,22 @@ for path in "${SCRIPT_PATHS[@]}"; do
 done
 
 if [ -z "$FOUND_PATH" ]; then
-    print_error "Scripts de migração não encontrados no container"
-    print_info "Verificando estrutura do container..."
-    docker exec "$CONTAINER" ls -la /app/ 2>/dev/null || true
-    docker exec "$CONTAINER" find /app -name "create_tables.py" 2>/dev/null || true
-    print_warning "Os scripts precisam estar no container. Verifique se o Dockerfile copia a pasta scripts."
-    exit 1
-fi
-
-# Verificar cada script
-for script in "${SCRIPTS[@]}"; do
-    if ! docker exec "$CONTAINER" test -f "$FOUND_PATH/$script" 2>/dev/null; then
-        print_error "Script não encontrado: $FOUND_PATH/$script"
-        exit 1
+    print_warning "Scripts de migração não encontrados no container"
+    print_info "O script executará o código Python diretamente (inline)"
+    print_info "Isso não requer que os arquivos estejam no container"
+else
+    # Verificar cada script
+    for script in "${SCRIPTS[@]}"; do
+        if ! docker exec "$CONTAINER" test -f "$FOUND_PATH/$script" 2>/dev/null; then
+            print_warning "Script não encontrado: $FOUND_PATH/$script (usando código inline)"
+            FOUND_PATH=""
+            break
+        fi
+    done
+    if [ -n "$FOUND_PATH" ]; then
+        print_success "Todos os scripts encontrados em $FOUND_PATH"
     fi
-done
-print_success "Todos os scripts encontrados em $FOUND_PATH"
+fi
 
 # Fazer backup (opcional)
 do_backup
