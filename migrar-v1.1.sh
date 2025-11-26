@@ -75,7 +75,10 @@ run_script() {
     
     print_info "Executando: $script_name"
     
-    if docker exec -it "$container" python "scripts/$script_name" 2>&1; then
+    # Usar o caminho encontrado
+    local script_path="$FOUND_PATH/$script_name"
+    
+    if docker exec -it "$container" python "$script_path" 2>&1; then
         print_success "$script_name executado com sucesso"
         return 0
     else
@@ -145,13 +148,35 @@ SCRIPTS=(
     "migrate_users_to_family.py"
 )
 
+# Verificar caminhos possíveis
+SCRIPT_PATHS=("scripts" "/app/scripts" "backend/scripts")
+
+FOUND_PATH=""
+for path in "${SCRIPT_PATHS[@]}"; do
+    if docker exec "$CONTAINER" test -f "$path/create_tables.py" 2>/dev/null; then
+        FOUND_PATH="$path"
+        print_success "Scripts encontrados em: $path"
+        break
+    fi
+done
+
+if [ -z "$FOUND_PATH" ]; then
+    print_error "Scripts de migração não encontrados no container"
+    print_info "Verificando estrutura do container..."
+    docker exec "$CONTAINER" ls -la /app/ 2>/dev/null || true
+    docker exec "$CONTAINER" find /app -name "create_tables.py" 2>/dev/null || true
+    print_warning "Os scripts precisam estar no container. Verifique se o Dockerfile copia a pasta scripts."
+    exit 1
+fi
+
+# Verificar cada script
 for script in "${SCRIPTS[@]}"; do
-    if ! docker exec "$CONTAINER" test -f "scripts/$script"; then
-        print_error "Script não encontrado: scripts/$script"
+    if ! docker exec "$CONTAINER" test -f "$FOUND_PATH/$script" 2>/dev/null; then
+        print_error "Script não encontrado: $FOUND_PATH/$script"
         exit 1
     fi
 done
-print_success "Todos os scripts encontrados"
+print_success "Todos os scripts encontrados em $FOUND_PATH"
 
 # Fazer backup (opcional)
 do_backup
