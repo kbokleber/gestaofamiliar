@@ -376,26 +376,42 @@ docker service logs -f sistema-familiar_frontend
 docker ps | grep sistema-familiar
 ```
 
-### Passo 7: Atualizar após Mudanças no Código
+### Passo 7: Redeploy do Sistema (Método Recomendado)
 
-#### Opção 1: Atualizar Tudo (Backend + Frontend)
+**⚠️ IMPORTANTE:** Use o script `redeploy-seguro.sh` para fazer redeploy completo do sistema. Este script garante que:
+- As variáveis do `.env` sejam carregadas corretamente
+- O stack seja removido de forma segura
+- Os serviços sejam redeployados com as configurações corretas
+- O backend seja conectado à rede `nginx_public`
+- A saúde do backend seja verificada
+
+#### Redeploy Completo (Recomendado)
 
 ```bash
 cd /opt/sistema-familiar
 
 # 1. Fazer pull das mudanças
-git pull
+git pull origin master
 
-# 2. Reconstruir imagens
-docker build -t sistema-familiar-backend:latest ./backend
-docker build -t sistema-familiar-frontend:latest ./frontend
+# 2. Dar permissão de execução (se necessário)
+chmod +x redeploy-seguro.sh
 
-# 3. Atualizar serviços
-docker service update --force --image sistema-familiar-backend:latest sistema-familiar_backend
-docker service update --force --image sistema-familiar-frontend:latest sistema-familiar_frontend
+# 3. Executar redeploy seguro
+./redeploy-seguro.sh
 ```
 
-#### Opção 2: Atualizar Apenas Frontend (após mudanças no frontend)
+O script irá:
+1. ✅ Verificar se o stack existe
+2. ✅ Verificar se as redes externas (`db_network`, `nginx_public`) existem
+3. ✅ Remover o stack de forma segura (aguardando remoção completa)
+4. ✅ Verificar e carregar variáveis do `.env`
+5. ✅ Fazer deploy do stack com as variáveis corretas
+6. ✅ Verificar se o backend está na rede `nginx_public`
+7. ✅ Verificar a saúde do backend
+
+**⏱️ Tempo estimado:** 2-3 minutos
+
+#### Atualizar Apenas Frontend (após mudanças no frontend)
 
 **No Windows (local):**
 ```powershell
@@ -407,7 +423,7 @@ docker service update --force --image sistema-familiar-frontend:latest sistema-f
 cd /opt/sistema-familiar
 
 # 1. Fazer pull das mudanças
-git pull
+git pull origin master
 
 # 2. Reconstruir apenas frontend
 docker build -t sistema-familiar-frontend:latest ./frontend
@@ -417,6 +433,23 @@ docker service update --force --image sistema-familiar-frontend:latest sistema-f
 ```
 
 **⚠️ IMPORTANTE:** Após atualizar o frontend, limpe o cache do navegador (Ctrl+Shift+R ou Cmd+Shift+R) para ver as mudanças!
+
+#### Atualizar Apenas Backend (após mudanças no backend)
+
+```bash
+cd /opt/sistema-familiar
+
+# 1. Fazer pull das mudanças
+git pull origin master
+
+# 2. Reconstruir apenas backend
+docker build -t sistema-familiar-backend:latest ./backend
+
+# 3. Atualizar serviço backend
+docker service update --force --image sistema-familiar-backend:latest sistema-familiar_backend
+```
+
+**⚠️ NOTA:** Se houver mudanças no `.env` ou problemas de conectividade, use o `redeploy-seguro.sh` em vez de atualizar apenas o serviço.
 
 ---
 
@@ -707,15 +740,18 @@ docker exec $(docker ps -q -f name=nginx-proxy-manager) wget -O- http://sistema-
 
 #### Soluções
 
-**Solução 1: Backend não está rodando**
+**Solução 1: Backend não está rodando ou DATABASE_URL vazio**
 
 ```bash
 # Ver logs para identificar o problema
 docker service logs --tail 100 sistema-familiar_backend
 
-# Se houver erro, corrigir e fazer deploy novamente
-./deploy.sh
+# Se houver erro de DATABASE_URL vazio, use o redeploy-seguro.sh
+cd /opt/sistema-familiar
+./redeploy-seguro.sh
 ```
+
+O `redeploy-seguro.sh` garante que as variáveis do `.env` sejam carregadas corretamente.
 
 **Solução 2: Backend não está na rede do NPM**
 
@@ -733,9 +769,12 @@ backend:
 Se não estiver, adicionar e fazer deploy:
 
 ```bash
-# Editar docker-stack.yml para incluir nginx_public no backend
-# Depois fazer deploy
-./deploy.sh
+# Opção 1: Adicionar manualmente
+docker service update --network-add nginx_public sistema-familiar_backend
+
+# Opção 2: Usar redeploy-seguro.sh (recomendado - garante tudo correto)
+cd /opt/sistema-familiar
+./redeploy-seguro.sh
 ```
 
 **Solução 3: Configuração do NPM está errada**
@@ -762,26 +801,33 @@ docker service ps sistema-familiar_backend
 docker service logs --tail 20 sistema-familiar_backend
 ```
 
-**Solução 5: Recriar o stack completo**
+**Solução 5: Recriar o stack completo (RECOMENDADO)**
+
+Use o script `redeploy-seguro.sh` que faz tudo automaticamente:
 
 ```bash
-# Remover o stack
-docker stack rm sistema-familiar
-
-# Aguardar alguns segundos
-sleep 10
-
-# Verificar se foi removido
-docker service ls | grep sistema-familiar
-
-# Fazer deploy novamente
-./deploy.sh
-
-# Aguardar e verificar
-sleep 15
-docker service ls
-docker service logs --tail 30 sistema-familiar_backend
+cd /opt/sistema-familiar
+git pull origin master
+chmod +x redeploy-seguro.sh
+./redeploy-seguro.sh
 ```
+
+Este script:
+- Remove o stack de forma segura (aguardando remoção completa)
+- Carrega as variáveis do `.env` corretamente
+- Faz deploy do stack com as configurações corretas
+- Verifica se o backend está na rede `nginx_public`
+- Verifica a saúde do backend
+
+**Se ainda houver 502 após o redeploy:**
+1. Reinicie o NPM para limpar cache:
+   ```bash
+   NPM_SERVICE=$(docker service ls | grep -i nginx | grep -i app | awk '{print $1}')
+   docker service update --force $NPM_SERVICE
+   ```
+2. Aguarde 15 segundos
+3. Limpe o cache do navegador (Ctrl+Shift+R)
+4. Tente novamente
 
 ### Backend não está acessível
 
