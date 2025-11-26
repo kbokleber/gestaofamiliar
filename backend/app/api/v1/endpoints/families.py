@@ -33,24 +33,13 @@ async def create_family(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
 ):
-    """Criar nova família (apenas administradores)"""
-    # Verificar se código único já existe
-    existing = db.query(Family).filter(Family.codigo_unico == family_data.codigo_unico).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Código único já existe"
-        )
-    
-    # Se não forneceu código, gerar automaticamente
-    codigo_unico = family_data.codigo_unico
-    if not codigo_unico:
-        # Gerar código único até encontrar um disponível
-        while True:
-            codigo_unico = generate_unique_code()
-            existing = db.query(Family).filter(Family.codigo_unico == codigo_unico).first()
-            if not existing:
-                break
+    """Criar nova família (apenas administradores) - código único é gerado automaticamente"""
+    # Gerar código único (hash) automaticamente até encontrar um disponível
+    while True:
+        codigo_unico = generate_unique_code()
+        existing = db.query(Family).filter(Family.codigo_unico == codigo_unico).first()
+        if not existing:
+            break
     
     new_family = Family(
         name=family_data.name,
@@ -85,7 +74,7 @@ async def update_family(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin)
 ):
-    """Atualizar família (apenas administradores)"""
+    """Atualizar família (apenas administradores) - código único não pode ser alterado"""
     family = db.query(Family).filter(Family.id == family_id).first()
     if not family:
         raise HTTPException(
@@ -93,16 +82,7 @@ async def update_family(
             detail="Família não encontrada"
         )
     
-    # Verificar se código único já existe (se estiver sendo alterado)
-    if family_data.codigo_unico and family_data.codigo_unico != family.codigo_unico:
-        existing = db.query(Family).filter(Family.codigo_unico == family_data.codigo_unico).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Código único já existe"
-            )
-        family.codigo_unico = family_data.codigo_unico
-    
+    # Apenas o nome pode ser alterado - código único é imutável
     if family_data.name is not None:
         family.name = family_data.name
     

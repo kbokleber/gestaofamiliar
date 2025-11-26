@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import json
 from app.db.base import get_db
 from app.models.user import User
@@ -40,10 +40,22 @@ async def list_equipment(
     equipment_type: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Listar todos os equipamentos (compartilhados entre usuários da mesma família)"""
-    query = db.query(Equipment).filter(Equipment.family_id == family_id)
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            return []
+        query = db.query(Equipment).filter(Equipment.family_id.in_(family_ids))
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        query = db.query(Equipment).filter(Equipment.family_id == family_id)
     
     if equipment_type:
         query = query.filter(Equipment.type == equipment_type)
@@ -183,13 +195,26 @@ async def list_maintenance_orders(
     status: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Listar todas as ordens de manutenção (compartilhadas entre usuários da mesma família)"""
-    # Filtrar por família através do Equipment
-    query = db.query(MaintenanceOrder).join(Equipment).filter(
-        Equipment.family_id == family_id
-    )
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            return []
+        query = db.query(MaintenanceOrder).join(Equipment).filter(
+            Equipment.family_id.in_(family_ids)
+        )
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        query = db.query(MaintenanceOrder).join(Equipment).filter(
+            Equipment.family_id == family_id
+        )
     
     if equipment_id:
         query = query.filter(MaintenanceOrder.equipment_id == equipment_id)

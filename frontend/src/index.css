@@ -110,8 +110,34 @@
   }
 
   /* Para navegadores que suportam, usar locale pt-BR pode ajudar */
-  input[type="datetime-local"][lang="pt-BR"] {
+  input[type="datetime-local"][lang="pt-BR"],
+  input[type="date"][lang="pt-BR"] {
     /* Alguns navegadores respeitam o locale */
+    /* Forçar direção de texto LTR para manter formato consistente */
+    direction: ltr;
+  }
+
+  /* Garantir que inputs de data exibam no formato brasileiro quando possível */
+  input[type="date"]::placeholder,
+  input[type="datetime-local"]::placeholder {
+    color: #9ca3af;
+    opacity: 1;
+  }
+
+  /* Estilos para inputs customizados de data */
+  .relative input[type="text"][readonly] {
+    /* Garantir que o input de exibição tenha o mesmo estilo */
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+  }
+
+  .relative input[type="text"][readonly]:focus {
+    outline: none;
+    ring: 2px;
+    ring-color: #3b82f6;
+    border-color: transparent;
   }
 }
 

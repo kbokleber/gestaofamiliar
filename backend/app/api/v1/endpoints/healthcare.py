@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.db.base import get_db
 from app.models.user import User
 from app.models.healthcare import FamilyMember, MedicalAppointment, MedicalProcedure, Medication
@@ -25,9 +25,20 @@ async def create_family_member(
     member_data: FamilyMemberCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Criar novo membro da família (compartilhado entre todos os usuários da mesma família)"""
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, usar a primeira família do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhuma família encontrada")
+        family_id = family_ids[0]  # Usar a primeira família
+    elif family_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+    
     member_data_dict = member_data.model_dump(exclude_none=False)
     member_data_dict['family_id'] = family_id
     member = FamilyMember(**member_data_dict)
@@ -41,10 +52,22 @@ async def create_family_member(
 async def list_family_members(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Listar todos os membros da família (compartilhados entre usuários da mesma família) ordenados por 'order' e depois nome"""
-    members = db.query(FamilyMember).filter(FamilyMember.family_id == family_id).order_by(FamilyMember.order, FamilyMember.name).all()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            return []
+        members = db.query(FamilyMember).filter(FamilyMember.family_id.in_(family_ids)).order_by(FamilyMember.order, FamilyMember.name).all()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        members = db.query(FamilyMember).filter(FamilyMember.family_id == family_id).order_by(FamilyMember.order, FamilyMember.name).all()
     return members
 
 @router.get("/members/{member_id}", response_model=FamilyMemberDetail)
@@ -52,13 +75,31 @@ async def get_family_member(
     member_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Obter detalhes de um membro da família"""
-    member = db.query(FamilyMember).filter(
-        FamilyMember.id == member_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se o membro pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Membro da família não encontrado"
+            )
+        member = db.query(FamilyMember).filter(
+            FamilyMember.id == member_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        member = db.query(FamilyMember).filter(
+            FamilyMember.id == member_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not member:
         raise HTTPException(
@@ -74,14 +115,26 @@ async def reorder_family_members(
     order_data: List[FamilyMemberOrderItem],
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Atualizar a ordem de exibição dos membros da família"""
+    from app.api.deps import get_user_family_ids
+    
     try:
+        # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
+        if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+            family_ids = get_user_family_ids(current_user, db)
+            if not family_ids:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhuma família encontrada")
+        else:
+            if family_id is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+            family_ids = [family_id]
+        
         for item in order_data:
             member = db.query(FamilyMember).filter(
                 FamilyMember.id == item.id,
-                FamilyMember.family_id == family_id
+                FamilyMember.family_id.in_(family_ids)
             ).first()
             if member:
                 member.order = item.order
@@ -101,16 +154,33 @@ async def update_family_member(
     member_data: FamilyMemberUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Atualizar membro da família"""
     import logging
+    from app.api.deps import get_user_family_ids
     logger = logging.getLogger("uvicorn")
     
-    member = db.query(FamilyMember).filter(
-        FamilyMember.id == member_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    # Se for admin sem family_id especificado, verificar se o membro pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Membro da família não encontrado"
+            )
+        member = db.query(FamilyMember).filter(
+            FamilyMember.id == member_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        member = db.query(FamilyMember).filter(
+            FamilyMember.id == member_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not member:
         raise HTTPException(
@@ -143,13 +213,31 @@ async def delete_family_member(
     member_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Excluir membro da família"""
-    member = db.query(FamilyMember).filter(
-        FamilyMember.id == member_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se o membro pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Membro da família não encontrado"
+            )
+        member = db.query(FamilyMember).filter(
+            FamilyMember.id == member_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        member = db.query(FamilyMember).filter(
+            FamilyMember.id == member_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not member:
         raise HTTPException(
@@ -193,13 +281,26 @@ async def list_appointments(
     member_id: int = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Listar consultas médicas (apenas da família do usuário)"""
-    # Filtrar por família através do FamilyMember
-    query = db.query(MedicalAppointment).join(FamilyMember).filter(
-        FamilyMember.family_id == family_id
-    )
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            return []
+        query = db.query(MedicalAppointment).join(FamilyMember).filter(
+            FamilyMember.family_id.in_(family_ids)
+        )
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        query = db.query(MedicalAppointment).join(FamilyMember).filter(
+            FamilyMember.family_id == family_id
+        )
     
     if member_id:
         query = query.filter(MedicalAppointment.family_member_id == member_id)
@@ -453,13 +554,26 @@ async def list_procedures(
     member_id: int = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Listar procedimentos médicos (apenas da família do usuário)"""
-    # Filtrar por família através do FamilyMember
-    query = db.query(MedicalProcedure).join(FamilyMember).filter(
-        FamilyMember.family_id == family_id
-    )
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            return []
+        query = db.query(MedicalProcedure).join(FamilyMember).filter(
+            FamilyMember.family_id.in_(family_ids)
+        )
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        query = db.query(MedicalProcedure).join(FamilyMember).filter(
+            FamilyMember.family_id == family_id
+        )
     
     if member_id:
         query = query.filter(MedicalProcedure.family_member_id == member_id)

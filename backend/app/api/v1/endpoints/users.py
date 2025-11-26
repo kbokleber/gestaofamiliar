@@ -55,11 +55,43 @@ async def list_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_admin)
 ):
-    """Listar todos os usuários"""
-    users = db.query(User).offset(skip).limit(limit).all()
-    return users
+    """Listar todos os usuários (apenas administradores)"""
+    from sqlalchemy.orm import joinedload
+    users = db.query(User).options(joinedload(User.families)).offset(skip).limit(limit).all()
+    
+    # Converter para dict e adicionar family_ids para admins
+    result = []
+    for user in users:
+        # Carregar famílias se for admin
+        if user.is_superuser:
+            db.refresh(user, ['families'])
+            family_ids = [f.id for f in user.families] if user.families else []
+            # Se não tiver famílias na relação many-to-many, usar family_id
+            if not family_ids and user.family_id:
+                family_ids = [user.family_id]
+        else:
+            family_ids = None
+        
+        user_dict = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "is_active": user.is_active,
+            "is_staff": user.is_staff,
+            "is_superuser": user.is_superuser,
+            "date_joined": user.date_joined,
+            "last_login": user.last_login,
+            "family_id": user.family_id,
+            "profile": user.profile,
+            "family_ids": family_ids
+        }
+        result.append(user_dict)
+    
+    return result
 
 @router.post("/", response_model=UserSchema)
 async def create_user(
@@ -190,14 +222,7 @@ async def update_user_permissions(
             detail="Usuário não encontrado"
         )
     
-    # Não permitir remover permissões de si mesmo
-    if user.id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Você não pode alterar suas próprias permissões"
-        )
-    
-    # Atualizar permissões
+    # Atualizar permissões (agora permite editar suas próprias permissões)
     if permissions_data.is_staff is not None:
         user.is_staff = permissions_data.is_staff
     
@@ -206,6 +231,39 @@ async def update_user_permissions(
         # Se for superuser, automaticamente é staff também
         if user.is_superuser:
             user.is_staff = True
+    
+    # Atualizar famílias
+    # Se for admin (superuser), pode ter múltiplas famílias
+    if user.is_superuser and permissions_data.family_ids is not None:
+        # Limpar relacionamentos existentes
+        user.families.clear()
+        
+        # Validar e adicionar novas famílias
+        for family_id in permissions_data.family_ids:
+            family = db.query(Family).filter(Family.id == family_id).first()
+            if not family:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Família {family_id} não encontrada"
+                )
+            user.families.append(family)
+        
+        # Também atualizar family_id com a primeira família (para compatibilidade)
+        if permissions_data.family_ids:
+            user.family_id = permissions_data.family_ids[0]
+    
+    # Se for staff, apenas uma família (family_id)
+    elif not user.is_superuser and permissions_data.family_id is not None:
+        # Validar que a família existe
+        family = db.query(Family).filter(Family.id == permissions_data.family_id).first()
+        if not family:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Família não encontrada"
+            )
+        user.family_id = permissions_data.family_id
+        # Limpar múltiplas famílias se houver
+        user.families.clear()
     
     db.commit()
     db.refresh(user)

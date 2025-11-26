@@ -2,7 +2,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield
+  Heart, Menu, X, Activity, Shield, Building2
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -38,13 +38,14 @@ export default function Layout() {
     },
   ]
 
-  // Adicionar menu de admin se for superuser ou staff
-  const isAdmin = user?.is_superuser || user?.is_staff
+  // Adicionar menu de admin se for superuser (apenas admins, não staff)
+  const isAdmin = user?.is_superuser
   const adminNavigation = isAdmin ? [{
     name: 'Administração',
     icon: Shield,
     children: [
       { name: 'Usuários', href: '/admin/users', icon: Users },
+      { name: 'Famílias', href: '/admin/families', icon: Building2 },
     ]
   }] : []
 
@@ -56,7 +57,7 @@ export default function Layout() {
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Gestão Familiar</h1>
-          <p className="text-xs text-gray-500">v1.0</p>
+          <p className="text-xs text-gray-500">v1.1</p>
         </div>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -76,7 +77,7 @@ export default function Layout() {
       >
         <div className="p-6">
           <h1 className="text-xl font-bold text-gray-900">Gestão Familiar</h1>
-          <p className="text-xs text-gray-500 mt-0.5">v1.0</p>
+          <p className="text-xs text-gray-500 mt-0.5">v1.1</p>
           <p className="text-sm text-gray-600 mt-1">Olá, {user?.first_name || user?.username}!</p>
         </div>
 

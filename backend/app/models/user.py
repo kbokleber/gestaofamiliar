@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
+from app.models.user_family import user_families
 
 class User(Base):
     """
@@ -21,10 +22,11 @@ class User(Base):
     is_staff = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     date_joined = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    family_id = Column(Integer, ForeignKey("families_family.id"), nullable=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=True, index=True)  # Mantido para compatibilidade (família principal para staff)
     
     # Relacionamentos
-    family = relationship("Family", back_populates="users")
+    family = relationship("Family", back_populates="users", foreign_keys=[family_id])  # Família principal (para staff)
+    families = relationship("Family", secondary=user_families, back_populates="users_many")  # Múltiplas famílias (para admins)
     profile = relationship("Profile", back_populates="user", uselist=False)
     dashboard_preference = relationship("DashboardPreference", back_populates="user", uselist=False)
     equipments_owned = relationship("Equipment", back_populates="owner")

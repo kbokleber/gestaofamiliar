@@ -12,7 +12,7 @@ class FamilyMember(Base):
     __tablename__ = "healthcare_familymember"
     
     id = Column(Integer, primary_key=True, index=True)
-    family_id = Column(Integer, ForeignKey("families_family.id"), nullable=False, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     photo = Column(Text, nullable=True)  # Armazena imagem em base64
     birth_date = Column(Date, nullable=False)

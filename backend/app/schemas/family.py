@@ -4,14 +4,14 @@ from datetime import datetime
 
 class FamilyBase(BaseModel):
     name: str
-    codigo_unico: str
 
 class FamilyCreate(FamilyBase):
+    """Schema para criar família - código único é gerado automaticamente"""
     pass
 
 class FamilyUpdate(BaseModel):
+    """Schema para atualizar família - código único não pode ser alterado"""
     name: Optional[str] = None
-    codigo_unico: Optional[str] = None
 
 class Family(FamilyBase):
     id: int

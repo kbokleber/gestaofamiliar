@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { formatDateTimeBR } from '../utils/dateUtils'
 
 interface DateTimeInputProps {
   value: string // Formato YYYY-MM-DDTHH:mm (ou com timezone)
@@ -9,14 +10,15 @@ interface DateTimeInputProps {
 }
 
 /**
- * Input de data/hora com calendário nativo (melhor para mobile)
- * Usa input type="datetime-local" que mostra calendário nativo
- * Converte automaticamente para timezone do Brasil (-03:00) ao enviar
- * Formata o valor exibido para usar espaço ao invés de vírgula
+ * Input de data/hora customizado que força exibição no formato brasileiro (DD/MM/YYYY HH:MM)
+ * Usa input type="datetime-local" internamente mas exibe a data formatada em português
  */
 export default function DateTimeInput({ value, onChange, required, className, placeholder }: DateTimeInputProps) {
+  const [displayValue, setDisplayValue] = useState('')
   const [localValue, setLocalValue] = useState('')
+  const [isFocused, setIsFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const displayRef = useRef<HTMLInputElement>(null)
 
   // Converte YYYY-MM-DDTHH:mm (ou com timezone) para YYYY-MM-DDTHH:mm (formato datetime-local)
   const formatToLocal = (isoDateTime: string): string => {
@@ -36,55 +38,92 @@ export default function DateTimeInput({ value, onChange, required, className, pl
     return `${localDateTime}:00-03:00`
   }
 
-  // Sincronizar valor externo com input local
+  // Sincronizar valor externo com input local e display
   useEffect(() => {
-    setLocalValue(formatToLocal(value))
+    const local = formatToLocal(value)
+    setLocalValue(local)
+    if (local) {
+      const formatted = formatDateTimeBR(value)
+      setDisplayValue(formatted)
+    } else {
+      setDisplayValue('')
+    }
   }, [value])
 
-  // Formatar valor exibido para substituir vírgula por espaço (após o navegador formatar)
-  useEffect(() => {
-    if (inputRef.current && localValue) {
-      // Aguardar o navegador formatar o valor
-      const timer = setTimeout(() => {
-        if (inputRef.current) {
-          // O navegador pode ter formatado com vírgula, mas não podemos alterar diretamente
-          // O valor interno está correto, apenas a exibição pode ter vírgula
-          // Isso é um comportamento nativo do navegador que não podemos controlar completamente
-        }
-      }, 100)
-      return () => clearTimeout(timer)
+  const handleDisplayClick = () => {
+    // Focar no input de data/hora real
+    if (inputRef.current) {
+      // Tentar abrir o date picker nativo
+      if ('showPicker' in inputRef.current && typeof inputRef.current.showPicker === 'function') {
+        inputRef.current.showPicker()
+      } else {
+        inputRef.current.focus()
+      }
     }
-  }, [localValue])
+    setIsFocused(true)
+  }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
     setLocalValue(inputValue)
     
     // Converter para formato com timezone e notificar
     if (inputValue) {
       const isoDateTime = formatToISO(inputValue)
+      const formatted = formatDateTimeBR(isoDateTime)
+      setDisplayValue(formatted)
       onChange(isoDateTime)
     } else {
+      setDisplayValue('')
       onChange('')
     }
   }
 
+  const handleBlur = () => {
+    setIsFocused(false)
+    // Garantir que o valor de exibição está correto
+    if (value) {
+      setDisplayValue(formatDateTimeBR(value))
+    }
+  }
+
   return (
-    <input
-      ref={inputRef}
-      type="datetime-local"
-      value={localValue}
-      onChange={handleChange}
-      required={required}
-      className={`${className || ''} datetime-input-mobile`}
-      placeholder={placeholder}
-      autoComplete="off"
-      style={{
-        minHeight: '44px', // Tamanho mínimo para touch targets no mobile
-        fontSize: '16px', // Previne zoom no iOS quando o input recebe foco
-      }}
-      lang="pt-BR"
-    />
+    <div className="relative w-full">
+      {/* Input de exibição (sempre mostra formato brasileiro) */}
+      <input
+        ref={displayRef}
+        type="text"
+        value={displayValue}
+        onClick={handleDisplayClick}
+        readOnly
+        placeholder={placeholder || 'dd/mm/aaaa hh:mm'}
+        required={required}
+        className={`${className || ''} cursor-pointer bg-white w-full relative z-10`}
+        style={{
+          minHeight: '44px',
+          fontSize: '16px',
+        }}
+      />
+      {/* Input de data/hora real (oculto, mas funcional) */}
+      <input
+        ref={inputRef}
+        type="datetime-local"
+        value={localValue}
+        onChange={handleInputChange}
+        onBlur={handleBlur}
+        onFocus={() => setIsFocused(true)}
+        required={required}
+        className="absolute inset-0 opacity-0 cursor-pointer pointer-events-none w-full h-full"
+        style={{
+          width: '100%',
+          height: '100%',
+          zIndex: 1,
+        }}
+        lang="pt-BR"
+        autoComplete="off"
+        tabIndex={-1}
+      />
+    </div>
   )
 }
 

@@ -38,6 +38,7 @@ interface FamilyMember {
 }
 
 export default function FamilyMembers() {
+  const { user: currentUser } = useAuthStore()
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -61,6 +62,8 @@ export default function FamilyMembers() {
     order: 0
   })
 
+  const isAdmin = currentUser?.is_superuser
+
   useEffect(() => {
     fetchMembers()
   }, [])
@@ -74,13 +77,13 @@ export default function FamilyMembers() {
       const token = useAuthStore.getState().token
       if (!token) {
         setError('Você precisa fazer login para acessar esta página')
-        // O interceptor vai redirecionar, mas vamos garantir
         setTimeout(() => {
           window.location.href = '/login'
         }, 2000)
         return
       }
       
+      // Admin não precisa passar family_id - backend retorna todas as famílias
       const response = await api.get('/healthcare/members')
       // Ordenar membros por order (menor número primeiro)
       const sortedMembers = [...response.data].sort((a, b) => (a.order || 0) - (b.order || 0))
@@ -490,6 +493,7 @@ export default function FamilyMembers() {
               Novo Membro
             </button>
           </div>
+
 
           {members.length === 0 ? (
         <div className="bg-white shadow rounded-lg p-12 text-center">

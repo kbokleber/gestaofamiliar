@@ -21,7 +21,7 @@ class Equipment(Base):
     service_provider = Column(String(200), nullable=False, default='')  # Empresa Prestadora do Serviço
     status = Column(String(20), nullable=False, default='OPERACIONAL')  # OPERACIONAL, EM_MANUTENCAO, FORA_DE_USO, RESERVA
     owner_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
-    family_id = Column(Integer, ForeignKey("families_family.id"), nullable=False, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
     notes = Column(Text, nullable=False, default='')
     documents = Column(Text, nullable=True)  # JSON com array de documentos em base64
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

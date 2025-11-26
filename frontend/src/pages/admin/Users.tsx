@@ -17,6 +17,14 @@ interface User {
   is_superuser: boolean
   date_joined: string
   last_login: string | null
+  family_id: number | null
+  family_ids?: number[]  // Para admins (múltiplas famílias)
+}
+
+interface Family {
+  id: number
+  name: string
+  codigo_unico: string
 }
 
 export default function AdminUsers() {
@@ -24,6 +32,7 @@ export default function AdminUsers() {
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedFamilyIds, setSelectedFamilyIds] = useState<number[]>([])
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showPermissionsModal, setShowPermissionsModal] = useState(false)
@@ -40,14 +49,24 @@ export default function AdminUsers() {
   })
   const [createUserError, setCreateUserError] = useState('')
 
-  // Verificar se é admin
-  const isAdmin = currentUser?.is_superuser || currentUser?.is_staff
+  // Verificar se é admin (apenas superuser, não staff)
+  const isAdmin = currentUser?.is_superuser
 
   // Buscar usuários
   const { data: users = [], isLoading, refetch } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: async () => {
       const response = await api.get('/users/')
+      return response.data
+    },
+    enabled: !!isAdmin,
+  })
+
+  // Buscar famílias
+  const { data: families = [] } = useQuery<Family[]>({
+    queryKey: ['families'],
+    queryFn: async () => {
+      const response = await api.get('/families/')
       return response.data
     },
     enabled: !!isAdmin,
@@ -129,11 +148,19 @@ export default function AdminUsers() {
 
   // Mutação para atualizar permissões
   const updatePermissionsMutation = useMutation({
-    mutationFn: async ({ userId, isStaff, isSuperuser }: { userId: number; isStaff: boolean; isSuperuser: boolean }) => {
-      const response = await api.put(`/users/${userId}/permissions`, {
+    mutationFn: async ({ userId, isStaff, isSuperuser, familyId, familyIds }: { userId: number; isStaff: boolean; isSuperuser: boolean; familyId?: number | null; familyIds?: number[] }) => {
+      const payload: any = {
         is_staff: isStaff,
         is_superuser: isSuperuser
-      })
+      }
+      // Se for admin, enviar múltiplas famílias
+      if (isSuperuser && familyIds !== undefined) {
+        payload.family_ids = familyIds
+      } else if (!isSuperuser && familyId !== undefined) {
+        // Se for staff, enviar apenas uma família
+        payload.family_id = familyId
+      }
+      const response = await api.put(`/users/${userId}/permissions`, payload)
       return response.data
     },
     onSuccess: () => {
@@ -181,14 +208,27 @@ export default function AdminUsers() {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Nunca'
-    const date = new Date(dateString)
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return 'Data inválida'
+      // Formato brasileiro: DD/MM/YYYY HH:MM
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo'
+      })
+    } catch (error) {
+      return 'Data inválida'
+    }
+  }
+
+  const getFamilyName = (familyId: number | null) => {
+    if (!familyId) return 'Sem família'
+    const family = families.find(f => f.id === familyId)
+    return family ? `${family.name} (${family.codigo_unico})` : 'Família não encontrada'
   }
 
   if (!isAdmin) {
@@ -317,6 +357,10 @@ export default function AdminUsers() {
                     </div>
                   </div>
                   <div>
+                    <span className="font-medium text-gray-700">Família:</span>
+                    <span className="ml-2 text-gray-900 text-sm">{getFamilyName(user.family_id)}</span>
+                  </div>
+                  <div>
                     <span className="font-medium text-gray-700">Último Login:</span>
                     <span className="ml-2 text-gray-900">{formatDate(user.last_login)}</span>
                   </div>
@@ -359,17 +403,21 @@ export default function AdminUsers() {
                       </button>
                     )}
                   </div>
-                  {user.id !== currentUser?.id && (
-                    <button
-                      onClick={() => {
-                        setSelectedUser(user)
-                        setShowPermissionsModal(true)
-                      }}
-                      className="w-full flex items-center justify-center px-3 py-2 border border-purple-600 text-purple-600 text-sm rounded-md hover:bg-purple-50"
-                    >
-                      Editar Permissões
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      setSelectedUser(user)
+                      // Inicializar family_ids se for admin
+                      if (user.is_superuser) {
+                        setSelectedFamilyIds(user.family_ids || [user.family_id].filter(Boolean) as number[])
+                      } else {
+                        setSelectedFamilyIds([])
+                      }
+                      setShowPermissionsModal(true)
+                    }}
+                    className="w-full flex items-center justify-center px-3 py-2 border border-purple-600 text-purple-600 text-sm rounded-md hover:bg-purple-50"
+                  >
+                    Editar Permissões
+                  </button>
                 </div>
               </div>
             ))}
@@ -394,6 +442,9 @@ export default function AdminUsers() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Permissões
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Família
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Último Login
@@ -445,19 +496,26 @@ export default function AdminUsers() {
                         {!user.is_superuser && !user.is_staff && (
                           <span className="text-gray-400">-</span>
                         )}
-                        {user.id !== currentUser?.id && (
-                          <button
-                            onClick={() => {
-                              setSelectedUser(user)
-                              setShowPermissionsModal(true)
-                            }}
-                            className="ml-2 text-purple-600 hover:text-purple-900 text-xs"
-                            title="Editar permissões"
-                          >
-                            ✏️
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user)
+                            // Inicializar family_ids se for admin
+                            if (user.is_superuser) {
+                              setSelectedFamilyIds(user.family_ids || [user.family_id].filter(Boolean) as number[])
+                            } else {
+                              setSelectedFamilyIds([])
+                            }
+                            setShowPermissionsModal(true)
+                          }}
+                          className="ml-2 text-purple-600 hover:text-purple-900 text-xs"
+                          title="Editar permissões"
+                        >
+                          ✏️
+                        </button>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{getFamilyName(user.family_id)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{formatDate(user.last_login)}</div>
@@ -759,6 +817,7 @@ export default function AdminUsers() {
         onClose={() => {
           setShowPermissionsModal(false)
           setSelectedUser(null)
+          setSelectedFamilyIds([])
         }}
         title={`Editar Permissões - ${selectedUser?.username}`}
       >
@@ -818,6 +877,67 @@ export default function AdminUsers() {
                 <p className="text-xs text-gray-500">Acesso administrativo básico</p>
               </div>
             </label>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {selectedUser?.is_superuser ? 'Famílias (múltiplas)' : 'Família'}
+              </label>
+              {selectedUser?.is_superuser ? (
+                // Seleção múltipla para admins
+                <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg p-2">
+                  {families.map((family) => (
+                    <label key={family.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                      <input
+                        type="checkbox"
+                        checked={(selectedFamilyIds || []).includes(family.id)}
+                        onChange={(e) => {
+                          const currentIds = selectedFamilyIds || []
+                          const newIds = e.target.checked
+                            ? [...currentIds, family.id]
+                            : currentIds.filter(id => id !== family.id)
+                          setSelectedFamilyIds(newIds)
+                          if (selectedUser) {
+                            setSelectedUser({
+                              ...selectedUser,
+                              family_ids: newIds,
+                              family_id: newIds[0] || null  // Primeira família como principal
+                            })
+                          }
+                        }}
+                        className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                      />
+                      <span className="text-sm text-gray-700">{family.name}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                // Seleção única para staff
+                <select
+                  value={selectedUser?.family_id || ''}
+                  onChange={(e) => {
+                    if (selectedUser) {
+                      setSelectedUser({
+                        ...selectedUser,
+                        family_id: e.target.value ? parseInt(e.target.value) : null
+                      })
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="">Selecione uma família</option>
+                  {families.map((family) => (
+                    <option key={family.id} value={family.id}>
+                      {family.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedUser?.is_superuser 
+                  ? 'Admins podem pertencer a múltiplas famílias' 
+                  : 'Staff pode pertencer apenas a uma família'}
+              </p>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
@@ -836,7 +956,9 @@ export default function AdminUsers() {
                 updatePermissionsMutation.mutate({
                   userId: selectedUser.id,
                   isStaff: selectedUser.is_staff,
-                  isSuperuser: selectedUser.is_superuser
+                  isSuperuser: selectedUser.is_superuser,
+                  familyId: selectedUser.family_id,
+                  familyIds: selectedUser.is_superuser ? selectedFamilyIds : undefined
                 })
               }}
               disabled={updatePermissionsMutation.isPending}

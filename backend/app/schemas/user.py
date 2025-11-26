@@ -48,6 +48,8 @@ class PasswordUpdate(BaseModel):
 class PermissionsUpdate(BaseModel):
     is_staff: Optional[bool] = None
     is_superuser: Optional[bool] = None
+    family_id: Optional[int] = None  # Para staff (apenas uma família)
+    family_ids: Optional[list[int]] = None  # Para admins (múltiplas famílias)
 
 class User(UserBase):
     id: int
@@ -58,6 +60,7 @@ class User(UserBase):
     last_login: Optional[datetime] = None
     family_id: Optional[int] = None
     profile: Optional[Profile] = None
+    family_ids: Optional[list[int]] = None  # Para admins (múltiplas famílias)
     
     class Config:
         from_attributes = True

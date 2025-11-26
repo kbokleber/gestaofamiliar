@@ -11,6 +11,7 @@ import Medications from './pages/healthcare/Medications'
 import Equipment from './pages/maintenance/Equipment'
 import MaintenanceOrders from './pages/maintenance/MaintenanceOrders'
 import AdminUsers from './pages/admin/Users'
+import AdminFamilies from './pages/admin/Families'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -38,6 +39,7 @@ function App() {
         
         {/* Admin Routes */}
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/families" element={<AdminFamilies />} />
       </Route>
     </Routes>
   )
