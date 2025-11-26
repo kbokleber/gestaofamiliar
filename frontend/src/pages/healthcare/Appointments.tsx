@@ -5,7 +5,7 @@ import Modal from '../../components/Modal'
 import DateTimeInput from '../../components/DateTimeInput'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
-import { formatDateTimeBR, toDateTimeInputValue } from '../../utils/dateUtils'
+import { formatDateTimeBR, toDateTimeInputValue, isFutureDateTime } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
 
 interface FamilyMember {
@@ -99,12 +99,10 @@ export default function Appointments() {
       })
     }
 
-    // Filtro por próximas consultas
+    // Filtro por próximas consultas (sem problemas de timezone)
     if (showUpcomingOnly) {
-      const now = new Date()
       filtered = filtered.filter(appointment => {
-        const appointmentDate = new Date(appointment.appointment_date)
-        return appointmentDate > now
+        return isFutureDateTime(appointment.appointment_date)
       })
     }
 

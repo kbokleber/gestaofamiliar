@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { authService } from '../services/authService'
 import { Heart } from 'lucide-react'
@@ -104,12 +104,6 @@ export default function Login() {
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
-
-          <div className="text-center">
-            <Link to="/register" className="text-sm text-indigo-600 hover:text-indigo-500">
-              Não tem uma conta? Cadastre-se
-            </Link>
-          </div>
         </form>
       </div>
     </div>

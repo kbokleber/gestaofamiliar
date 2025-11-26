@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Heart, Wrench, Users, Calendar } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api'
+import { isFutureDateTime } from '../utils/dateUtils'
 
 interface DashboardStats {
   totalMembers: number
@@ -33,11 +34,9 @@ export default function Dashboard() {
         api.get('/healthcare/medications', { params: { active_only: true } })
       ])
 
-      // Filtrar apenas consultas futuras
-      const now = new Date()
+      // Filtrar apenas consultas futuras (sem problemas de timezone)
       const upcomingAppointments = appointmentsRes.data.filter((appointment: any) => {
-        const appointmentDate = new Date(appointment.appointment_date)
-        return appointmentDate > now
+        return isFutureDateTime(appointment.appointment_date)
       })
 
       setStats({

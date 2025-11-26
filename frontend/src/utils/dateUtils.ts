@@ -166,3 +166,37 @@ export const formatDateFullBR = (dateString: string | null | undefined): string 
   return `${day} de ${months[monthIndex]} de ${year}`
 }
 
+/**
+ * Compara uma data ISO com a data/hora atual, sem considerar timezone
+ * Retorna true se a data for futura (maior que agora)
+ * Extrai os valores diretamente da string para evitar problemas de timezone
+ */
+export const isFutureDateTime = (dateString: string | null | undefined): boolean => {
+  if (!dateString) return false
+  
+  // Remover timezone se presente (ex: -03:00 ou +00:00 ou Z)
+  const cleaned = dateString.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '')
+  
+  // Extrair data/hora da string ISO
+  const match = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d+))?/)
+  if (!match) return false
+  
+  const [, year, month, day, hours, minutes, seconds = '0', milliseconds = '0'] = match
+  
+  // Criar Date object usando valores locais (sem conversão de timezone)
+  const appointmentDate = new Date(
+    parseInt(year, 10),
+    parseInt(month, 10) - 1, // month é 0-indexed
+    parseInt(day, 10),
+    parseInt(hours, 10),
+    parseInt(minutes, 10),
+    parseInt(seconds, 10),
+    parseInt(milliseconds.substring(0, 3), 10) // pegar apenas os primeiros 3 dígitos dos milissegundos
+  )
+  
+  // Obter data/hora atual no timezone local
+  const now = new Date()
+  
+  return appointmentDate > now
+}
+
