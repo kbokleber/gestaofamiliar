@@ -268,23 +268,33 @@ export default function Medications() {
   }
 
   const isActive = (medication: Medication) => {
+    // Criar data de hoje no timezone local, apenas com ano, mês e dia
     const today = new Date()
-    // Normalizar hoje para o início do dia (00:00:00)
-    today.setHours(0, 0, 0, 0)
+    const todayYear = today.getFullYear()
+    const todayMonth = today.getMonth()
+    const todayDay = today.getDate()
     
-    const startDate = new Date(medication.start_date)
-    startDate.setHours(0, 0, 0, 0)
+    // Parsear data de início (pode vir como "YYYY-MM-DD" ou ISO string)
+    const startDateStr = medication.start_date.split('T')[0] // Remove hora se houver
+    const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number)
+    const startDate = new Date(startYear, startMonth - 1, startDay) // Mês é 0-indexed
     
-    // Se não tem data de término, está ativo
+    // Se não tem data de término, está ativo se já começou
     if (!medication.end_date) {
-      return startDate <= today
+      const todayDate = new Date(todayYear, todayMonth, todayDay)
+      return startDate <= todayDate
     }
     
-    // Se tem data de término, considerar ativo até o final do dia (23:59:59)
-    const endDate = new Date(medication.end_date)
-    endDate.setHours(23, 59, 59, 999) // Final do dia da data de término
+    // Parsear data de término (pode vir como "YYYY-MM-DD" ou ISO string)
+    const endDateStr = medication.end_date.split('T')[0] // Remove hora se houver
+    const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number)
+    const endDate = new Date(endYear, endMonth - 1, endDay) // Mês é 0-indexed
     
-    return startDate <= today && endDate >= today
+    // Comparar apenas as datas (sem hora)
+    const todayDate = new Date(todayYear, todayMonth, todayDay)
+    
+    // Está ativo se: já começou E ainda não terminou (incluindo o dia de término)
+    return startDate <= todayDate && endDate >= todayDate
   }
 
   const getMemberName = (memberId: number) => {
