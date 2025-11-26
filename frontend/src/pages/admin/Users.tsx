@@ -279,7 +279,7 @@ export default function AdminUsers() {
   const getFamilyName = (familyId: number | null) => {
     if (!familyId) return 'Sem família'
     const family = families.find(f => f.id === familyId)
-    return family ? `${family.name} (${family.codigo_unico})` : 'Família não encontrada'
+    return family ? family.name : 'Família não encontrada'
   }
 
   if (!isAdmin) {
