@@ -38,7 +38,6 @@ interface FamilyMember {
 }
 
 export default function FamilyMembers() {
-  const { user: currentUser } = useAuthStore()
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
