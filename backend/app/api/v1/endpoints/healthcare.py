@@ -254,9 +254,20 @@ async def create_appointment(
     appointment_data: MedicalAppointmentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Criar nova consulta médica"""
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, usar a primeira família do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhuma família encontrada")
+        family_id = family_ids[0]  # Usar a primeira família
+    elif family_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+    
     # Verificar se o membro existe e pertence à família do usuário
     member = db.query(FamilyMember).filter(
         FamilyMember.id == appointment_data.family_member_id,
@@ -313,14 +324,31 @@ async def update_appointment(
     appointment_data: MedicalAppointmentUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Atualizar consulta médica"""
-    # Filtrar por família através do FamilyMember
-    appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
-        MedicalAppointment.id == appointment_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se a consulta pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Consulta não encontrada"
+            )
+        appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
+            MedicalAppointment.id == appointment_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
+            MedicalAppointment.id == appointment_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not appointment:
         raise HTTPException(
@@ -340,13 +368,31 @@ async def delete_appointment(
     appointment_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Excluir consulta médica"""
-    appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
-        MedicalAppointment.id == appointment_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se a consulta pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Consulta não encontrada"
+            )
+        appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
+            MedicalAppointment.id == appointment_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
+            MedicalAppointment.id == appointment_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not appointment:
         raise HTTPException(
@@ -363,11 +409,21 @@ async def create_medication(
     medication_data: MedicationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Criar novo medicamento"""
     import logging
+    from app.api.deps import get_user_family_ids
     logger = logging.getLogger("uvicorn")
+    
+    # Se for admin sem family_id especificado, usar a primeira família do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhuma família encontrada")
+        family_id = family_ids[0]  # Usar a primeira família
+    elif family_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
     
     member = db.query(FamilyMember).filter(
         FamilyMember.id == medication_data.family_member_id,
@@ -413,15 +469,27 @@ async def list_medications(
     active_only: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Listar medicamentos (apenas da família do usuário)"""
     from datetime import date
+    from app.api.deps import get_user_family_ids
     
-    # Filtrar por família através do FamilyMember
-    query = db.query(Medication).join(FamilyMember).filter(
-        FamilyMember.family_id == family_id
-    )
+    # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            return []
+        query = db.query(Medication).join(FamilyMember).filter(
+            FamilyMember.family_id.in_(family_ids)
+        )
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        query = db.query(Medication).join(FamilyMember).filter(
+            FamilyMember.family_id == family_id
+        )
     
     if member_id:
         query = query.filter(Medication.family_member_id == member_id)
@@ -441,17 +509,33 @@ async def update_medication(
     medication_data: MedicationUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Atualizar medicamento"""
     import logging
+    from app.api.deps import get_user_family_ids
     logger = logging.getLogger("uvicorn")
     
-    # Filtrar por família através do FamilyMember
-    medication = db.query(Medication).join(FamilyMember).filter(
-        Medication.id == medication_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    # Se for admin sem family_id especificado, verificar se o medicamento pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Medicamento não encontrado"
+            )
+        medication = db.query(Medication).join(FamilyMember).filter(
+            Medication.id == medication_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        medication = db.query(Medication).join(FamilyMember).filter(
+            Medication.id == medication_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not medication:
         raise HTTPException(
@@ -506,13 +590,31 @@ async def delete_medication(
     medication_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Excluir medicamento"""
-    medication = db.query(Medication).join(FamilyMember).filter(
-        Medication.id == medication_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se o medicamento pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Medicamento não encontrado"
+            )
+        medication = db.query(Medication).join(FamilyMember).filter(
+            Medication.id == medication_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        medication = db.query(Medication).join(FamilyMember).filter(
+            Medication.id == medication_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not medication:
         raise HTTPException(
@@ -529,9 +631,20 @@ async def create_procedure(
     procedure_data: MedicalProcedureCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Criar novo procedimento médico"""
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, usar a primeira família do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhuma família encontrada")
+        family_id = family_ids[0]  # Usar a primeira família
+    elif family_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+    
     member = db.query(FamilyMember).filter(
         FamilyMember.id == procedure_data.family_member_id,
         FamilyMember.family_id == family_id
@@ -586,14 +699,31 @@ async def update_procedure(
     procedure_data: MedicalProcedureUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Atualizar procedimento médico"""
-    # Filtrar por família através do FamilyMember
-    procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
-        MedicalProcedure.id == procedure_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se o procedimento pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Procedimento não encontrado"
+            )
+        procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
+            MedicalProcedure.id == procedure_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
+            MedicalProcedure.id == procedure_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not procedure:
         raise HTTPException(
@@ -620,14 +750,31 @@ async def delete_procedure(
     procedure_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Excluir procedimento médico"""
-    # Filtrar por família através do FamilyMember
-    procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
-        MedicalProcedure.id == procedure_id,
-        FamilyMember.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se o procedimento pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Procedimento não encontrado"
+            )
+        procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
+            MedicalProcedure.id == procedure_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
+            MedicalProcedure.id == procedure_id,
+            FamilyMember.family_id == family_id
+        ).first()
     
     if not procedure:
         raise HTTPException(

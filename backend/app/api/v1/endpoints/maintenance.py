@@ -21,9 +21,20 @@ async def create_equipment(
     equipment_data: EquipmentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Criar novo equipamento"""
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, usar a primeira família do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhuma família encontrada")
+        family_id = family_ids[0]  # Usar a primeira família
+    elif family_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+    
     equipment_dict = equipment_data.model_dump(exclude_none=False)
     equipment_dict['family_id'] = family_id
     equipment = Equipment(**equipment_dict)
@@ -67,13 +78,31 @@ async def get_equipment(
     equipment_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Obter detalhes de um equipamento"""
-    equipment = db.query(Equipment).filter(
-        Equipment.id == equipment_id,
-        Equipment.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se o equipamento pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Equipamento não encontrado"
+            )
+        equipment = db.query(Equipment).filter(
+            Equipment.id == equipment_id,
+            Equipment.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        equipment = db.query(Equipment).filter(
+            Equipment.id == equipment_id,
+            Equipment.family_id == family_id
+        ).first()
     
     if not equipment:
         raise HTTPException(
@@ -89,14 +118,31 @@ async def update_equipment(
     equipment_data: EquipmentUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Atualizar equipamento"""
-    # Filtrar por família (equipamentos são compartilhados entre usuários da mesma família)
-    equipment = db.query(Equipment).filter(
-        Equipment.id == equipment_id,
-        Equipment.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se o equipamento pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Equipamento não encontrado"
+            )
+        equipment = db.query(Equipment).filter(
+            Equipment.id == equipment_id,
+            Equipment.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        equipment = db.query(Equipment).filter(
+            Equipment.id == equipment_id,
+            Equipment.family_id == family_id
+        ).first()
     
     if not equipment:
         raise HTTPException(
@@ -127,13 +173,31 @@ async def delete_equipment(
     equipment_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Excluir equipamento"""
-    equipment = db.query(Equipment).filter(
-        Equipment.id == equipment_id,
-        Equipment.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se o equipamento pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Equipamento não encontrado"
+            )
+        equipment = db.query(Equipment).filter(
+            Equipment.id == equipment_id,
+            Equipment.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        equipment = db.query(Equipment).filter(
+            Equipment.id == equipment_id,
+            Equipment.family_id == family_id
+        ).first()
     
     if not equipment:
         raise HTTPException(
@@ -150,9 +214,20 @@ async def create_maintenance_order(
     order_data: MaintenanceOrderCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Criar nova ordem de manutenção"""
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, usar a primeira família do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhuma família encontrada")
+        family_id = family_ids[0]  # Usar a primeira família
+    elif family_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+    
     # Verificar se o equipamento pertence à família do usuário
     equipment = db.query(Equipment).filter(
         Equipment.id == order_data.equipment_id,
@@ -229,14 +304,31 @@ async def get_maintenance_order(
     order_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Obter detalhes de uma ordem de manutenção"""
-    # Filtrar por família através do Equipment
-    order = db.query(MaintenanceOrder).join(Equipment).filter(
-        MaintenanceOrder.id == order_id,
-        Equipment.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se a ordem pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Ordem de manutenção não encontrada"
+            )
+        order = db.query(MaintenanceOrder).join(Equipment).filter(
+            MaintenanceOrder.id == order_id,
+            Equipment.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        order = db.query(MaintenanceOrder).join(Equipment).filter(
+            MaintenanceOrder.id == order_id,
+            Equipment.family_id == family_id
+        ).first()
     
     if not order:
         raise HTTPException(
@@ -252,16 +344,32 @@ async def update_maintenance_order(
     order_data: MaintenanceOrderUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Atualizar ordem de manutenção"""
+    from app.api.deps import get_user_family_ids
     print(f"[DEBUG] ===== INÍCIO UPDATE ORDER {order_id} =====")
     try:
-        # Filtrar por família através do Equipment
-        order = db.query(MaintenanceOrder).join(Equipment).filter(
-            MaintenanceOrder.id == order_id,
-            Equipment.family_id == family_id
-        ).first()
+        # Se for admin sem family_id especificado, verificar se a ordem pertence a alguma das famílias do admin
+        if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+            family_ids = get_user_family_ids(current_user, db)
+            if not family_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Ordem de manutenção não encontrada"
+                )
+            order = db.query(MaintenanceOrder).join(Equipment).filter(
+                MaintenanceOrder.id == order_id,
+                Equipment.family_id.in_(family_ids)
+            ).first()
+        else:
+            # Usuário normal ou admin com family_id específico
+            if family_id is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+            order = db.query(MaintenanceOrder).join(Equipment).filter(
+                MaintenanceOrder.id == order_id,
+                Equipment.family_id == family_id
+            ).first()
         
         if not order:
             print(f"[ERROR] Ordem {order_id} não encontrada")
@@ -343,14 +451,31 @@ async def delete_maintenance_order(
     order_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: int = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family)
 ):
     """Excluir ordem de manutenção"""
-    # Filtrar por família através do Equipment
-    order = db.query(MaintenanceOrder).join(Equipment).filter(
-        MaintenanceOrder.id == order_id,
-        Equipment.family_id == family_id
-    ).first()
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, verificar se a ordem pertence a alguma das famílias do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Ordem de manutenção não encontrada"
+            )
+        order = db.query(MaintenanceOrder).join(Equipment).filter(
+            MaintenanceOrder.id == order_id,
+            Equipment.family_id.in_(family_ids)
+        ).first()
+    else:
+        # Usuário normal ou admin com family_id específico
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        order = db.query(MaintenanceOrder).join(Equipment).filter(
+            MaintenanceOrder.id == order_id,
+            Equipment.family_id == family_id
+        ).first()
     
     if not order:
         raise HTTPException(
