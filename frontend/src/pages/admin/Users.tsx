@@ -202,13 +202,13 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Users className="w-6 h-6" />
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Users className="w-5 h-5 sm:w-6 sm:h-6" />
           Administração de Usuários
         </h1>
-        <p className="text-gray-600 mt-1">Gerencie usuários e senhas do sistema</p>
+        <p className="text-sm sm:text-base text-gray-600 mt-1">Gerencie usuários e senhas do sistema</p>
       </div>
 
       {/* Barra de busca */}
@@ -226,7 +226,7 @@ export default function AdminUsers() {
       </div>
 
       {/* Botões de ação */}
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <Button
           onClick={() => {
             setShowCreateModal(true)
@@ -240,7 +240,7 @@ export default function AdminUsers() {
               last_name: ''
             })
           }}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           Novo Usuário
@@ -248,14 +248,14 @@ export default function AdminUsers() {
         <Button
           onClick={() => refetch()}
           variant="outline"
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 w-full sm:w-auto"
         >
           <RefreshCw className="w-4 h-4" />
           Atualizar
         </Button>
       </div>
 
-      {/* Tabela de usuários */}
+      {/* Lista de usuários */}
       {isLoading ? (
         <div className="text-center py-12">
           <p className="text-gray-500">Carregando usuários...</p>
@@ -265,9 +265,120 @@ export default function AdminUsers() {
           <p className="text-gray-500">Nenhum usuário encontrado</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+        <>
+          {/* Visualização em Cards para Mobile/Tablet */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4 mb-6">
+            {filteredUsers.map((user) => (
+              <div key={user.id} className="bg-white shadow rounded-lg p-4 space-y-3">
+                {/* Cabeçalho do Card */}
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900">{user.username}</h3>
+                    <div className="text-sm text-gray-500 mt-1">{user.email}</div>
+                    {(user.first_name || user.last_name) && (
+                      <div className="text-sm text-gray-700 mt-1">
+                        {user.first_name} {user.last_name}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    {user.is_active ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <UserCheck className="w-3 h-3 mr-1" />
+                        Ativo
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <UserX className="w-3 h-3 mr-1" />
+                        Inativo
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Informações do Card */}
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-700">Permissões:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {user.is_superuser && (
+                        <span className="inline-block px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-800 rounded">
+                          Admin
+                        </span>
+                      )}
+                      {user.is_staff && (
+                        <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded">
+                          Staff
+                        </span>
+                      )}
+                      {!user.is_superuser && !user.is_staff && (
+                        <span className="text-gray-400 text-xs">Nenhuma</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Último Login:</span>
+                    <span className="ml-2 text-gray-900">{formatDate(user.last_login)}</span>
+                  </div>
+                </div>
+
+                {/* Ações do Card */}
+                <div className="flex flex-col gap-2 pt-3 border-t border-gray-200">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleOpenPasswordModal(user)}
+                      className="flex-1 flex items-center justify-center px-3 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700"
+                    >
+                      <Lock className="h-4 w-4 mr-1" />
+                      Senha
+                    </button>
+                    {user.id !== currentUser?.id && (
+                      <button
+                        onClick={() => {
+                          if (confirm(`Tem certeza que deseja ${user.is_active ? 'desativar' : 'ativar'} este usuário?`)) {
+                            toggleActiveMutation.mutate(user.id)
+                          }
+                        }}
+                        className={`flex-1 flex items-center justify-center px-3 py-2 text-sm rounded-md ${
+                          user.is_active
+                            ? 'border border-red-600 text-red-600 hover:bg-red-50'
+                            : 'border border-green-600 text-green-600 hover:bg-green-50'
+                        }`}
+                      >
+                        {user.is_active ? (
+                          <>
+                            <UserX className="h-4 w-4 mr-1" />
+                            Desativar
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="h-4 w-4 mr-1" />
+                            Ativar
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  {user.id !== currentUser?.id && (
+                    <button
+                      onClick={() => {
+                        setSelectedUser(user)
+                        setShowPermissionsModal(true)
+                      }}
+                      className="w-full flex items-center justify-center px-3 py-2 border border-purple-600 text-purple-600 text-sm rounded-md hover:bg-purple-50"
+                    >
+                      Editar Permissões
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Visualização em Tabela para Desktop */}
+          <div className="hidden lg:block bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -388,6 +499,7 @@ export default function AdminUsers() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {/* Modal de alteração de senha */}
