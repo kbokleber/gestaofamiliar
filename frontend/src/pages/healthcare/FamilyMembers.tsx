@@ -500,6 +500,7 @@ export default function FamilyMembers() {
                   <input 
                     type="file" 
                     accept="image/*" 
+                    capture="environment"
                     className="hidden" 
                     onChange={handlePhotoChange}
                   />
@@ -674,6 +675,7 @@ export default function FamilyMembers() {
                 <input 
                   type="file" 
                   accept="image/*" 
+                  capture="environment"
                   className="hidden" 
                   onChange={handlePhotoChange}
                 />
