@@ -323,7 +323,32 @@ fi
 
 echo ""
 
-# 10. Resumo final
+# 10. Reiniciar NPM para limpar cache e garantir conectividade
+echo "10. Reiniciando NPM para limpar cache..."
+NPM_SERVICE=$(docker service ls | grep -i nginx | grep -i app | awk '{print $1}' | head -n 1)
+
+if [ -n "$NPM_SERVICE" ]; then
+    echo "   Serviço NPM: $NPM_SERVICE"
+    docker service update --force "$NPM_SERVICE"
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ NPM reiniciado${NC}"
+        echo "   Aguardando NPM estabilizar (15 segundos)..."
+        sleep 15
+        echo -e "${GREEN}✓ NPM está pronto${NC}"
+    else
+        echo -e "${YELLOW}⚠ Aviso: Não foi possível reiniciar o NPM automaticamente${NC}"
+        echo "   Reinicie manualmente: docker service update --force $NPM_SERVICE"
+    fi
+else
+    echo -e "${YELLOW}⚠ Serviço NPM não encontrado (pode estar em outro stack)${NC}"
+    echo "   Se o NPM estiver em um stack separado, reinicie manualmente:"
+    echo "   docker service update --force <nome-serviço-npm>"
+fi
+
+echo ""
+
+# 11. Resumo final
 echo "=========================================="
 echo "RESUMO"
 echo "=========================================="
