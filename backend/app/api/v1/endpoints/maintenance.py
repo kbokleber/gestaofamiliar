@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import json
+from datetime import datetime, timezone
 from app.db.base import get_db
 from app.models.user import User
 from app.models.maintenance import Equipment, MaintenanceOrder, EquipmentAttachment
@@ -51,6 +52,11 @@ async def create_equipment(
             equipment_dict['status'] = 'OPERACIONAL'
         if 'notes' not in equipment_dict or equipment_dict['notes'] is None:
             equipment_dict['notes'] = ''
+        
+        # Definir created_at e updated_at explicitamente para garantir que não sejam None
+        now = datetime.now(timezone.utc)
+        equipment_dict['created_at'] = now
+        equipment_dict['updated_at'] = now
         
         equipment = Equipment(**equipment_dict)
         if not equipment.owner_id:
@@ -267,7 +273,7 @@ async def create_maintenance_order(
     # Isso é importante para campos opcionais como documents
     data_dict = order_data.model_dump(exclude_none=False)
     
-    # Remover campos que devem ser gerenciados pelo banco de dados
+    # Remover campos que devem ser gerenciados pelo código
     data_dict.pop('created_at', None)
     data_dict.pop('updated_at', None)
     data_dict.pop('id', None)
@@ -275,6 +281,11 @@ async def create_maintenance_order(
     # Normalizar status para maiúsculas
     if 'status' in data_dict and data_dict['status']:
         data_dict['status'] = data_dict['status'].upper()
+    
+    # Definir created_at e updated_at explicitamente para garantir que não sejam None
+    now = datetime.now(timezone.utc)
+    data_dict['created_at'] = now
+    data_dict['updated_at'] = now
     
     # Log para debug
     print(f"[DEBUG] CREATE ORDER - documents presente: {'documents' in data_dict}")

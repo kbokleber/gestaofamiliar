@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime, timezone
 from app.db.base import get_db
 from app.models.user import User
 from app.models.healthcare import FamilyMember, MedicalAppointment, MedicalProcedure, Medication
@@ -42,10 +43,15 @@ async def create_family_member(
     member_data_dict = member_data.model_dump(exclude_none=False)
     member_data_dict['family_id'] = family_id
     
-    # Remover campos que devem ser gerenciados pelo banco de dados
+    # Remover campos que devem ser gerenciados pelo código
     member_data_dict.pop('created_at', None)
     member_data_dict.pop('updated_at', None)
     member_data_dict.pop('id', None)
+    
+    # Definir created_at e updated_at explicitamente para garantir que não sejam None
+    now = datetime.now(timezone.utc)
+    member_data_dict['created_at'] = now
+    member_data_dict['updated_at'] = now
     
     member = FamilyMember(**member_data_dict)
     
@@ -289,10 +295,15 @@ async def create_appointment(
     # Usar model_dump para garantir que campos opcionais sejam incluídos
     appointment_dict = appointment_data.model_dump(exclude_none=False)
     
-    # Remover campos que devem ser gerenciados pelo banco de dados
+    # Remover campos que devem ser gerenciados pelo código
     appointment_dict.pop('created_at', None)
     appointment_dict.pop('updated_at', None)
     appointment_dict.pop('id', None)
+    
+    # Definir created_at e updated_at explicitamente para garantir que não sejam None
+    now = datetime.now(timezone.utc)
+    appointment_dict['created_at'] = now
+    appointment_dict['updated_at'] = now
     
     appointment = MedicalAppointment(**appointment_dict)
     db.add(appointment)
@@ -453,10 +464,15 @@ async def create_medication(
     # Isso é importante para campos opcionais como documents
     data_dict = medication_data.model_dump(exclude_none=False)
     
-    # Remover campos que devem ser gerenciados pelo banco de dados
+    # Remover campos que devem ser gerenciados pelo código
     data_dict.pop('created_at', None)
     data_dict.pop('updated_at', None)
     data_dict.pop('id', None)
+    
+    # Definir created_at e updated_at explicitamente para garantir que não sejam None
+    now = datetime.now(timezone.utc)
+    data_dict['created_at'] = now
+    data_dict['updated_at'] = now
     
     # Log detalhado para debug
     logger.info(f"🔵 CREATE MEDICATION - Recebido:")
@@ -676,10 +692,15 @@ async def create_procedure(
     
     procedure_dict = procedure_data.model_dump(exclude_none=False)
     
-    # Remover campos que devem ser gerenciados pelo banco de dados
+    # Remover campos que devem ser gerenciados pelo código
     procedure_dict.pop('created_at', None)
     procedure_dict.pop('updated_at', None)
     procedure_dict.pop('id', None)
+    
+    # Definir created_at e updated_at explicitamente para garantir que não sejam None
+    now = datetime.now(timezone.utc)
+    procedure_dict['created_at'] = now
+    procedure_dict['updated_at'] = now
     
     procedure = MedicalProcedure(**procedure_dict)
     db.add(procedure)
