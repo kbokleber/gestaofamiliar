@@ -105,18 +105,10 @@ export default function FamilyMembers() {
     try {
       const dataToSend: any = { ...formData }
 
-      // Se há uma nova foto, converter para base64
+      // Se há uma nova foto, converter para base64 (igual ao DocumentUpload)
       if (photoFile) {
-        const reader = new FileReader()
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => {
-            const base64String = (reader.result as string).split(',')[1]
-            resolve(base64String)
-          }
-          reader.onerror = reject
-        })
-        reader.readAsDataURL(photoFile)
-        dataToSend.photo = await base64Promise
+        const base64 = await fileToBase64(photoFile)
+        dataToSend.photo = base64
       }
 
       // Remover order do dataToSend - a ordem será gerenciada pelo drag and drop
@@ -223,16 +215,52 @@ export default function FamilyMembers() {
     setPhotoFile(null)
   }
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Função para converter arquivo para base64 (igual ao DocumentUpload)
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = (reader.result as string).split(',')[1]
+        resolve(base64String)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
+    if (!file) return
+
+    // Validar tamanho (max 10MB)
+    const maxSizeMB = 10
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      alert(`A foto é maior que ${maxSizeMB}MB`)
+      e.target.value = '' // Limpar input
+      return
+    }
+
+    // Validar tipo (apenas imagens)
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      alert('A foto deve ser JPG, PNG ou GIF')
+      e.target.value = '' // Limpar input
+      return
+    }
+
+    try {
       setPhotoFile(file)
-      // Criar preview
+      
+      // Criar preview (com prefixo data: para exibição)
       const reader = new FileReader()
       reader.onloadend = () => {
         setPhotoPreview(reader.result as string)
       }
       reader.readAsDataURL(file)
+    } catch (error) {
+      console.error('Erro ao processar foto:', error)
+      alert('Erro ao processar a foto')
+      e.target.value = '' // Limpar input
     }
   }
 
@@ -499,7 +527,7 @@ export default function FamilyMembers() {
                 <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg" title="Adicionar foto">
                   <input 
                     type="file" 
-                    accept="image/*" 
+                    accept="image/jpeg,image/jpg,image/png,image/gif" 
                     className="hidden" 
                     onChange={handlePhotoChange}
                   />
