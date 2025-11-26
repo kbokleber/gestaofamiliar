@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { authService } from '../services/authService'
 import { Heart } from 'lucide-react'
+import { APP_VERSION } from '../config/version'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -59,7 +60,7 @@ export default function Login() {
             Entre com sua conta
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            Versão 1.2
+            Versão {APP_VERSION}
           </p>
         </div>
 

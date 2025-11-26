@@ -5,6 +5,7 @@ import {
   Heart, Menu, X, Activity, Shield, Building2
 } from 'lucide-react'
 import { useState } from 'react'
+import { APP_VERSION } from '../config/version'
 
 export default function Layout() {
   const { user, logout } = useAuthStore()
@@ -57,7 +58,7 @@ export default function Layout() {
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Gestão Familiar</h1>
-          <p className="text-xs text-gray-500">v1.2</p>
+          <p className="text-xs text-gray-500">v{APP_VERSION}</p>
         </div>
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -77,7 +78,7 @@ export default function Layout() {
       >
         <div className="p-6">
           <h1 className="text-xl font-bold text-gray-900">Gestão Familiar</h1>
-          <p className="text-xs text-gray-500 mt-0.5">v1.1</p>
+          <p className="text-xs text-gray-500 mt-0.5">v{APP_VERSION}</p>
           <p className="text-sm text-gray-600 mt-1">Olá, {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}`.trim() : user?.first_name || user?.last_name || user?.username}!</p>
         </div>
 
