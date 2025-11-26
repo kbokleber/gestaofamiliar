@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db.base import get_db
 from app.models.user import User, Profile
-from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate
+from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate
 from app.api.deps import get_current_user, get_current_admin
 from app.core.security import get_password_hash
 
@@ -150,6 +150,43 @@ async def toggle_user_active(
         )
     
     user.is_active = not user.is_active
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
+@router.put("/{user_id}/permissions", response_model=UserSchema)
+async def update_user_permissions(
+    user_id: int,
+    permissions_data: PermissionsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Atualizar permissões de um usuário (apenas administradores)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado"
+        )
+    
+    # Não permitir remover permissões de si mesmo
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode alterar suas próprias permissões"
+        )
+    
+    # Atualizar permissões
+    if permissions_data.is_staff is not None:
+        user.is_staff = permissions_data.is_staff
+    
+    if permissions_data.is_superuser is not None:
+        user.is_superuser = permissions_data.is_superuser
+        # Se for superuser, automaticamente é staff também
+        if user.is_superuser:
+            user.is_staff = True
+    
     db.commit()
     db.refresh(user)
     

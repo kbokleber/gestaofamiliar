@@ -26,6 +26,7 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
@@ -123,6 +124,26 @@ export default function AdminUsers() {
     },
     onError: (error: any) => {
       setCreateUserError(error.response?.data?.detail || 'Erro ao criar usuário')
+    }
+  })
+
+  // Mutação para atualizar permissões
+  const updatePermissionsMutation = useMutation({
+    mutationFn: async ({ userId, isStaff, isSuperuser }: { userId: number; isStaff: boolean; isSuperuser: boolean }) => {
+      const response = await api.put(`/users/${userId}/permissions`, {
+        is_staff: isStaff,
+        is_superuser: isSuperuser
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowPermissionsModal(false)
+      setSelectedUser(null)
+      alert('Permissões atualizadas com sucesso!')
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.detail || 'Erro ao atualizar permissões')
     }
   })
 
@@ -300,7 +321,7 @@ export default function AdminUsers() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-gray-500 flex items-center gap-1">
                         {user.is_superuser && (
                           <span className="inline-block mr-1 px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-800 rounded">
                             Admin
@@ -313,6 +334,18 @@ export default function AdminUsers() {
                         )}
                         {!user.is_superuser && !user.is_staff && (
                           <span className="text-gray-400">-</span>
+                        )}
+                        {user.id !== currentUser?.id && (
+                          <button
+                            onClick={() => {
+                              setSelectedUser(user)
+                              setShowPermissionsModal(true)
+                            }}
+                            className="ml-2 text-purple-600 hover:text-purple-900 text-xs"
+                            title="Editar permissões"
+                          >
+                            ✏️
+                          </button>
                         )}
                       </div>
                     </td>
@@ -605,6 +638,100 @@ export default function AdminUsers() {
               disabled={createUserMutation.isPending}
             >
               {createUserMutation.isPending ? 'Criando...' : 'Criar Usuário'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de edição de permissões */}
+      <Modal
+        isOpen={showPermissionsModal}
+        onClose={() => {
+          setShowPermissionsModal(false)
+          setSelectedUser(null)
+        }}
+        title={`Editar Permissões - ${selectedUser?.username}`}
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-blue-800">
+              <strong>Admin (Superuser):</strong> Acesso total ao sistema, incluindo administração de usuários.
+            </p>
+            <p className="text-sm text-blue-800 mt-2">
+              <strong>Staff:</strong> Acesso a funcionalidades administrativas básicas.
+            </p>
+            <p className="text-sm text-blue-800 mt-2">
+              <strong>Nota:</strong> Usuários Admin automaticamente têm permissão Staff.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedUser?.is_superuser || false}
+                onChange={(e) => {
+                  if (selectedUser) {
+                    setSelectedUser({
+                      ...selectedUser,
+                      is_superuser: e.target.checked,
+                      // Se marcar Admin, automaticamente marca Staff
+                      is_staff: e.target.checked ? true : selectedUser.is_staff
+                    })
+                  }
+                }}
+                className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-700">Admin (Superuser)</span>
+                <p className="text-xs text-gray-500">Acesso total ao sistema</p>
+              </div>
+            </label>
+
+            <label className="flex items-center space-x-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedUser?.is_staff || false}
+                onChange={(e) => {
+                  if (selectedUser) {
+                    setSelectedUser({
+                      ...selectedUser,
+                      is_staff: e.target.checked
+                    })
+                  }
+                }}
+                disabled={selectedUser?.is_superuser || false}
+                className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-700">Staff</span>
+                <p className="text-xs text-gray-500">Acesso administrativo básico</p>
+              </div>
+            </label>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPermissionsModal(false)
+                setSelectedUser(null)
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!selectedUser) return
+                updatePermissionsMutation.mutate({
+                  userId: selectedUser.id,
+                  isStaff: selectedUser.is_staff,
+                  isSuperuser: selectedUser.is_superuser
+                })
+              }}
+              disabled={updatePermissionsMutation.isPending}
+            >
+              {updatePermissionsMutation.isPending ? 'Salvando...' : 'Salvar Permissões'}
             </Button>
           </div>
         </div>

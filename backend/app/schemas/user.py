@@ -43,6 +43,10 @@ class UserUpdate(BaseModel):
 class PasswordUpdate(BaseModel):
     new_password: str
 
+class PermissionsUpdate(BaseModel):
+    is_staff: Optional[bool] = None
+    is_superuser: Optional[bool] = None
+
 class User(UserBase):
     id: int
     is_active: bool
