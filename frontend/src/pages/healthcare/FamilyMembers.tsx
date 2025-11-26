@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical, Camera } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Modal from '../../components/Modal'
@@ -46,8 +46,6 @@ export default function FamilyMembers() {
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
-  const galleryInputRef = useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState({
     name: '',
     birth_date: '',
@@ -498,31 +496,15 @@ export default function FamilyMembers() {
                     <Users className="h-16 w-16" />
                   )}
                 </div>
-                <div className="absolute bottom-0 right-0 flex gap-1">
-                  {/* Botão para tirar foto da câmera */}
-                  <label className="bg-green-600 text-white p-2 rounded-full cursor-pointer hover:bg-green-700 shadow-lg" title="Tirar foto">
-                    <input 
-                      ref={cameraInputRef}
-                      type="file" 
-                      accept="image/*" 
-                      capture
-                      className="hidden" 
-                      onChange={handlePhotoChange}
-                    />
-                    <Camera className="h-4 w-4" />
-                  </label>
-                  {/* Botão para escolher da galeria */}
-                  <label className="bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg" title="Escolher da galeria">
-                    <input 
-                      ref={galleryInputRef}
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
-                      onChange={handlePhotoChange}
-                    />
-                    <Edit2 className="h-4 w-4" />
-                  </label>
-                </div>
+                <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg" title="Adicionar foto">
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handlePhotoChange}
+                  />
+                  <Edit2 className="h-4 w-4" />
+                </label>
               </div>
             </div>
 
@@ -688,31 +670,15 @@ export default function FamilyMembers() {
                   <Users className="h-16 w-16" />
                 )}
               </div>
-              <div className="absolute bottom-0 right-0 flex gap-1">
-                {/* Botão para tirar foto da câmera */}
-                <label className="bg-green-600 text-white p-2 rounded-full cursor-pointer hover:bg-green-700 shadow-lg" title="Tirar foto">
-                  <input 
-                    ref={cameraInputRef}
-                    type="file" 
-                    accept="image/*" 
-                    capture="environment"
-                    className="hidden" 
-                    onChange={handlePhotoChange}
-                  />
-                  <Camera className="h-4 w-4" />
-                </label>
-                {/* Botão para escolher da galeria */}
-                <label className="bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg" title="Escolher da galeria">
-                  <input 
-                    ref={galleryInputRef}
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={handlePhotoChange}
-                  />
-                  <Edit2 className="h-4 w-4" />
-                </label>
-              </div>
+              <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg" title="Adicionar foto">
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handlePhotoChange}
+                />
+                <Edit2 className="h-4 w-4" />
+              </label>
             </div>
           </div>
 
