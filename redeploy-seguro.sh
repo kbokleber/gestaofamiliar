@@ -103,8 +103,17 @@ if docker stack ls | grep -q "$STACK_NAME"; then
         fi
         
         # Aguardar um pouco mais para garantir que as redes foram liberadas
-        echo "   Aguardando liberação de recursos (5 segundos)..."
-        sleep 5
+        echo "   Aguardando liberação de recursos (10 segundos)..."
+        sleep 10
+        
+        # Limpar redes órfãs do stack (se houver)
+        echo "   Limpando redes órfãs..."
+        ORPHAN_NETWORKS=$(docker network ls --filter "label=com.docker.stack.namespace=$STACK_NAME" -q 2>/dev/null)
+        if [ -n "$ORPHAN_NETWORKS" ]; then
+            echo "   Removendo redes órfãs..."
+            echo "$ORPHAN_NETWORKS" | xargs -r docker network rm 2>/dev/null || true
+            sleep 3
+        fi
     else
         echo -e "${RED}✗ Erro ao remover stack${NC}"
         exit 1
@@ -190,8 +199,30 @@ echo "   SECRET_KEY: ${#SECRET_KEY} caracteres"
 
 echo ""
 
-# 7. Fazer deploy do stack (variáveis já estão exportadas)
-echo "6. Fazendo deploy do stack $STACK_NAME..."
+# 7. Verificar e limpar redes órfãs antes do deploy
+echo "6. Verificando e limpando redes órfãs..."
+ORPHAN_NETWORKS=$(docker network ls --filter "label=com.docker.stack.namespace=$STACK_NAME" -q 2>/dev/null)
+if [ -n "$ORPHAN_NETWORKS" ]; then
+    echo "   Removendo redes órfãs encontradas..."
+    echo "$ORPHAN_NETWORKS" | xargs -r docker network rm 2>/dev/null || true
+    sleep 3
+else
+    echo -e "${GREEN}✓ Nenhuma rede órfã encontrada${NC}"
+fi
+
+# Verificar se há rede com nome similar que possa causar conflito
+NETWORK_NAME="${STACK_NAME}_sistema-familiar-network"
+EXISTING_NETWORK=$(docker network ls --filter "name=$NETWORK_NAME" -q 2>/dev/null)
+if [ -n "$EXISTING_NETWORK" ]; then
+    echo -e "${YELLOW}⚠ Rede $NETWORK_NAME ainda existe, tentando remover...${NC}"
+    docker network rm "$NETWORK_NAME" 2>/dev/null || true
+    sleep 2
+fi
+
+echo ""
+
+# 8. Fazer deploy do stack (variáveis já estão exportadas)
+echo "7. Fazendo deploy do stack $STACK_NAME..."
 echo "   (Variáveis de ambiente serão passadas para o Docker Swarm)"
 
 # Verificar novamente se as variáveis estão exportadas antes do deploy
@@ -220,8 +251,8 @@ fi
 
 echo ""
 
-# 8. Aguardar serviços iniciarem
-echo "7. Aguardando serviços iniciarem..."
+# 9. Aguardar serviços iniciarem
+echo "8. Aguardando serviços iniciarem..."
 sleep 10
 
 # Verificar status dos serviços
@@ -230,8 +261,8 @@ docker stack services "$STACK_NAME" --format "table {{.Name}}\t{{.Replicas}}\t{{
 
 echo ""
 
-# 9. Verificar se backend está na rede nginx_public
-echo "8. Verificando rede nginx_public..."
+# 10. Verificar se backend está na rede nginx_public
+echo "9. Verificando rede nginx_public..."
 sleep 5  # Aguardar serviços iniciarem
 
 # Verificar se backend está na rede nginx_public
@@ -265,8 +296,8 @@ fi
 
 echo ""
 
-# 10. Verificar saúde do backend
-echo "9. Verificando saúde do backend..."
+# 11. Verificar saúde do backend
+echo "10. Verificando saúde do backend..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 BACKEND_HEALTHY=false
@@ -307,8 +338,8 @@ fi
 
 echo ""
 
-# 9. Verificar conexão com banco de dados
-echo "8. Verificando conexão com banco de dados..."
+# 12. Verificar conexão com banco de dados
+echo "11. Verificando conexão com banco de dados..."
 if [ -n "$BACKEND_CONTAINER" ]; then
     # Verificar logs do backend por erros de conexão
     DB_ERRORS=$(docker service logs "$BACKEND_SERVICE" 2>&1 | grep -i "database\|connection\|postgres" | tail -5)
@@ -323,8 +354,8 @@ fi
 
 echo ""
 
-# 10. Reiniciar NPM para limpar cache e garantir conectividade
-echo "10. Reiniciando NPM para limpar cache..."
+# 13. Reiniciar NPM para limpar cache e garantir conectividade
+echo "12. Reiniciando NPM para limpar cache..."
 
 # Procurar serviço do NPM (pode estar em stack diferente)
 NPM_SERVICE=$(docker service ls | grep -i nginx | grep -i app | awk '{print $1}' | head -n 1)
