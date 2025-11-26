@@ -7,9 +7,17 @@ import os
 # Adicionar o diretório raiz ao path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import create_engine, inspect, text
-from app.db.base import Base
-from app.core.config import settings
+try:
+    from sqlalchemy import create_engine, inspect, text
+    from app.db.base import Base
+    from app.core.config import settings
+except ImportError:
+    # Se não conseguir importar, tentar importar do diretório pai
+    parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, parent_dir)
+    from sqlalchemy import create_engine, inspect, text
+    from app.db.base import Base
+    from app.core.config import settings
 
 def get_all_tables_from_models():
     """Retorna todas as tabelas definidas nos modelos SQLAlchemy"""
