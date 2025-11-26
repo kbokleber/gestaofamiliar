@@ -4,7 +4,10 @@ from typing import List
 from app.db.base import get_db
 from app.models.family import Family
 from app.models.user import User
+from app.models.healthcare import FamilyMember
 from app.schemas.family import Family as FamilySchema, FamilyCreate, FamilyUpdate
+from app.schemas.user import User as UserSchema
+from app.schemas.healthcare import FamilyMember as FamilyMemberSchema
 from app.api.deps import get_current_admin
 import secrets
 import string
@@ -131,4 +134,88 @@ async def get_family_by_code(
             detail="Família não encontrada"
         )
     return family
+
+@router.get("/{family_id}/members", response_model=List[FamilyMemberSchema])
+async def get_family_members(
+    family_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Listar membros de uma família específica (apenas administradores)"""
+    # Verificar se a família existe
+    family = db.query(Family).filter(Family.id == family_id).first()
+    if not family:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Família não encontrada"
+        )
+    
+    # Buscar membros da família
+    members = db.query(FamilyMember).filter(
+        FamilyMember.family_id == family_id
+    ).order_by(FamilyMember.order, FamilyMember.name).all()
+    
+    return members
+
+@router.get("/{family_id}/users", response_model=List[UserSchema])
+async def get_family_users(
+    family_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Listar usuários de uma família específica (apenas administradores)"""
+    # Verificar se a família existe
+    family = db.query(Family).filter(Family.id == family_id).first()
+    if not family:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Família não encontrada"
+        )
+    
+    # Buscar usuários que pertencem a esta família
+    # Incluir usuários que têm esta família como family_id principal
+    # E também usuários que têm esta família na relação many-to-many
+    from sqlalchemy.orm import joinedload
+    from app.models.user_family import user_families
+    
+    # Usuários com family_id principal
+    users_primary = db.query(User).filter(User.family_id == family_id).all()
+    
+    # Usuários com relação many-to-many
+    users_many = db.query(User).join(user_families).filter(
+        user_families.c.family_id == family_id
+    ).all()
+    
+    # Combinar e remover duplicatas
+    all_users = {user.id: user for user in users_primary + users_many}
+    
+    # Converter para lista e adicionar family_ids para admins
+    result = []
+    for user in all_users.values():
+        if user.is_superuser:
+            db.refresh(user, ['families'])
+            family_ids = [f.id for f in user.families] if user.families else []
+            if not family_ids and user.family_id:
+                family_ids = [user.family_id]
+        else:
+            family_ids = None
+        
+        user_dict = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "is_active": user.is_active,
+            "is_staff": user.is_staff,
+            "is_superuser": user.is_superuser,
+            "date_joined": user.date_joined,
+            "last_login": user.last_login,
+            "family_id": user.family_id,
+            "profile": user.profile,
+            "family_ids": family_ids
+        }
+        result.append(user_dict)
+    
+    return result
 

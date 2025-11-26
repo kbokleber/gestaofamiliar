@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Activity, Plus, Edit2, Trash2, X, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
 import api from '../../lib/api'
-import Modal from '../../components/Modal'
 import DateTimeInput from '../../components/DateTimeInput'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
@@ -36,7 +35,7 @@ export default function Procedures() {
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null)
   const [filters, setFilters] = useState({
@@ -193,7 +192,7 @@ export default function Procedures() {
       if (isEditingInline) {
         cancelEdit()
       } else {
-        closeModal()
+        closeCreateView()
       }
     } catch (err: any) {
       console.error('Erro ao salvar:', err)
@@ -266,7 +265,7 @@ export default function Procedures() {
     setDocuments([])
   }
 
-  const openModal = () => {
+  const openCreateView = () => {
     setEditingProcedure(null)
     setFormData({
       family_member_id: members.length > 0 ? members[0].id : 0,
@@ -280,11 +279,11 @@ export default function Procedures() {
       next_procedure_date: ''
     })
     setDocuments([])
-    setIsModalOpen(true)
+    setViewMode('create')
   }
 
-  const closeModal = () => {
-    setIsModalOpen(false)
+  const closeCreateView = () => {
+    setViewMode('list')
     setEditingProcedure(null)
     setDocuments([])
   }
@@ -318,7 +317,173 @@ export default function Procedures() {
 
   return (
     <div>
-      {!isEditingInline ? (
+      {viewMode === 'create' ? (
+        // Tela completa de cadastro
+        <div className="min-h-screen bg-gray-50">
+          <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={closeCreateView}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Voltar"
+                >
+                  <ArrowLeft className="h-5 w-5 text-gray-600" />
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900">Novo Procedimento</h1>
+              </div>
+            </div>
+          </div>
+          
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+              {/* Paciente */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
+                <select
+                  value={formData.family_member_id}
+                  onChange={(e) => setFormData({...formData, family_member_id: parseInt(e.target.value)})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value={0}>Selecione o paciente...</option>
+                  {members.map(member => (
+                    <option key={member.id} value={member.id}>{member.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Nome do Procedimento */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Procedimento *</label>
+                  <input
+                    type="text"
+                    value={formData.procedure_name}
+                    onChange={(e) => setFormData({...formData, procedure_name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: CID: N10 - Nefrite Túbulo-Intersticial aguda"
+                    required
+                  />
+                </div>
+
+                {/* Data/Hora do Procedimento */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data e Hora *</label>
+                  <DateTimeInput
+                    value={formData.procedure_date}
+                    onChange={(value) => setFormData({...formData, procedure_date: value})}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Médico */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Médico *</label>
+                  <input
+                    type="text"
+                    value={formData.doctor_name}
+                    onChange={(e) => setFormData({...formData, doctor_name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+                {/* Local */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Local *</label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Hospital, Clínica, etc."
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Descrição */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  rows={5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Descreva o procedimento realizado..."
+                  required
+                />
+              </div>
+
+              {/* Resultados */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Resultados</label>
+                <textarea
+                  value={formData.results}
+                  onChange={(e) => setFormData({...formData, results: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Resultados do procedimento..."
+                />
+              </div>
+
+              {/* Observações de Acompanhamento */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observações de Acompanhamento</label>
+                <textarea
+                  value={formData.follow_up_notes}
+                  onChange={(e) => setFormData({...formData, follow_up_notes: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Observações sobre o acompanhamento..."
+                />
+              </div>
+
+              {/* Próximo Procedimento */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Próximo Procedimento</label>
+                <DateTimeInput
+                  value={formData.next_procedure_date}
+                  onChange={(value) => setFormData({...formData, next_procedure_date: value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Upload de Documentos */}
+              <div>
+                <DocumentUpload
+                  documents={documents}
+                  onChange={setDocuments}
+                  maxFiles={10}
+                  maxSizeMB={10}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={closeCreateView}
+                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
+                >
+                  <Save className="mr-2 h-5 w-5" />
+                  Criar Procedimento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : !isEditingInline ? (
+        // Tela de lista
         <>
           {/* Cabeçalho */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
@@ -335,7 +500,7 @@ export default function Procedures() {
                 Exportar Excel
               </button>
               <button 
-                onClick={() => openModal()}
+                onClick={() => openCreateView()}
                 className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
                 <Plus className="mr-2 h-5 w-5" />
@@ -705,165 +870,6 @@ export default function Procedures() {
           </form>
         </div>
       )}
-
-      {/* Modal de Criar */}
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Novo Procedimento">
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between z-10">
-            <h3 className="text-lg md:text-xl font-semibold text-gray-900">
-              Novo Procedimento
-            </h3>
-            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5 md:h-6 md:w-6" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto flex-1">
-            {/* Paciente */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
-              <select
-                value={formData.family_member_id}
-                onChange={(e) => setFormData({...formData, family_member_id: parseInt(e.target.value)})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value={0}>Selecione o paciente...</option>
-                {members.map(member => (
-                  <option key={member.id} value={member.id}>{member.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Nome do Procedimento */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Procedimento *</label>
-                <input
-                  type="text"
-                  value={formData.procedure_name}
-                  onChange={(e) => setFormData({...formData, procedure_name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ex: CID: N10 - Nefrite Túbulo-Intersticial aguda"
-                  required
-                />
-              </div>
-
-              {/* Data/Hora do Procedimento */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data e Hora *</label>
-                <DateTimeInput
-                  value={formData.procedure_date}
-                  onChange={(value) => setFormData({...formData, procedure_date: value})}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Médico */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Médico *</label>
-                <input
-                  type="text"
-                  value={formData.doctor_name}
-                  onChange={(e) => setFormData({...formData, doctor_name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-
-              {/* Local */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Local *</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData({...formData, location: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Hospital, Clínica, etc."
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Descrição */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                rows={5}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Descreva o procedimento realizado..."
-                required
-              />
-            </div>
-
-            {/* Resultados */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Resultados</label>
-              <textarea
-                value={formData.results}
-                onChange={(e) => setFormData({...formData, results: e.target.value})}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Resultados do procedimento..."
-              />
-            </div>
-
-            {/* Observações de Acompanhamento */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Observações de Acompanhamento</label>
-              <textarea
-                value={formData.follow_up_notes}
-                onChange={(e) => setFormData({...formData, follow_up_notes: e.target.value})}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Observações sobre o acompanhamento..."
-              />
-            </div>
-
-            {/* Próximo Procedimento */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Próximo Procedimento</label>
-              <DateTimeInput
-                value={formData.next_procedure_date}
-                onChange={(value) => setFormData({...formData, next_procedure_date: value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Upload de Documentos */}
-            <div>
-              <DocumentUpload
-                documents={documents}
-                onChange={setDocuments}
-                maxFiles={10}
-                maxSizeMB={10}
-              />
-            </div>
-
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 pt-4 pb-2 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-6">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
-              >
-                <Save className="mr-2 h-5 w-5" />
-                Criar Procedimento
-              </button>
-            </div>
-          </form>
-        </div>
-      </Modal>
     </div>
   )
 }

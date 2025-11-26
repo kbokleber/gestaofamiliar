@@ -249,21 +249,32 @@ async def update_user_permissions(
             user.families.append(family)
         
         # Também atualizar family_id com a primeira família (para compatibilidade)
+        # Se a lista estiver vazia, definir family_id como None
         if permissions_data.family_ids:
             user.family_id = permissions_data.family_ids[0]
+        else:
+            user.family_id = None
     
     # Se for staff, apenas uma família (family_id)
-    elif not user.is_superuser and permissions_data.family_id is not None:
-        # Validar que a família existe
-        family = db.query(Family).filter(Family.id == permissions_data.family_id).first()
-        if not family:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Família não encontrada"
-            )
-        user.family_id = permissions_data.family_id
-        # Limpar múltiplas famílias se houver
-        user.families.clear()
+    # Verificar se family_id foi explicitamente passado no request (pode ser None para remover)
+    elif not user.is_superuser:
+        # Usar model_dump com exclude_unset=False para incluir campos None
+        data_dict = permissions_data.model_dump(exclude_unset=False)
+        if 'family_id' in data_dict:
+            if permissions_data.family_id is not None:
+                # Validar que a família existe
+                family = db.query(Family).filter(Family.id == permissions_data.family_id).first()
+                if not family:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Família não encontrada"
+                    )
+                user.family_id = permissions_data.family_id
+            else:
+                # Remover família do staff (definir como None)
+                user.family_id = None
+            # Limpar múltiplas famílias se houver
+            user.families.clear()
     
     db.commit()
     db.refresh(user)

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical, Camera, Image } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
-import Modal from '../../components/Modal'
 import DateInput from '../../components/DateInput'
 import { formatDateBR, calculateAge, toDateInputValue } from '../../utils/dateUtils'
 import {
@@ -41,7 +40,7 @@ export default function FamilyMembers() {
   const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -130,7 +129,7 @@ export default function FamilyMembers() {
       if (isEditingInline) {
         cancelEdit()
       } else {
-        closeModal()
+        closeCreateView()
       }
     } catch (err: any) {
       console.error('Erro ao salvar:', err)
@@ -190,10 +189,7 @@ export default function FamilyMembers() {
     })
   }
 
-  const openModal = () => {
-    setEditingMember(null)
-    setPhotoPreview(null)
-    setPhotoFile(null)
+  const openCreateView = () => {
     setFormData({
       name: '',
       birth_date: '',
@@ -207,16 +203,32 @@ export default function FamilyMembers() {
       notes: '',
       order: 0
     })
-    setIsModalOpen(true)
-  }
-
-  const closeModal = () => {
-    setIsModalOpen(false)
     setEditingMember(null)
     setPhotoPreview(null)
     setPhotoFile(null)
-    setShowPhotoMenu(false)
+    setViewMode('create')
   }
+
+  const closeCreateView = () => {
+    setViewMode('list')
+    setFormData({
+      name: '',
+      birth_date: '',
+      gender: 'M',
+      relationship_type: '',
+      blood_type: '',
+      allergies: '',
+      chronic_conditions: '',
+      emergency_contact: '',
+      emergency_phone: '',
+      notes: '',
+      order: 0
+    })
+    setEditingMember(null)
+    setPhotoPreview(null)
+    setPhotoFile(null)
+  }
+
 
 
   // Função para converter arquivo para base64 (igual ao DocumentUpload)
@@ -478,12 +490,263 @@ export default function FamilyMembers() {
 
   return (
     <div>
-      {!isEditingInline ? (
+      {viewMode === 'create' ? (
+        // Tela completa de cadastro
+        <div className="min-h-screen bg-gray-50">
+          <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={closeCreateView}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Voltar"
+                >
+                  <ArrowLeft className="h-5 w-5 text-gray-600" />
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900">Novo Membro da Família</h1>
+              </div>
+            </div>
+          </div>
+          
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+              {/* Foto */}
+              <div className="flex justify-center mb-4">
+                <div className="relative">
+                  <div className={`w-32 h-32 rounded-full bg-gray-300 flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden`}>
+                    {photoPreview ? (
+                      <img src={photoPreview} alt="Foto" className="w-full h-full object-cover" />
+                    ) : (
+                      <Users className="h-16 w-16" />
+                    )}
+                  </div>
+                  <div className="absolute bottom-0 right-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowPhotoMenu(!showPhotoMenu)}
+                      className="bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg z-10"
+                      title="Adicionar foto"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    
+                    {showPhotoMenu && (
+                      <div className="absolute bottom-12 right-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[180px] z-20">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPhotoMenu(false)
+                            triggerCameraInput('photo-camera-create')
+                          }}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center space-x-3"
+                        >
+                          <Camera className="h-5 w-5 text-blue-600" />
+                          <span className="text-gray-700">Câmera</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPhotoMenu(false)
+                            triggerCameraInput('photo-gallery-create')
+                          }}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center space-x-3 border-t border-gray-200"
+                        >
+                          <Image className="h-5 w-5 text-green-600" />
+                          <span className="text-gray-700">Galeria</span>
+                        </button>
+                      </div>
+                    )}
+                    
+                    <input 
+                      id="photo-camera-create"
+                      type="file" 
+                      accept="image/jpeg,image/jpg,image/png,image/gif" 
+                      capture="environment"
+                      className="hidden" 
+                      onChange={handlePhotoChange}
+                    />
+                    <input 
+                      id="photo-gallery-create"
+                      type="file" 
+                      accept="image/jpeg,image/jpg,image/png,image/gif" 
+                      className="hidden" 
+                      onChange={handlePhotoChange}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid de 2 colunas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={formData.name} 
+                    onChange={(e) => setFormData({...formData, name: e.target.value})} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento *</label>
+                  <DateInput
+                    value={formData.birth_date}
+                    onChange={(value) => setFormData({...formData, birth_date: value})}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gênero *</label>
+                  <select 
+                    value={formData.gender} 
+                    onChange={(e) => setFormData({...formData, gender: e.target.value})} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="M">Masculino</option>
+                    <option value="F">Feminino</option>
+                    <option value="O">Outro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Parentesco</label>
+                  <select 
+                    value={formData.relationship_type || ''} 
+                    onChange={(e) => setFormData({...formData, relationship_type: e.target.value})} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="Pai">Pai</option>
+                    <option value="Mãe">Mãe</option>
+                    <option value="Filho">Filho</option>
+                    <option value="Filha">Filha</option>
+                    <option value="Avô">Avô</option>
+                    <option value="Avó">Avó</option>
+                    <option value="Irmão">Irmão</option>
+                    <option value="Irmã">Irmã</option>
+                    <option value="Outro">Outro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Sanguíneo</label>
+                  <input 
+                    type="text" 
+                    value={formData.blood_type} 
+                    onChange={(e) => setFormData({...formData, blood_type: e.target.value})} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    placeholder="Ex: A+, O-, AB+"
+                  />
+                </div>
+              </div>
+
+              {/* Campos de texto grandes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Alergias</label>
+                <textarea 
+                  value={formData.allergies} 
+                  onChange={(e) => setFormData({...formData, allergies: e.target.value})} 
+                  rows={2} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Descreva as alergias conhecidas..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Condições Crônicas</label>
+                <textarea 
+                  value={formData.chronic_conditions} 
+                  onChange={(e) => setFormData({...formData, chronic_conditions: e.target.value})} 
+                  rows={2} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Descreva condições crônicas..."
+                />
+              </div>
+
+              {/* Contatos de emergência */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contato de Emergência</label>
+                  <input 
+                    type="text" 
+                    value={formData.emergency_contact} 
+                    onChange={(e) => setFormData({...formData, emergency_contact: e.target.value})} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Nome do contato"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefone de Emergência</label>
+                  <input 
+                    type="tel" 
+                    value={formData.emergency_phone} 
+                    onChange={(e) => setFormData({...formData, emergency_phone: e.target.value})} 
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                <textarea 
+                  value={formData.notes} 
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})} 
+                  rows={3} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Informações adicionais..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ordem de Exibição</label>
+                <input 
+                  type="number" 
+                  value={formData.order} 
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10)
+                    setFormData(prev => ({...prev, order: isNaN(value) ? 0 : value}))
+                  }} 
+                  min="0"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Define a ordem em que este membro aparece nos cards (menor número aparece primeiro)
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200">
+                <button 
+                  type="button" 
+                  onClick={closeCreateView}
+                  className="w-full sm:w-auto px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Membro
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : !isEditingInline ? (
+        // Tela de lista
         <>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Membros da Família</h1>
             <button 
-              onClick={() => openModal()} 
+              onClick={() => openCreateView()} 
               className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center shadow-sm"
             >
               <Plus className="mr-2 h-5 w-5" />
@@ -491,31 +754,30 @@ export default function FamilyMembers() {
             </button>
           </div>
 
-
           {members.length === 0 ? (
-        <div className="bg-white shadow rounded-lg p-12 text-center">
-          <Users className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-          <p className="text-gray-600 text-lg mb-2">Nenhum membro cadastrado</p>
-          <p className="text-gray-500 text-sm">Clique em "Novo Membro" para começar.</p>
-        </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={members.map(m => m.id)}
-            strategy={rectSortingStrategy}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {members.map((member) => (
-                <SortableItem key={member.id} member={member} />
-              ))}
+            <div className="bg-white shadow rounded-lg p-12 text-center">
+              <Users className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+              <p className="text-gray-600 text-lg mb-2">Nenhum membro cadastrado</p>
+              <p className="text-gray-500 text-sm">Clique em "Novo Membro" para começar.</p>
             </div>
-          </SortableContext>
-        </DndContext>
-      )}
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={members.map(m => m.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {members.map((member) => (
+                    <SortableItem key={member.id} member={member} />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
         </>
       ) : (
         /* Formulário de Edição na Tela */
@@ -726,7 +988,6 @@ export default function FamilyMembers() {
               />
             </div>
 
-
             <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200">
               <button 
                 type="button" 
@@ -746,240 +1007,6 @@ export default function FamilyMembers() {
           </form>
         </div>
       )}
-
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Novo Membro da Família">
-        <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-          {/* Foto */}
-          <div className="flex justify-center mb-4">
-            <div className="relative">
-              <div className={`w-32 h-32 rounded-full ${editingMember ? getAvatarColor(editingMember.name) : 'bg-gray-300'} flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden`}>
-                {photoPreview ? (
-                  <img src={photoPreview} alt="Foto" className="w-full h-full object-cover" />
-                ) : editingMember ? (
-                  getInitials(editingMember.name)
-                ) : (
-                  <Users className="h-16 w-16" />
-                )}
-              </div>
-              <div className="absolute bottom-0 right-0">
-                <button
-                  type="button"
-                  onClick={() => setShowPhotoMenu(!showPhotoMenu)}
-                  className="bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg z-10"
-                  title="Adicionar foto"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </button>
-                
-                {showPhotoMenu && (
-                  <div className="absolute bottom-12 right-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[180px] z-20">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPhotoMenu(false)
-                        triggerCameraInput('photo-camera-modal')
-                      }}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center space-x-3"
-                    >
-                      <Camera className="h-5 w-5 text-blue-600" />
-                      <span className="text-gray-700">Câmera</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPhotoMenu(false)
-                        triggerCameraInput('photo-gallery-modal')
-                      }}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center space-x-3 border-t border-gray-200"
-                    >
-                      <Image className="h-5 w-5 text-green-600" />
-                      <span className="text-gray-700">Galeria</span>
-                    </button>
-                  </div>
-                )}
-                
-                <input 
-                  id="photo-camera-modal"
-                  type="file" 
-                  accept="image/jpeg,image/jpg,image/png,image/gif" 
-                  capture="environment"
-                  className="hidden" 
-                  onChange={handlePhotoChange}
-                />
-                <input 
-                  id="photo-gallery-modal"
-                  type="file" 
-                  accept="image/jpeg,image/jpg,image/png,image/gif" 
-                  className="hidden" 
-                  onChange={handlePhotoChange}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Grid de 2 colunas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-              <input 
-                type="text" 
-                required 
-                value={formData.name} 
-                onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento *</label>
-              <DateInput
-                value={formData.birth_date}
-                onChange={(value) => setFormData({...formData, birth_date: value})}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gênero *</label>
-              <select 
-                value={formData.gender} 
-                onChange={(e) => setFormData({...formData, gender: e.target.value})} 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="M">Masculino</option>
-                <option value="F">Feminino</option>
-                <option value="O">Outro</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Parentesco</label>
-              <select 
-                value={formData.relationship_type || ''} 
-                onChange={(e) => setFormData({...formData, relationship_type: e.target.value})} 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Selecione...</option>
-                <option value="Pai">Pai</option>
-                <option value="Mãe">Mãe</option>
-                <option value="Filho">Filho</option>
-                <option value="Filha">Filha</option>
-                <option value="Avô">Avô</option>
-                <option value="Avó">Avó</option>
-                <option value="Irmão">Irmão</option>
-                <option value="Irmã">Irmã</option>
-                <option value="Outro">Outro</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Sanguíneo</label>
-              <input 
-                type="text" 
-                value={formData.blood_type} 
-                onChange={(e) => setFormData({...formData, blood_type: e.target.value})} 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                placeholder="Ex: A+, O-, AB+"
-              />
-            </div>
-          </div>
-
-          {/* Campos de texto grandes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Alergias</label>
-            <textarea 
-              value={formData.allergies} 
-              onChange={(e) => setFormData({...formData, allergies: e.target.value})} 
-              rows={2} 
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Descreva as alergias conhecidas..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Condições Crônicas</label>
-            <textarea 
-              value={formData.chronic_conditions} 
-              onChange={(e) => setFormData({...formData, chronic_conditions: e.target.value})} 
-              rows={2} 
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Descreva condições crônicas..."
-            />
-          </div>
-
-          {/* Contatos de emergência */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contato de Emergência</label>
-              <input 
-                type="text" 
-                value={formData.emergency_contact} 
-                onChange={(e) => setFormData({...formData, emergency_contact: e.target.value})} 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Nome do contato"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone de Emergência</label>
-              <input 
-                type="tel" 
-                value={formData.emergency_phone} 
-                onChange={(e) => setFormData({...formData, emergency_phone: e.target.value})} 
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="(00) 00000-0000"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-            <textarea 
-              value={formData.notes} 
-              onChange={(e) => setFormData({...formData, notes: e.target.value})} 
-              rows={3} 
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Informações adicionais..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ordem de Exibição</label>
-            <input 
-              type="number" 
-              value={formData.order} 
-              onChange={(e) => {
-                const value = e.target.value === '' ? 0 : parseInt(e.target.value, 10)
-                setFormData(prev => ({...prev, order: isNaN(value) ? 0 : value}))
-              }} 
-              min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="0"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Define a ordem em que este membro aparece nos cards (menor número aparece primeiro)
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200 sticky bottom-0 bg-white">
-            <button 
-              type="button" 
-              onClick={closeModal}
-              className="w-full sm:w-auto px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button 
-              type="submit" 
-              className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Criar Membro
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
 }

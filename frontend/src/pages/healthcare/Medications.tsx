@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Pill, Plus, Edit2, Trash2, X, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
 import api from '../../lib/api'
-import Modal from '../../components/Modal'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import { formatDateBR, toDateInputValue } from '../../utils/dateUtils'
@@ -52,7 +51,7 @@ export default function Medications() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showActiveOnly, setShowActiveOnly] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingMedication, setEditingMedication] = useState<Medication | null>(null)
   const [filters, setFilters] = useState({
@@ -160,7 +159,7 @@ export default function Medications() {
       if (isEditingInline) {
         cancelEdit()
       } else {
-        closeModal()
+        closeCreateView()
       }
     } catch (err: any) {
       console.error('Erro ao salvar:', err)
@@ -243,7 +242,7 @@ export default function Medications() {
     setDocuments([])
   }
 
-  const openModal = () => {
+  const openCreateView = () => {
     setEditingMedication(null)
     setFormData({
       family_member_id: members.length > 0 ? members[0].id : 0,
@@ -259,11 +258,11 @@ export default function Medications() {
       notes: ''
     })
     setDocuments([])
-    setIsModalOpen(true)
+    setViewMode('create')
   }
 
-  const closeModal = () => {
-    setIsModalOpen(false)
+  const closeCreateView = () => {
+    setViewMode('list')
     setEditingMedication(null)
     setDocuments([])
   }
@@ -380,7 +379,203 @@ export default function Medications() {
 
   return (
     <div>
-      {!isEditingInline ? (
+      {viewMode === 'create' ? (
+        // Tela completa de cadastro
+        <div className="min-h-screen bg-gray-50">
+          <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={closeCreateView}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Voltar"
+                >
+                  <ArrowLeft className="h-5 w-5 text-gray-600" />
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900">Novo Medicamento</h1>
+              </div>
+            </div>
+          </div>
+          
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+              {/* Paciente */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
+                <select
+                  value={formData.family_member_id}
+                  onChange={(e) => setFormData({...formData, family_member_id: parseInt(e.target.value)})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  required
+                >
+                  <option value={0}>Selecione o paciente...</option>
+                  {members.map(member => (
+                    <option key={member.id} value={member.id}>{member.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Nome do Medicamento */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Medicamento *</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Ex: Dipirona, Paracetamol"
+                    required
+                  />
+                </div>
+
+                {/* Dosagem */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dosagem *</label>
+                  <input
+                    type="text"
+                    value={formData.dosage}
+                    onChange={(e) => setFormData({...formData, dosage: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Ex: 500mg, 10ml, 1 comprimido"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Frequência */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Frequência *</label>
+                <select
+                  value={formData.frequency}
+                  onChange={(e) => setFormData({...formData, frequency: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  required
+                >
+                  {FREQUENCY_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Data de Início */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Início *</label>
+                  <DateInput
+                    value={formData.start_date}
+                    onChange={(value) => setFormData({...formData, start_date: value})}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                </div>
+
+                {/* Data de Término */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Término</label>
+                  <DateInput
+                    value={formData.end_date}
+                    onChange={(value) => setFormData({...formData, end_date: value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Deixe vazio para contínuo"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Deixe vazio se o uso for contínuo</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Prescrito Por */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prescrito Por</label>
+                  <input
+                    type="text"
+                    value={formData.prescribed_by}
+                    onChange={(e) => setFormData({...formData, prescribed_by: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Nome do médico"
+                  />
+                </div>
+
+                {/* Número da Receita */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Número da Receita</label>
+                  <input
+                    type="text"
+                    value={formData.prescription_number}
+                    onChange={(e) => setFormData({...formData, prescription_number: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                    placeholder="Número da receita médica"
+                  />
+                </div>
+              </div>
+
+              {/* Instruções */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Instruções de Uso</label>
+                <textarea
+                  value={formData.instructions}
+                  onChange={(e) => setFormData({...formData, instructions: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Ex: Tomar após as refeições, com água..."
+                />
+              </div>
+
+              {/* Efeitos Colaterais */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Efeitos Colaterais</label>
+                <textarea
+                  value={formData.side_effects}
+                  onChange={(e) => setFormData({...formData, side_effects: e.target.value})}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Possíveis efeitos colaterais..."
+                />
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Informações adicionais..."
+                />
+              </div>
+
+              {/* Upload de Documentos */}
+              <div>
+                <DocumentUpload
+                  documents={documents}
+                  onChange={setDocuments}
+                  maxFiles={10}
+                  maxSizeMB={10}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={closeCreateView}
+                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center justify-center"
+                >
+                  <Save className="mr-2 h-5 w-5" />
+                  Criar Medicamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : !isEditingInline ? (
+        // Tela de lista
         <>
           {/* Cabeçalho */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
@@ -397,7 +592,7 @@ export default function Medications() {
                 Exportar Excel
               </button>
               <button 
-                onClick={() => openModal()}
+                onClick={() => openCreateView()}
                 className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
                 <Plus className="mr-2 h-5 w-5" />
@@ -840,195 +1035,6 @@ export default function Medications() {
           </form>
         </div>
       )}
-
-      {/* Modal de Criar */}
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Novo Medicamento">
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between z-10">
-            <h3 className="text-lg md:text-xl font-semibold text-gray-900">
-              Novo Medicamento
-            </h3>
-            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5 md:h-6 md:w-6" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto flex-1">
-            {/* Paciente */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
-              <select
-                value={formData.family_member_id}
-                onChange={(e) => setFormData({...formData, family_member_id: parseInt(e.target.value)})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                required
-              >
-                <option value={0}>Selecione o paciente...</option>
-                {members.map(member => (
-                  <option key={member.id} value={member.id}>{member.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Nome do Medicamento */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Medicamento *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Ex: Dipirona, Paracetamol"
-                  required
-                />
-              </div>
-
-              {/* Dosagem */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Dosagem *</label>
-                <input
-                  type="text"
-                  value={formData.dosage}
-                  onChange={(e) => setFormData({...formData, dosage: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Ex: 500mg, 10ml, 1 comprimido"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Frequência */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Frequência *</label>
-              <select
-                value={formData.frequency}
-                onChange={(e) => setFormData({...formData, frequency: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                required
-              >
-                {FREQUENCY_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Data de Início */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data de Início *</label>
-                <DateInput
-                  value={formData.start_date}
-                  onChange={(value) => setFormData({...formData, start_date: value})}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-
-              {/* Data de Término */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data de Término</label>
-                <DateInput
-                  value={formData.end_date}
-                  onChange={(value) => setFormData({...formData, end_date: value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Deixe vazio para contínuo"
-                />
-                <p className="mt-1 text-xs text-gray-500">Deixe vazio se o uso for contínuo</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Prescrito Por */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Prescrito Por</label>
-                <input
-                  type="text"
-                  value={formData.prescribed_by}
-                  onChange={(e) => setFormData({...formData, prescribed_by: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Nome do médico"
-                />
-              </div>
-
-              {/* Número da Receita */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Número da Receita</label>
-                <input
-                  type="text"
-                  value={formData.prescription_number}
-                  onChange={(e) => setFormData({...formData, prescription_number: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="Número da receita médica"
-                />
-              </div>
-            </div>
-
-            {/* Instruções */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Instruções de Uso</label>
-              <textarea
-                value={formData.instructions}
-                onChange={(e) => setFormData({...formData, instructions: e.target.value})}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                placeholder="Ex: Tomar após as refeições, com água..."
-              />
-            </div>
-
-            {/* Efeitos Colaterais */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Efeitos Colaterais</label>
-              <textarea
-                value={formData.side_effects}
-                onChange={(e) => setFormData({...formData, side_effects: e.target.value})}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                placeholder="Possíveis efeitos colaterais..."
-              />
-            </div>
-
-            {/* Observações */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                placeholder="Informações adicionais..."
-              />
-            </div>
-
-            {/* Upload de Documentos */}
-            <div>
-              <DocumentUpload
-                documents={documents}
-                onChange={setDocuments}
-                maxFiles={10}
-                maxSizeMB={10}
-              />
-            </div>
-
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 pt-4 pb-2 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-6">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center justify-center"
-              >
-                <Save className="mr-2 h-5 w-5" />
-                Criar Medicamento
-              </button>
-            </div>
-          </form>
-        </div>
-      </Modal>
     </div>
   )
 }

@@ -244,8 +244,8 @@ else
     exit 1
 fi
 
-echo "   Construindo frontend..."
-docker build -t sistema-familiar-frontend:latest ./frontend
+echo "   Construindo frontend (sem cache para garantir atualização)..."
+docker build --no-cache -t sistema-familiar-frontend:latest ./frontend
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Frontend construído${NC}"
 else

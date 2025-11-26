@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
-import { Users, Search, RefreshCw, Plus, Edit, Trash2 } from 'lucide-react'
+import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 
@@ -12,6 +12,17 @@ interface Family {
   codigo_unico: string
   created_at: string
   updated_at: string | null
+}
+
+interface FamilyUser {
+  id: number
+  username: string
+  email: string
+  first_name: string
+  last_name: string
+  is_active: boolean
+  is_staff: boolean
+  is_superuser: boolean
 }
 
 export default function AdminFamilies() {
@@ -26,6 +37,9 @@ export default function AdminFamilies() {
     name: ''
   })
   const [error, setError] = useState('')
+  const [expandedFamily, setExpandedFamily] = useState<number | null>(null)
+  const [showAddUserModal, setShowAddUserModal] = useState(false)
+  const [selectedUserToAdd, setSelectedUserToAdd] = useState<number | null>(null)
 
   // Verificar se é admin (apenas superuser)
   const isAdmin = currentUser?.is_superuser
@@ -128,6 +142,170 @@ export default function AdminFamilies() {
     deleteFamilyMutation.mutate(selectedFamily.id)
   }
 
+  const toggleFamilyExpansion = (familyId: number) => {
+    if (expandedFamily === familyId) {
+      setExpandedFamily(null)
+    } else {
+      setExpandedFamily(familyId)
+    }
+  }
+
+  // Buscar usuários da família quando expandida ou quando o modal está aberto
+  const { data: familyUsers = [] } = useQuery<FamilyUser[]>({
+    queryKey: ['family-users', expandedFamily || selectedFamily?.id],
+    queryFn: async () => {
+      const familyId = expandedFamily || selectedFamily?.id
+      if (!familyId) return []
+      const response = await api.get(`/families/${familyId}/users`)
+      return response.data
+    },
+    enabled: !!(expandedFamily || selectedFamily?.id) && !!isAdmin,
+  })
+
+  // Buscar todos os usuários para o modal de adicionar
+  const { data: allUsers = [] } = useQuery<FamilyUser[]>({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const response = await api.get('/users/')
+      return response.data
+    },
+    enabled: !!isAdmin && showAddUserModal,
+  })
+
+  // Filtrar usuários que já estão na família
+  const availableUsers = allUsers.filter(user => {
+    if (!selectedFamily) return false
+    // Verificar se o usuário já está na família
+    const isInFamily = familyUsers.some(fu => fu.id === user.id)
+    return !isInFamily
+  })
+
+  // Mutação para adicionar usuário à família
+  const addUserToFamilyMutation = useMutation({
+    mutationFn: async ({ userId, familyId }: { userId: number; familyId: number }) => {
+      // Buscar usuário para verificar se é admin ou staff
+      const userResponse = await api.get(`/users/${userId}`)
+      const user = userResponse.data
+      
+      if (user.is_superuser) {
+        // Para admins, adicionar à lista de famílias (many-to-many)
+        const currentFamilyIds = user.family_ids || []
+        if (!currentFamilyIds.includes(familyId)) {
+          await api.put(`/users/${userId}/permissions`, {
+            is_staff: user.is_staff,
+            is_superuser: user.is_superuser,
+            family_ids: [...currentFamilyIds, familyId]
+          })
+        }
+      } else {
+        // Para staff, definir como família principal
+        await api.put(`/users/${userId}/permissions`, {
+          is_staff: user.is_staff,
+          is_superuser: user.is_superuser,
+          family_id: familyId
+        })
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['family-users', variables.familyId] })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowAddUserModal(false)
+      setSelectedUserToAdd(null)
+      alert('Usuário adicionado à família com sucesso!')
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.detail || 'Erro ao adicionar usuário à família')
+    }
+  })
+
+  const handleAddUserToFamily = () => {
+    if (!selectedUserToAdd || !selectedFamily) return
+    addUserToFamilyMutation.mutate({
+      userId: selectedUserToAdd,
+      familyId: selectedFamily.id
+    })
+  }
+
+  // Mutação para remover usuário da família
+  const removeUserFromFamilyMutation = useMutation({
+    mutationFn: async ({ userId, familyId }: { userId: number; familyId: number }) => {
+      // Buscar usuário para verificar se é admin ou staff
+      const userResponse = await api.get(`/users/${userId}`)
+      const user = userResponse.data
+      
+      if (user.is_superuser) {
+        // Para admins, pode estar associado via family_id ou family_ids (many-to-many)
+        const currentFamilyIds = user.family_ids || []
+        const isInFamilyIds = currentFamilyIds.includes(familyId)
+        const isInFamilyId = user.family_id === familyId
+        
+        // Verificar se o usuário realmente está na família (qualquer uma das formas)
+        if (!isInFamilyIds && !isInFamilyId) {
+          throw new Error('Usuário não está associado a esta família')
+        }
+        
+        // Se estiver apenas em family_id, precisamos migrar para family_ids primeiro
+        let updatedFamilyIds = [...currentFamilyIds]
+        
+        if (isInFamilyId && !isInFamilyIds) {
+          // Está apenas em family_id, adicionar a family_ids para poder remover
+          updatedFamilyIds = [...currentFamilyIds, familyId]
+        }
+        
+        // Remover da lista
+        updatedFamilyIds = updatedFamilyIds.filter((id: number) => id !== familyId)
+        
+        await api.put(`/users/${userId}/permissions`, {
+          is_staff: user.is_staff,
+          is_superuser: user.is_superuser,
+          family_ids: updatedFamilyIds  // Pode ser array vazio, o backend vai tratar
+        })
+      } else {
+        // Para staff, remover a família principal (definir como null se for a família atual)
+        if (user.family_id !== familyId) {
+          throw new Error('Usuário não está associado a esta família')
+        }
+        
+        // Criar payload apenas com os campos necessários
+        const payload: any = {
+          is_staff: user.is_staff,
+          is_superuser: user.is_superuser
+        }
+        
+        // Explicitamente definir family_id como null para remover
+        payload.family_id = null
+        
+        await api.put(`/users/${userId}/permissions`, payload)
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['family-users', variables.familyId] })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      alert('Usuário removido da família com sucesso!')
+    },
+    onError: (error: any) => {
+      console.error('Erro completo ao remover usuário da família:', error)
+      console.error('Response:', error.response)
+      console.error('Data:', error.response?.data)
+      
+      let errorMessage = 'Erro ao remover usuário da família'
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail
+      } else if (error.message) {
+        errorMessage = error.message
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message
+      }
+      
+      alert(errorMessage)
+    }
+  })
+
+  const handleRemoveUserFromFamily = (userId: number, familyId: number) => {
+    if (!confirm('Tem certeza que deseja remover este usuário da família?')) return
+    removeUserFromFamilyMutation.mutate({ userId, familyId })
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Nunca'
     try {
@@ -225,7 +403,17 @@ export default function AdminFamilies() {
               filteredFamilies.map((family) => (
                 <div key={family.id} className="bg-white rounded-lg shadow p-4">
                   <div className="flex justify-between items-start mb-3">
-                    <div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleFamilyExpansion(family.id)}
+                        className="text-purple-600 hover:text-purple-900"
+                      >
+                        {expandedFamily === family.id ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
+                      </button>
                       <h3 className="text-lg font-semibold text-gray-900">{family.name}</h3>
                     </div>
                   </div>
@@ -235,6 +423,56 @@ export default function AdminFamilies() {
                       <span className="ml-2 text-gray-900">{formatDate(family.created_at)}</span>
                     </div>
                   </div>
+                  
+                  {/* Seção expandida com usuários */}
+                  {expandedFamily === family.id && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      {/* Usuários da Família */}
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="font-semibold text-gray-900 text-sm">Usuários</h4>
+                          <button
+                            onClick={() => {
+                              setSelectedFamily(family)
+                              setShowAddUserModal(true)
+                            }}
+                            className="text-sm text-purple-600 hover:text-purple-900 flex items-center gap-1"
+                          >
+                            <UserPlus className="w-4 h-4" />
+                            Adicionar
+                          </button>
+                        </div>
+                        {familyUsers.length === 0 ? (
+                          <p className="text-sm text-gray-500">Nenhum usuário associado</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {familyUsers.map((user) => (
+                              <div key={user.id} className="flex items-center justify-between text-sm text-gray-700 group">
+                                <div className="flex items-center gap-2">
+                                  <span>• {user.first_name || user.last_name ? `${user.first_name} ${user.last_name}`.trim() : user.username} ({user.email})</span>
+                                  {user.is_superuser && (
+                                    <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">Admin</span>
+                                  )}
+                                  {user.is_staff && !user.is_superuser && (
+                                    <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">Staff</span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveUserFromFamily(user.id, family.id)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-900 p-1"
+                                  title="Remover usuário da família"
+                                  disabled={removeUserFromFamilyMutation.isPending}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-4 flex gap-2">
                     <button
                       onClick={() => {
@@ -289,42 +527,105 @@ export default function AdminFamilies() {
                   </tr>
                 ) : (
                   filteredFamilies.map((family) => (
-                    <tr key={family.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{family.name}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-500">{formatDate(family.created_at)}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setSelectedFamily(family)
-                              setFamilyData({ name: family.name })
-                              setShowEditModal(true)
-                              setError('')
-                            }}
-                            className="text-purple-600 hover:text-purple-900 flex items-center gap-1"
-                            title="Editar família"
-                          >
-                            <Edit className="w-4 h-4" />
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedFamily(family)
-                              setShowDeleteModal(true)
-                            }}
-                            className="text-red-600 hover:text-red-900 flex items-center gap-1"
-                            title="Excluir família"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Excluir
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={family.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => toggleFamilyExpansion(family.id)}
+                              className="text-purple-600 hover:text-purple-900"
+                            >
+                              {expandedFamily === family.id ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </button>
+                            <div className="text-sm font-medium text-gray-900">{family.name}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500">{formatDate(family.created_at)}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedFamily(family)
+                                setFamilyData({ name: family.name })
+                                setShowEditModal(true)
+                                setError('')
+                              }}
+                              className="text-purple-600 hover:text-purple-900 flex items-center gap-1"
+                              title="Editar família"
+                            >
+                              <Edit className="w-4 h-4" />
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedFamily(family)
+                                setShowDeleteModal(true)
+                              }}
+                              className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                              title="Excluir família"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Excluir
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedFamily === family.id && (
+                        <tr>
+                          <td colSpan={3} className="px-6 py-4 bg-gray-50">
+                            {/* Usuários da Família */}
+                            <div>
+                                <div className="flex justify-between items-center mb-2">
+                                  <h4 className="font-semibold text-gray-900 text-sm">Usuários</h4>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedFamily(family)
+                                      setShowAddUserModal(true)
+                                    }}
+                                    className="text-sm text-purple-600 hover:text-purple-900 flex items-center gap-1"
+                                  >
+                                    <UserPlus className="w-4 h-4" />
+                                    Adicionar
+                                  </button>
+                                </div>
+                                {familyUsers.length === 0 ? (
+                                  <p className="text-sm text-gray-500">Nenhum usuário associado</p>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {familyUsers.map((user) => (
+                                      <div key={user.id} className="flex items-center justify-between text-sm text-gray-700 group">
+                                        <div className="flex items-center gap-2">
+                                          <span>• {user.first_name || user.last_name ? `${user.first_name} ${user.last_name}`.trim() : user.username} ({user.email})</span>
+                                          {user.is_superuser && (
+                                            <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">Admin</span>
+                                          )}
+                                          {user.is_staff && !user.is_superuser && (
+                                            <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">Staff</span>
+                                          )}
+                                        </div>
+                                        <button
+                                          onClick={() => handleRemoveUserFromFamily(user.id, family.id)}
+                                          className="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-900 p-1"
+                                          title="Remover usuário da família"
+                                          disabled={removeUserFromFamilyMutation.isPending}
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))
                 )}
               </tbody>
@@ -483,6 +784,92 @@ export default function AdminFamilies() {
               disabled={deleteFamilyMutation.isPending}
             >
               {deleteFamilyMutation.isPending ? 'Excluindo...' : 'Excluir Família'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de adicionar usuário à família */}
+      <Modal
+        isOpen={showAddUserModal}
+        onClose={() => {
+          setShowAddUserModal(false)
+          setSelectedUserToAdd(null)
+        }}
+        title={`Adicionar Usuário à Família - ${selectedFamily?.name}`}
+      >
+        <div className="space-y-4">
+          <p className="text-gray-700 text-sm">
+            Selecione um usuário para adicionar à família <strong>{selectedFamily?.name}</strong>:
+          </p>
+
+          {availableUsers.length === 0 ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">
+                Todos os usuários já estão associados a esta família ou não há usuários disponíveis.
+              </p>
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+              <div className="divide-y divide-gray-200">
+                {availableUsers.map((user) => (
+                  <button
+                    key={user.id}
+                    onClick={() => setSelectedUserToAdd(user.id)}
+                    className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
+                      selectedUserToAdd === user.id ? 'bg-purple-50 border-l-4 border-purple-600' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {user.first_name || user.last_name
+                            ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                            : user.username}
+                        </div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        {user.is_superuser && (
+                          <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">
+                            Admin
+                          </span>
+                        )}
+                        {user.is_staff && !user.is_superuser && (
+                          <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                            Staff
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddUserModal(false)
+                setSelectedUserToAdd(null)
+                setError('')
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAddUserToFamily}
+              disabled={!selectedUserToAdd || addUserToFamilyMutation.isPending}
+            >
+              {addUserToFamilyMutation.isPending ? 'Adicionando...' : 'Adicionar Usuário'}
             </Button>
           </div>
         </div>
