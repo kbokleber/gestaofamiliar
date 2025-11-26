@@ -74,21 +74,34 @@ BACKEND_TASK=$(docker service ps "$BACKEND_SERVICE" --format "{{.Name}}" --filte
 if [ -n "$BACKEND_TASK" ]; then
     BACKEND_CONTAINER=$(docker ps --filter "name=$BACKEND_TASK" --format "{{.ID}}" | head -n 1)
     
-    if [ -n "$BACKEND_CONTAINER" ]; then
-        echo "   Container: $BACKEND_CONTAINER"
-        
-        # Testar health endpoint
-        HEALTH_RESPONSE=$(docker exec "$BACKEND_CONTAINER" curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health 2>/dev/null)
-        
-        if [ "$HEALTH_RESPONSE" = "200" ]; then
-            echo -e "${GREEN}✓ Backend está respondendo (HTTP 200)${NC}"
-        else
-            echo -e "${YELLOW}⚠ Backend retornou HTTP $HEALTH_RESPONSE${NC}"
-        fi
-        
-        # Testar endpoint raiz
-        ROOT_RESPONSE=$(docker exec "$BACKEND_CONTAINER" curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/ 2>/dev/null)
-        echo "   Endpoint raiz: HTTP $ROOT_RESPONSE"
+        if [ -n "$BACKEND_CONTAINER" ]; then
+            echo "   Container: $BACKEND_CONTAINER"
+            
+            # Verificar se o container está rodando
+            CONTAINER_STATUS=$(docker inspect "$BACKEND_CONTAINER" --format '{{.State.Status}}' 2>/dev/null)
+            if [ "$CONTAINER_STATUS" = "running" ]; then
+                echo -e "${GREEN}✓ Container está rodando${NC}"
+                
+                # Tentar testar health endpoint (curl pode não estar disponível)
+                if docker exec "$BACKEND_CONTAINER" which curl > /dev/null 2>&1; then
+                    HEALTH_RESPONSE=$(docker exec "$BACKEND_CONTAINER" curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health 2>/dev/null)
+                    if [ "$HEALTH_RESPONSE" = "200" ]; then
+                        echo -e "${GREEN}✓ Backend está respondendo (HTTP 200)${NC}"
+                    else
+                        echo -e "${YELLOW}⚠ Backend retornou HTTP $HEALTH_RESPONSE${NC}"
+                    fi
+                else
+                    echo -e "${YELLOW}⚠ curl não disponível no container (normal)${NC}"
+                    echo "   Verificando se o processo Python está rodando..."
+                    if docker exec "$BACKEND_CONTAINER" ps aux | grep -q "[u]vicorn\|[p]ython.*main:app"; then
+                        echo -e "${GREEN}✓ Processo Python/uvicorn está rodando${NC}"
+                    else
+                        echo -e "${RED}✗ Processo Python/uvicorn NÃO está rodando${NC}"
+                    fi
+                fi
+            else
+                echo -e "${RED}✗ Container não está rodando (Status: $CONTAINER_STATUS)${NC}"
+            fi
     else
         echo -e "${RED}✗ Container do backend não encontrado${NC}"
     fi
@@ -115,14 +128,21 @@ if [ -n "$NPM_SERVICE" ]; then
                 
                 if [ "$NPM_TO_BACKEND" = "200" ]; then
                     echo -e "${GREEN}✓ NPM consegue alcançar o backend!${NC}"
-                elif [ -n "$NPM_TO_BACKEND" ]; then
+                elif [ -n "$NPM_TO_BACKEND" ] && [ "$NPM_TO_BACKEND" != "000" ]; then
                     echo -e "${YELLOW}⚠ NPM alcançou o backend, mas retornou HTTP $NPM_TO_BACKEND${NC}"
                 else
                     echo -e "${RED}✗ NPM NÃO consegue alcançar o backend${NC}"
                     echo "   Verifique se o NPM está na rede nginx_public"
+                    echo "   Verifique se o nome do serviço no NPM está correto: $BACKEND_SERVICE"
                 fi
             else
                 echo -e "${YELLOW}⚠ curl não disponível no container NPM${NC}"
+                echo "   Tentando ping..."
+                if docker exec "$NPM_CONTAINER" ping -c 1 "$BACKEND_SERVICE" > /dev/null 2>&1; then
+                    echo -e "${GREEN}✓ NPM consegue fazer ping no backend${NC}"
+                else
+                    echo -e "${RED}✗ NPM NÃO consegue fazer ping no backend${NC}"
+                fi
             fi
         fi
     fi
@@ -170,9 +190,15 @@ else
     echo "Se ainda houver 502:"
     echo "  1. Aguarde mais alguns segundos (backend pode estar iniciando)"
     echo "  2. Verifique no NPM se o proxy está configurado corretamente:"
-    echo "     - Forward Hostname/IP: $BACKEND_SERVICE"
+    echo "     - Forward Hostname/IP: $BACKEND_SERVICE (nome completo do serviço)"
+    echo "     - NÃO use: ma-familiar_backend ou backend"
+    echo "     - Use exatamente: sistema-familiar_backend"
     echo "     - Forward Port: 8001"
     echo "  3. Reinicie o NPM: docker service update --force <serviço-npm>"
+    echo ""
+    echo -e "${YELLOW}⚠ IMPORTANTE: Verifique se no NPM o Forward Hostname está como:${NC}"
+    echo -e "${YELLOW}   sistema-familiar_backend${NC}"
+    echo -e "${YELLOW}   (não ma-familiar_backend ou backend)${NC}"
     echo ""
 fi
 
