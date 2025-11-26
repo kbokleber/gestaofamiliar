@@ -146,7 +146,7 @@ echo -e "${GREEN}✓ Arquivo docker-stack.yml encontrado${NC}"
 
 echo ""
 
-# 6. Carregar variáveis de ambiente do .env
+# 6. Carregar variáveis de ambiente do .env (mesmo método do deploy.sh)
 echo "5. Carregando variáveis de ambiente do .env..."
 TMP_ENV=$(mktemp)
 while IFS= read -r line || [ -n "$line" ]; do
@@ -162,6 +162,8 @@ while IFS= read -r line || [ -n "$line" ]; do
         fi
     fi
 done < .env
+
+# Exportar variáveis para o ambiente atual
 set -a
 source "$TMP_ENV" 2>/dev/null || true
 set +a
@@ -171,6 +173,8 @@ rm -f "$TMP_ENV"
 if [ -z "$DATABASE_URL" ]; then
     echo -e "${RED}✗ ERRO: DATABASE_URL não foi carregada do .env!${NC}"
     echo "   Verifique se o arquivo .env está correto."
+    echo "   Primeira linha do .env:"
+    head -1 .env
     exit 1
 fi
 
@@ -181,11 +185,14 @@ if [ -z "$SECRET_KEY" ]; then
 fi
 
 echo -e "${GREEN}✓ Variáveis de ambiente carregadas${NC}"
+echo "   DATABASE_URL: ${DATABASE_URL:0:30}..." # Mostrar apenas início (sem senha)
+echo "   SECRET_KEY: ${#SECRET_KEY} caracteres"
 
 echo ""
 
-# 7. Fazer deploy do stack
+# 7. Fazer deploy do stack (variáveis já estão exportadas)
 echo "6. Fazendo deploy do stack $STACK_NAME..."
+echo "   (Variáveis de ambiente serão passadas para o Docker Swarm)"
 docker stack deploy -c docker-stack.yml "$STACK_NAME"
 
 if [ $? -eq 0 ]; then
