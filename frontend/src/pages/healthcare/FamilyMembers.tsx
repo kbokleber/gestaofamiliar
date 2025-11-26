@@ -528,7 +528,7 @@ export default function FamilyMembers() {
                   <input 
                     id="photo-input-edit"
                     type="file" 
-                    accept="image/*" 
+                    accept="image/jpeg,image/jpg,image/png,image/gif" 
                     className="hidden" 
                     onChange={handlePhotoChange}
                   />
@@ -703,7 +703,7 @@ export default function FamilyMembers() {
                 <input 
                   id="photo-input-modal"
                   type="file" 
-                  accept="image/*" 
+                  accept="image/jpeg,image/jpg,image/png,image/gif" 
                   className="hidden" 
                   onChange={handlePhotoChange}
                 />
