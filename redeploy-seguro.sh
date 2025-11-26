@@ -221,8 +221,42 @@ fi
 
 echo ""
 
-# 8. Fazer deploy do stack (variáveis já estão exportadas)
-echo "7. Fazendo deploy do stack $STACK_NAME..."
+# 8. Reconstruir imagens Docker
+echo "7. Reconstruindo imagens Docker..."
+
+# Verificar se os diretórios existem
+if [ ! -d "./backend" ]; then
+    echo -e "${RED}✗ Diretório ./backend não encontrado!${NC}"
+    exit 1
+fi
+
+if [ ! -d "./frontend" ]; then
+    echo -e "${RED}✗ Diretório ./frontend não encontrado!${NC}"
+    exit 1
+fi
+
+echo "   Construindo backend..."
+docker build -t sistema-familiar-backend:latest ./backend
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ Backend construído${NC}"
+else
+    echo -e "${RED}✗ Erro ao construir backend${NC}"
+    exit 1
+fi
+
+echo "   Construindo frontend..."
+docker build -t sistema-familiar-frontend:latest ./frontend
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ Frontend construído${NC}"
+else
+    echo -e "${RED}✗ Erro ao construir frontend${NC}"
+    exit 1
+fi
+
+echo ""
+
+# 9. Fazer deploy do stack (variáveis já estão exportadas)
+echo "8. Fazendo deploy do stack $STACK_NAME..."
 echo "   (Variáveis de ambiente serão passadas para o Docker Swarm)"
 
 # Verificar novamente se as variáveis estão exportadas antes do deploy
@@ -251,8 +285,8 @@ fi
 
 echo ""
 
-# 9. Aguardar serviços iniciarem
-echo "8. Aguardando serviços iniciarem..."
+# 10. Aguardar serviços iniciarem
+echo "9. Aguardando serviços iniciarem..."
 sleep 10
 
 # Verificar status dos serviços
@@ -261,8 +295,8 @@ docker stack services "$STACK_NAME" --format "table {{.Name}}\t{{.Replicas}}\t{{
 
 echo ""
 
-# 10. Verificar se backend está na rede nginx_public
-echo "9. Verificando rede nginx_public..."
+# 11. Verificar se backend está na rede nginx_public
+echo "10. Verificando rede nginx_public..."
 sleep 5  # Aguardar serviços iniciarem
 
 # Verificar se backend está na rede nginx_public
@@ -296,8 +330,8 @@ fi
 
 echo ""
 
-# 11. Verificar saúde do backend
-echo "10. Verificando saúde do backend..."
+# 12. Verificar saúde do backend
+echo "11. Verificando saúde do backend..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 BACKEND_HEALTHY=false
@@ -338,8 +372,8 @@ fi
 
 echo ""
 
-# 12. Verificar conexão com banco de dados
-echo "11. Verificando conexão com banco de dados..."
+# 13. Verificar conexão com banco de dados
+echo "12. Verificando conexão com banco de dados..."
 if [ -n "$BACKEND_CONTAINER" ]; then
     # Verificar logs do backend por erros de conexão
     DB_ERRORS=$(docker service logs "$BACKEND_SERVICE" 2>&1 | grep -i "database\|connection\|postgres" | tail -5)
@@ -354,8 +388,8 @@ fi
 
 echo ""
 
-# 13. Reiniciar NPM para limpar cache e garantir conectividade
-echo "12. Reiniciando NPM para limpar cache..."
+# 14. Reiniciar NPM para limpar cache e garantir conectividade
+echo "13. Reiniciando NPM para limpar cache..."
 
 # Procurar serviço do NPM (pode estar em stack diferente)
 NPM_SERVICE=$(docker service ls | grep -i nginx | grep -i app | awk '{print $1}' | head -n 1)
