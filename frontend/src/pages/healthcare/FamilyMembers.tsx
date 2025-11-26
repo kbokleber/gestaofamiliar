@@ -524,10 +524,10 @@ export default function FamilyMembers() {
                     <Users className="h-16 w-16" />
                   )}
                 </div>
-                <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg" title="Adicionar foto">
+                <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg z-10" title="Adicionar foto">
                   <input 
                     type="file" 
-                    accept="image/jpeg,image/jpg,image/png,image/gif" 
+                    accept="image/*" 
                     className="hidden" 
                     onChange={handlePhotoChange}
                   />
@@ -698,7 +698,7 @@ export default function FamilyMembers() {
                   <Users className="h-16 w-16" />
                 )}
               </div>
-              <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg" title="Adicionar foto">
+              <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg z-10" title="Adicionar foto">
                 <input 
                   type="file" 
                   accept="image/*" 
