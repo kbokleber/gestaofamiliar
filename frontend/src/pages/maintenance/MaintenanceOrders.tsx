@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, Plus, Edit2, Trash2, X, Save, Filter, FileSpreadsheet, ArrowLeft, Paperclip } from 'lucide-react'
+import { Clock, Plus, Edit2, Trash2, Save, Filter, FileSpreadsheet, ArrowLeft, Paperclip } from 'lucide-react'
 import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
