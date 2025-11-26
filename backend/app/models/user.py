@@ -21,8 +21,10 @@ class User(Base):
     is_staff = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     date_joined = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    family_id = Column(Integer, ForeignKey("families_family.id"), nullable=True, index=True)
     
     # Relacionamentos
+    family = relationship("Family", back_populates="users")
     profile = relationship("Profile", back_populates="user", uselist=False)
     dashboard_preference = relationship("DashboardPreference", back_populates="user", uselist=False)
     equipments_owned = relationship("Equipment", back_populates="owner")

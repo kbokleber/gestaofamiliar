@@ -15,7 +15,7 @@ from app.schemas.healthcare import (
     Medication as MedicationSchema,
     MedicationCreate, MedicationUpdate
 )
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_family
 
 router = APIRouter()
 
@@ -24,10 +24,13 @@ router = APIRouter()
 async def create_family_member(
     member_data: FamilyMemberCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
-    """Criar novo membro da família (compartilhado entre todos os usuários)"""
-    member = FamilyMember(**member_data.model_dump(exclude_none=False))
+    """Criar novo membro da família (compartilhado entre todos os usuários da mesma família)"""
+    member_data_dict = member_data.model_dump(exclude_none=False)
+    member_data_dict['family_id'] = family_id
+    member = FamilyMember(**member_data_dict)
     
     db.add(member)
     db.commit()
@@ -37,20 +40,25 @@ async def create_family_member(
 @router.get("/members", response_model=List[FamilyMemberSchema])
 async def list_family_members(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
-    """Listar todos os membros da família (compartilhados) ordenados por 'order' e depois nome"""
-    members = db.query(FamilyMember).order_by(FamilyMember.order, FamilyMember.name).all()
+    """Listar todos os membros da família (compartilhados entre usuários da mesma família) ordenados por 'order' e depois nome"""
+    members = db.query(FamilyMember).filter(FamilyMember.family_id == family_id).order_by(FamilyMember.order, FamilyMember.name).all()
     return members
 
 @router.get("/members/{member_id}", response_model=FamilyMemberDetail)
 async def get_family_member(
     member_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Obter detalhes de um membro da família"""
-    member = db.query(FamilyMember).filter(FamilyMember.id == member_id).first()
+    member = db.query(FamilyMember).filter(
+        FamilyMember.id == member_id,
+        FamilyMember.family_id == family_id
+    ).first()
     
     if not member:
         raise HTTPException(
@@ -65,12 +73,16 @@ async def get_family_member(
 async def reorder_family_members(
     order_data: List[FamilyMemberOrderItem],
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Atualizar a ordem de exibição dos membros da família"""
     try:
         for item in order_data:
-            member = db.query(FamilyMember).filter(FamilyMember.id == item.id).first()
+            member = db.query(FamilyMember).filter(
+                FamilyMember.id == item.id,
+                FamilyMember.family_id == family_id
+            ).first()
             if member:
                 member.order = item.order
         
@@ -88,13 +100,17 @@ async def update_family_member(
     member_id: int,
     member_data: FamilyMemberUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Atualizar membro da família"""
     import logging
     logger = logging.getLogger("uvicorn")
     
-    member = db.query(FamilyMember).filter(FamilyMember.id == member_id).first()
+    member = db.query(FamilyMember).filter(
+        FamilyMember.id == member_id,
+        FamilyMember.family_id == family_id
+    ).first()
     
     if not member:
         raise HTTPException(
@@ -126,10 +142,14 @@ async def update_family_member(
 async def delete_family_member(
     member_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Excluir membro da família"""
-    member = db.query(FamilyMember).filter(FamilyMember.id == member_id).first()
+    member = db.query(FamilyMember).filter(
+        FamilyMember.id == member_id,
+        FamilyMember.family_id == family_id
+    ).first()
     
     if not member:
         raise HTTPException(
@@ -145,12 +165,14 @@ async def delete_family_member(
 async def create_appointment(
     appointment_data: MedicalAppointmentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Criar nova consulta médica"""
-    # Verificar se o membro existe
+    # Verificar se o membro existe e pertence à família do usuário
     member = db.query(FamilyMember).filter(
-        FamilyMember.id == appointment_data.family_member_id
+        FamilyMember.id == appointment_data.family_member_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not member:
@@ -170,10 +192,14 @@ async def create_appointment(
 async def list_appointments(
     member_id: int = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
-    """Listar consultas médicas"""
-    query = db.query(MedicalAppointment)
+    """Listar consultas médicas (apenas da família do usuário)"""
+    # Filtrar por família através do FamilyMember
+    query = db.query(MedicalAppointment).join(FamilyMember).filter(
+        FamilyMember.family_id == family_id
+    )
     
     if member_id:
         query = query.filter(MedicalAppointment.family_member_id == member_id)
@@ -185,11 +211,14 @@ async def update_appointment(
     appointment_id: int,
     appointment_data: MedicalAppointmentUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Atualizar consulta médica"""
-    appointment = db.query(MedicalAppointment).filter(
-        MedicalAppointment.id == appointment_id
+    # Filtrar por família através do FamilyMember
+    appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
+        MedicalAppointment.id == appointment_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not appointment:
@@ -209,11 +238,13 @@ async def update_appointment(
 async def delete_appointment(
     appointment_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Excluir consulta médica"""
-    appointment = db.query(MedicalAppointment).filter(
-        MedicalAppointment.id == appointment_id
+    appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
+        MedicalAppointment.id == appointment_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not appointment:
@@ -230,14 +261,16 @@ async def delete_appointment(
 async def create_medication(
     medication_data: MedicationCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Criar novo medicamento"""
     import logging
     logger = logging.getLogger("uvicorn")
     
     member = db.query(FamilyMember).filter(
-        FamilyMember.id == medication_data.family_member_id
+        FamilyMember.id == medication_data.family_member_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not member:
@@ -278,12 +311,16 @@ async def list_medications(
     member_id: int = None,
     active_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
-    """Listar medicamentos"""
+    """Listar medicamentos (apenas da família do usuário)"""
     from datetime import date
     
-    query = db.query(Medication)
+    # Filtrar por família através do FamilyMember
+    query = db.query(Medication).join(FamilyMember).filter(
+        FamilyMember.family_id == family_id
+    )
     
     if member_id:
         query = query.filter(Medication.family_member_id == member_id)
@@ -302,14 +339,17 @@ async def update_medication(
     medication_id: int,
     medication_data: MedicationUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Atualizar medicamento"""
     import logging
     logger = logging.getLogger("uvicorn")
     
-    medication = db.query(Medication).filter(
-        Medication.id == medication_id
+    # Filtrar por família através do FamilyMember
+    medication = db.query(Medication).join(FamilyMember).filter(
+        Medication.id == medication_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not medication:
@@ -364,11 +404,13 @@ async def update_medication(
 async def delete_medication(
     medication_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Excluir medicamento"""
-    medication = db.query(Medication).filter(
-        Medication.id == medication_id
+    medication = db.query(Medication).join(FamilyMember).filter(
+        Medication.id == medication_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not medication:
@@ -385,11 +427,13 @@ async def delete_medication(
 async def create_procedure(
     procedure_data: MedicalProcedureCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Criar novo procedimento médico"""
     member = db.query(FamilyMember).filter(
-        FamilyMember.id == procedure_data.family_member_id
+        FamilyMember.id == procedure_data.family_member_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not member:
@@ -408,10 +452,14 @@ async def create_procedure(
 async def list_procedures(
     member_id: int = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
-    """Listar procedimentos médicos"""
-    query = db.query(MedicalProcedure)
+    """Listar procedimentos médicos (apenas da família do usuário)"""
+    # Filtrar por família através do FamilyMember
+    query = db.query(MedicalProcedure).join(FamilyMember).filter(
+        FamilyMember.family_id == family_id
+    )
     
     if member_id:
         query = query.filter(MedicalProcedure.family_member_id == member_id)
@@ -423,11 +471,14 @@ async def update_procedure(
     procedure_id: int,
     procedure_data: MedicalProcedureUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Atualizar procedimento médico"""
-    procedure = db.query(MedicalProcedure).filter(
-        MedicalProcedure.id == procedure_id
+    # Filtrar por família através do FamilyMember
+    procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
+        MedicalProcedure.id == procedure_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not procedure:
@@ -454,11 +505,14 @@ async def update_procedure(
 async def delete_procedure(
     procedure_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Excluir procedimento médico"""
-    procedure = db.query(MedicalProcedure).filter(
-        MedicalProcedure.id == procedure_id
+    # Filtrar por família através do FamilyMember
+    procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
+        MedicalProcedure.id == procedure_id,
+        FamilyMember.family_id == family_id
     ).first()
     
     if not procedure:

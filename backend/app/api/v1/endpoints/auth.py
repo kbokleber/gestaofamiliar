@@ -6,8 +6,11 @@ from app.core.config import settings
 from app.core.security import create_access_token, verify_password, get_password_hash
 from app.db.base import get_db
 from app.models.user import User, Profile
+from app.models.family import Family
 from app.schemas.token import Token
 from app.schemas.user import UserCreate, User as UserSchema
+import secrets
+import string
 
 router = APIRouter()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -60,6 +63,38 @@ async def register(
             detail="Email já cadastrado"
         )
     
+    # Determinar family_id
+    family_id = user_data.family_id
+    if not family_id and user_data.family_code:
+        # Buscar família por código
+        family = db.query(Family).filter(Family.codigo_unico == user_data.family_code).first()
+        if not family:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Família não encontrada com o código fornecido"
+            )
+        family_id = family.id
+    
+    # Se não forneceu família, criar uma nova automaticamente
+    if not family_id:
+        # Gerar código único
+        alphabet = string.ascii_uppercase + string.digits
+        codigo_unico = ''.join(secrets.choice(alphabet) for _ in range(8))
+        
+        # Garantir que o código seja único
+        while db.query(Family).filter(Family.codigo_unico == codigo_unico).first():
+            codigo_unico = ''.join(secrets.choice(alphabet) for _ in range(8))
+        
+        # Criar nova família
+        new_family = Family(
+            name=f"Família de {user_data.first_name or user_data.username}",
+            codigo_unico=codigo_unico
+        )
+        db.add(new_family)
+        db.commit()
+        db.refresh(new_family)
+        family_id = new_family.id
+    
     # Criar novo usuário
     user = User(
         username=user_data.username,
@@ -69,7 +104,8 @@ async def register(
         last_name=user_data.last_name,
         is_active=True,
         is_staff=False,
-        is_superuser=False
+        is_superuser=False,
+        family_id=family_id
     )
     
     db.add(user)

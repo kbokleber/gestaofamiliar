@@ -11,7 +11,7 @@ from app.schemas.maintenance import (
     MaintenanceOrder as MaintenanceOrderSchema,
     MaintenanceOrderCreate, MaintenanceOrderUpdate, MaintenanceOrderDetail
 )
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_family
 
 router = APIRouter()
 
@@ -20,10 +20,13 @@ router = APIRouter()
 async def create_equipment(
     equipment_data: EquipmentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Criar novo equipamento"""
-    equipment = Equipment(**equipment_data.model_dump(exclude_none=False))
+    equipment_dict = equipment_data.model_dump(exclude_none=False)
+    equipment_dict['family_id'] = family_id
+    equipment = Equipment(**equipment_dict)
     if not equipment.owner_id:
         equipment.owner_id = current_user.id
     
@@ -36,10 +39,11 @@ async def create_equipment(
 async def list_equipment(
     equipment_type: str = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
-    """Listar todos os equipamentos (compartilhados)"""
-    query = db.query(Equipment)
+    """Listar todos os equipamentos (compartilhados entre usuários da mesma família)"""
+    query = db.query(Equipment).filter(Equipment.family_id == family_id)
     
     if equipment_type:
         query = query.filter(Equipment.type == equipment_type)
@@ -50,12 +54,13 @@ async def list_equipment(
 async def get_equipment(
     equipment_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Obter detalhes de um equipamento"""
     equipment = db.query(Equipment).filter(
         Equipment.id == equipment_id,
-        Equipment.owner_id == current_user.id
+        Equipment.family_id == family_id
     ).first()
     
     if not equipment:
@@ -71,12 +76,14 @@ async def update_equipment(
     equipment_id: int,
     equipment_data: EquipmentUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Atualizar equipamento"""
-    # Buscar equipamento sem filtrar por owner_id (equipamentos são compartilhados)
+    # Filtrar por família (equipamentos são compartilhados entre usuários da mesma família)
     equipment = db.query(Equipment).filter(
-        Equipment.id == equipment_id
+        Equipment.id == equipment_id,
+        Equipment.family_id == family_id
     ).first()
     
     if not equipment:
@@ -107,12 +114,13 @@ async def update_equipment(
 async def delete_equipment(
     equipment_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Excluir equipamento"""
     equipment = db.query(Equipment).filter(
         Equipment.id == equipment_id,
-        Equipment.owner_id == current_user.id
+        Equipment.family_id == family_id
     ).first()
     
     if not equipment:
@@ -129,13 +137,14 @@ async def delete_equipment(
 async def create_maintenance_order(
     order_data: MaintenanceOrderCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Criar nova ordem de manutenção"""
-    # Verificar se o equipamento pertence ao usuário
+    # Verificar se o equipamento pertence à família do usuário
     equipment = db.query(Equipment).filter(
         Equipment.id == order_data.equipment_id,
-        Equipment.owner_id == current_user.id
+        Equipment.family_id == family_id
     ).first()
     
     if not equipment:
@@ -173,10 +182,14 @@ async def list_maintenance_orders(
     equipment_id: int = None,
     status: str = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
-    """Listar todas as ordens de manutenção (compartilhadas)"""
-    query = db.query(MaintenanceOrder)
+    """Listar todas as ordens de manutenção (compartilhadas entre usuários da mesma família)"""
+    # Filtrar por família através do Equipment
+    query = db.query(MaintenanceOrder).join(Equipment).filter(
+        Equipment.family_id == family_id
+    )
     
     if equipment_id:
         query = query.filter(MaintenanceOrder.equipment_id == equipment_id)
@@ -190,12 +203,14 @@ async def list_maintenance_orders(
 async def get_maintenance_order(
     order_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Obter detalhes de uma ordem de manutenção"""
+    # Filtrar por família através do Equipment
     order = db.query(MaintenanceOrder).join(Equipment).filter(
         MaintenanceOrder.id == order_id,
-        Equipment.owner_id == current_user.id
+        Equipment.family_id == family_id
     ).first()
     
     if not order:
@@ -211,14 +226,16 @@ async def update_maintenance_order(
     order_id: int,
     order_data: MaintenanceOrderUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Atualizar ordem de manutenção"""
     print(f"[DEBUG] ===== INÍCIO UPDATE ORDER {order_id} =====")
     try:
+        # Filtrar por família através do Equipment
         order = db.query(MaintenanceOrder).join(Equipment).filter(
             MaintenanceOrder.id == order_id,
-            Equipment.owner_id == current_user.id
+            Equipment.family_id == family_id
         ).first()
         
         if not order:
@@ -300,12 +317,14 @@ async def update_maintenance_order(
 async def delete_maintenance_order(
     order_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    family_id: int = Depends(get_current_family)
 ):
     """Excluir ordem de manutenção"""
+    # Filtrar por família através do Equipment
     order = db.query(MaintenanceOrder).join(Equipment).filter(
         MaintenanceOrder.id == order_id,
-        Equipment.owner_id == current_user.id
+        Equipment.family_id == family_id
     ).first()
     
     if not order:

@@ -12,7 +12,7 @@ class FamilyMember(Base):
     __tablename__ = "healthcare_familymember"
     
     id = Column(Integer, primary_key=True, index=True)
-    # user_id não existe no banco real - membros compartilhados
+    family_id = Column(Integer, ForeignKey("families_family.id"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     photo = Column(Text, nullable=True)  # Armazena imagem em base64
     birth_date = Column(Date, nullable=False)
@@ -29,6 +29,7 @@ class FamilyMember(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     # Relacionamentos
+    family = relationship("Family", back_populates="family_members")
     appointments = relationship("MedicalAppointment", back_populates="family_member", cascade="all, delete-orphan")
     procedures = relationship("MedicalProcedure", back_populates="family_member", cascade="all, delete-orphan")
     medications = relationship("Medication", back_populates="family_member", cascade="all, delete-orphan")

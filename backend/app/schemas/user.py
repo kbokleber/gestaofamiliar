@@ -33,6 +33,8 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    family_id: Optional[int] = None
+    family_code: Optional[str] = None  # Código único da família (alternativa ao family_id)
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -54,6 +56,7 @@ class User(UserBase):
     is_superuser: bool
     date_joined: datetime
     last_login: Optional[datetime] = None
+    family_id: Optional[int] = None
     profile: Optional[Profile] = None
     
     class Config:

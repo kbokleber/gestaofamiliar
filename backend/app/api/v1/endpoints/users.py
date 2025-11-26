@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db.base import get_db
 from app.models.user import User, Profile
+from app.models.family import Family
 from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate
 from app.api.deps import get_current_user, get_current_admin
 from app.core.security import get_password_hash
@@ -82,6 +83,24 @@ async def create_user(
             detail="Email já cadastrado"
         )
     
+    # Determinar family_id
+    family_id = user_data.family_id
+    if not family_id and user_data.family_code:
+        # Buscar família por código
+        family = db.query(Family).filter(Family.codigo_unico == user_data.family_code).first()
+        if not family:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Família não encontrada com o código fornecido"
+            )
+        family_id = family.id
+    
+    if not family_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="É necessário fornecer family_id ou family_code"
+        )
+    
     # Criar novo usuário
     new_user = User(
         username=user_data.username,
@@ -91,7 +110,8 @@ async def create_user(
         last_name=user_data.last_name,
         is_active=True,
         is_staff=False,
-        is_superuser=False
+        is_superuser=False,
+        family_id=family_id
     )
     
     db.add(new_user)
