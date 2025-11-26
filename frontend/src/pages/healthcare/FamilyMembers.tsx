@@ -174,6 +174,7 @@ export default function FamilyMembers() {
     setEditingMember(null)
     setPhotoPreview(null)
     setPhotoFile(null)
+    setShowPhotoMenu(false)
     setFormData({
       name: '',
       birth_date: '',
