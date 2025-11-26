@@ -494,6 +494,7 @@ async def delete_maintenance_order(
 ):
     """Excluir ordem de manutenção"""
     from app.api.deps import get_user_family_ids
+    from sqlalchemy.orm import noload
     
     # Se for admin sem family_id especificado, verificar se a ordem pertence a alguma das famílias do admin
     if (current_user.is_superuser or current_user.is_staff) and family_id is None:
@@ -503,7 +504,8 @@ async def delete_maintenance_order(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Ordem de manutenção não encontrada"
             )
-        order = db.query(MaintenanceOrder).join(Equipment).filter(
+        # Usar noload para evitar carregar o relacionamento images que pode ter problemas de schema
+        order = db.query(MaintenanceOrder).options(noload(MaintenanceOrder.images)).join(Equipment).filter(
             MaintenanceOrder.id == order_id,
             Equipment.family_id.in_(family_ids)
         ).first()
@@ -511,7 +513,8 @@ async def delete_maintenance_order(
         # Usuário normal ou admin com family_id específico
         if family_id is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
-        order = db.query(MaintenanceOrder).join(Equipment).filter(
+        # Usar noload para evitar carregar o relacionamento images que pode ter problemas de schema
+        order = db.query(MaintenanceOrder).options(noload(MaintenanceOrder.images)).join(Equipment).filter(
             MaintenanceOrder.id == order_id,
             Equipment.family_id == family_id
         ).first()
