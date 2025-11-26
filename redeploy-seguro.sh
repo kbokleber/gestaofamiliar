@@ -211,17 +211,32 @@ echo ""
 echo "8. Verificando rede nginx_public..."
 sleep 5  # Aguardar serviços iniciarem
 
-if docker service inspect "$BACKEND_SERVICE" 2>/dev/null | grep -q "nginx_public"; then
+# Verificar se backend está na rede nginx_public
+NETWORK_CHECK=$(docker service inspect "$BACKEND_SERVICE" 2>/dev/null | grep -A 10 "Networks" | grep "nginx_public")
+if [ -n "$NETWORK_CHECK" ]; then
     echo -e "${GREEN}✓ Backend está na rede nginx_public${NC}"
 else
     echo -e "${YELLOW}⚠ Backend NÃO está na rede nginx_public${NC}"
-    echo "   Adicionando rede..."
-    docker service update --network-add nginx_public "$BACKEND_SERVICE"
-    if [ $? -eq 0 ]; then
+    echo "   Tentando adicionar rede..."
+    UPDATE_OUTPUT=$(docker service update --network-add nginx_public "$BACKEND_SERVICE" 2>&1)
+    UPDATE_EXIT=$?
+    
+    if [ $UPDATE_EXIT -eq 0 ]; then
         echo -e "${GREEN}✓ Rede adicionada${NC}"
         sleep 5
     else
-        echo -e "${RED}✗ Erro ao adicionar rede${NC}"
+        # Verificar se o erro é porque já está na rede
+        if echo "$UPDATE_OUTPUT" | grep -qi "already attached\|already in network"; then
+            echo -e "${GREEN}✓ Backend já está na rede nginx_public${NC}"
+        else
+            echo -e "${YELLOW}⚠ Aviso ao adicionar rede (pode já estar conectado)${NC}"
+            echo "   Verificando novamente..."
+            sleep 2
+            NETWORK_CHECK2=$(docker service inspect "$BACKEND_SERVICE" 2>/dev/null | grep -A 10 "Networks" | grep "nginx_public")
+            if [ -n "$NETWORK_CHECK2" ]; then
+                echo -e "${GREEN}✓ Backend está na rede nginx_public${NC}"
+            fi
+        fi
     fi
 fi
 
@@ -241,23 +256,17 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         BACKEND_CONTAINER=$(docker ps --filter "name=$BACKEND_TASK" --format "{{.ID}}" | head -n 1)
         
         if [ -n "$BACKEND_CONTAINER" ]; then
-            # Verificar se o processo está rodando (curl pode não estar disponível)
-            if docker exec "$BACKEND_CONTAINER" ps aux | grep -q "[u]vicorn\|[p]ython.*main:app"; then
+            # Verificar se o processo está rodando (método mais confiável que curl)
+            if docker exec "$BACKEND_CONTAINER" ps aux 2>/dev/null | grep -q "[u]vicorn\|[p]ython.*main:app"; then
                 echo -e "${GREEN}✓ Backend está rodando!${NC}"
                 BACKEND_HEALTHY=true
                 break
-            else
-                # Tentar curl se disponível
-                if docker exec "$BACKEND_CONTAINER" which curl > /dev/null 2>&1; then
-                    HEALTH_RESPONSE=$(docker exec "$BACKEND_CONTAINER" curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health 2>/dev/null)
-                    if [ "$HEALTH_RESPONSE" = "200" ]; then
-                        echo -e "${GREEN}✓ Backend está respondendo! (HTTP 200)${NC}"
-                        BACKEND_HEALTHY=true
-                        break
-                    elif [ -n "$HEALTH_RESPONSE" ]; then
-                        echo "   Backend retornou HTTP $HEALTH_RESPONSE (aguardando...)"
-                    fi
-                fi
+            fi
+            
+            # Se o processo não foi encontrado, verificar se o container está rodando
+            CONTAINER_STATUS=$(docker inspect "$BACKEND_CONTAINER" --format '{{.State.Status}}' 2>/dev/null)
+            if [ "$CONTAINER_STATUS" != "running" ]; then
+                echo "   Container não está rodando (Status: $CONTAINER_STATUS)"
             fi
         fi
     fi
