@@ -232,6 +232,31 @@ export default function AdminUsers() {
     })
   }
 
+  const handleOpenEditModal = (user: User) => {
+    setSelectedUser(user)
+    setEditUserData({
+      email: user.email,
+      first_name: user.first_name || '',
+      last_name: user.last_name || ''
+    })
+    setEditUserError('')
+    setShowEditModal(true)
+  }
+
+  const handleUpdateUser = () => {
+    if (!selectedUser) return
+    
+    if (!editUserData.email) {
+      setEditUserError('Email é obrigatório')
+      return
+    }
+
+    updateUserMutation.mutate({
+      userId: selectedUser.id,
+      userData: editUserData
+    })
+  }
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Nunca'
     try {
