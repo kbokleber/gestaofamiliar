@@ -193,6 +193,22 @@ echo ""
 # 7. Fazer deploy do stack (variáveis já estão exportadas)
 echo "6. Fazendo deploy do stack $STACK_NAME..."
 echo "   (Variáveis de ambiente serão passadas para o Docker Swarm)"
+
+# Verificar novamente se as variáveis estão exportadas antes do deploy
+if [ -z "$DATABASE_URL" ] || [ -z "$SECRET_KEY" ]; then
+    echo -e "${RED}✗ ERRO: Variáveis não estão exportadas!${NC}"
+    echo "   DATABASE_URL: ${DATABASE_URL:-VAZIA}"
+    echo "   SECRET_KEY: ${SECRET_KEY:-VAZIA}"
+    exit 1
+fi
+
+# Exportar explicitamente antes do deploy
+export DATABASE_URL
+export SECRET_KEY
+export ALGORITHM=${ALGORITHM:-HS256}
+export ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+
+# Fazer deploy - o docker-stack.yml usa ${VAR} que será substituído pelo shell
 docker stack deploy -c docker-stack.yml "$STACK_NAME"
 
 if [ $? -eq 0 ]; then
