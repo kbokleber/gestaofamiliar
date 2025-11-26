@@ -35,16 +35,34 @@ async def create_equipment(
     elif family_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
     
-    equipment_dict = equipment_data.model_dump(exclude_none=False)
-    equipment_dict['family_id'] = family_id
-    equipment = Equipment(**equipment_dict)
-    if not equipment.owner_id:
-        equipment.owner_id = current_user.id
-    
-    db.add(equipment)
-    db.commit()
-    db.refresh(equipment)
-    return equipment
+    try:
+        equipment_dict = equipment_data.model_dump(exclude_none=False)
+        equipment_dict['family_id'] = family_id
+        
+        # Garantir que campos obrigatórios tenham valores padrão
+        if 'service_provider' not in equipment_dict or equipment_dict['service_provider'] is None:
+            equipment_dict['service_provider'] = ''
+        if 'status' not in equipment_dict or equipment_dict['status'] is None:
+            equipment_dict['status'] = 'OPERACIONAL'
+        if 'notes' not in equipment_dict or equipment_dict['notes'] is None:
+            equipment_dict['notes'] = ''
+        
+        equipment = Equipment(**equipment_dict)
+        if not equipment.owner_id:
+            equipment.owner_id = current_user.id
+        
+        db.add(equipment)
+        db.commit()
+        db.refresh(equipment)
+        return equipment
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao criar equipamento: {str(e)}"
+        )
 
 @router.get("/equipment", response_model=List[EquipmentSchema])
 async def list_equipment(

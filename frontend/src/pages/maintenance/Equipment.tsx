@@ -91,6 +91,8 @@ export default function Equipment() {
         brand: formData.brand || null,
         model: formData.model || null,
         serial_number: formData.serial_number || null,
+        service_provider: '', // Campo obrigatório no schema
+        notes: formData.notes || '',
         documents: documents.length > 0 ? JSON.stringify(documents) : null
       }
       
