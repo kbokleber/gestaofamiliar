@@ -146,8 +146,46 @@ echo -e "${GREEN}✓ Arquivo docker-stack.yml encontrado${NC}"
 
 echo ""
 
-# 6. Fazer deploy do stack
-echo "5. Fazendo deploy do stack $STACK_NAME..."
+# 6. Carregar variáveis de ambiente do .env
+echo "5. Carregando variáveis de ambiente do .env..."
+TMP_ENV=$(mktemp)
+while IFS= read -r line || [ -n "$line" ]; do
+    # Ignorar linhas vazias e comentários
+    if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+        # Remover comentários inline
+        line="${line%%#*}"
+        # Remover espaços em branco no início e fim
+        line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        # Incluir apenas linhas que contêm = e têm pelo menos um caractere antes e depois
+        if [[ -n "$line" && "$line" =~ ^[^=]+=.+$ ]]; then
+            echo "$line" >> "$TMP_ENV"
+        fi
+    fi
+done < .env
+set -a
+source "$TMP_ENV" 2>/dev/null || true
+set +a
+rm -f "$TMP_ENV"
+
+# Verificar se as variáveis foram carregadas
+if [ -z "$DATABASE_URL" ]; then
+    echo -e "${RED}✗ ERRO: DATABASE_URL não foi carregada do .env!${NC}"
+    echo "   Verifique se o arquivo .env está correto."
+    exit 1
+fi
+
+if [ -z "$SECRET_KEY" ]; then
+    echo -e "${RED}✗ ERRO: SECRET_KEY não foi carregada do .env!${NC}"
+    echo "   Verifique se o arquivo .env está correto."
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Variáveis de ambiente carregadas${NC}"
+
+echo ""
+
+# 7. Fazer deploy do stack
+echo "6. Fazendo deploy do stack $STACK_NAME..."
 docker stack deploy -c docker-stack.yml "$STACK_NAME"
 
 if [ $? -eq 0 ]; then
@@ -159,8 +197,8 @@ fi
 
 echo ""
 
-# 7. Aguardar serviços iniciarem
-echo "6. Aguardando serviços iniciarem..."
+# 8. Aguardar serviços iniciarem
+echo "7. Aguardando serviços iniciarem..."
 sleep 10
 
 # Verificar status dos serviços
@@ -169,8 +207,8 @@ docker stack services "$STACK_NAME" --format "table {{.Name}}\t{{.Replicas}}\t{{
 
 echo ""
 
-# 8. Verificar se backend está na rede nginx_public
-echo "7. Verificando rede nginx_public..."
+# 9. Verificar se backend está na rede nginx_public
+echo "8. Verificando rede nginx_public..."
 sleep 5  # Aguardar serviços iniciarem
 
 if docker service inspect "$BACKEND_SERVICE" 2>/dev/null | grep -q "nginx_public"; then
@@ -189,8 +227,8 @@ fi
 
 echo ""
 
-# 9. Verificar saúde do backend
-echo "8. Verificando saúde do backend..."
+# 10. Verificar saúde do backend
+echo "9. Verificando saúde do backend..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 BACKEND_HEALTHY=false
