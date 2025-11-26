@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
-import { Users, Lock, UserCheck, UserX, Search, RefreshCw } from 'lucide-react'
+import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 
@@ -25,9 +25,19 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const [newUserData, setNewUserData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    first_name: '',
+    last_name: ''
+  })
+  const [createUserError, setCreateUserError] = useState('')
 
   // Verificar se é admin
   const isAdmin = currentUser?.is_superuser || currentUser?.is_staff
@@ -82,6 +92,37 @@ export default function AdminUsers() {
     },
     onError: (error: any) => {
       alert(error.response?.data?.detail || 'Erro ao alterar status do usuário')
+    }
+  })
+
+  // Mutação para criar usuário
+  const createUserMutation = useMutation({
+    mutationFn: async (userData: {
+      username: string
+      email: string
+      password: string
+      first_name: string
+      last_name: string
+    }) => {
+      const response = await api.post('/users/', userData)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowCreateModal(false)
+      setNewUserData({
+        username: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        first_name: '',
+        last_name: ''
+      })
+      setCreateUserError('')
+      alert('Usuário criado com sucesso!')
+    },
+    onError: (error: any) => {
+      setCreateUserError(error.response?.data?.detail || 'Erro ao criar usuário')
     }
   })
 
@@ -163,8 +204,26 @@ export default function AdminUsers() {
         </div>
       </div>
 
-      {/* Botão de atualizar */}
-      <div className="mb-4 flex justify-end">
+      {/* Botões de ação */}
+      <div className="mb-4 flex justify-between items-center">
+        <Button
+          onClick={() => {
+            setShowCreateModal(true)
+            setCreateUserError('')
+            setNewUserData({
+              username: '',
+              email: '',
+              password: '',
+              confirmPassword: '',
+              first_name: '',
+              last_name: ''
+            })
+          }}
+          className="flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Novo Usuário
+        </Button>
         <Button
           onClick={() => refetch()}
           variant="outline"
@@ -367,6 +426,185 @@ export default function AdminUsers() {
               disabled={updatePasswordMutation.isPending}
             >
               {updatePasswordMutation.isPending ? 'Salvando...' : 'Salvar Senha'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de criação de usuário */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => {
+          setShowCreateModal(false)
+          setNewUserData({
+            username: '',
+            email: '',
+            password: '',
+            confirmPassword: '',
+            first_name: '',
+            last_name: ''
+          })
+          setCreateUserError('')
+        }}
+        title="Criar Novo Usuário"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Usuário *
+              </label>
+              <input
+                type="text"
+                value={newUserData.username}
+                onChange={(e) => {
+                  setNewUserData({ ...newUserData, username: e.target.value })
+                  setCreateUserError('')
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="nomeusuario"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email *
+              </label>
+              <input
+                type="email"
+                value={newUserData.email}
+                onChange={(e) => {
+                  setNewUserData({ ...newUserData, email: e.target.value })
+                  setCreateUserError('')
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="usuario@email.com"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nome
+              </label>
+              <input
+                type="text"
+                value={newUserData.first_name}
+                onChange={(e) => {
+                  setNewUserData({ ...newUserData, first_name: e.target.value })
+                  setCreateUserError('')
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="Primeiro nome"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sobrenome
+              </label>
+              <input
+                type="text"
+                value={newUserData.last_name}
+                onChange={(e) => {
+                  setNewUserData({ ...newUserData, last_name: e.target.value })
+                  setCreateUserError('')
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="Sobrenome"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Senha *
+            </label>
+            <input
+              type="password"
+              value={newUserData.password}
+              onChange={(e) => {
+                setNewUserData({ ...newUserData, password: e.target.value })
+                setCreateUserError('')
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="Mínimo 6 caracteres"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Confirmar Senha *
+            </label>
+            <input
+              type="password"
+              value={newUserData.confirmPassword}
+              onChange={(e) => {
+                setNewUserData({ ...newUserData, confirmPassword: e.target.value })
+                setCreateUserError('')
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="Confirme a senha"
+              required
+            />
+          </div>
+
+          {createUserError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">{createUserError}</p>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateModal(false)
+                setNewUserData({
+                  username: '',
+                  email: '',
+                  password: '',
+                  confirmPassword: '',
+                  first_name: '',
+                  last_name: ''
+                })
+                setCreateUserError('')
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (!newUserData.username || !newUserData.email || !newUserData.password) {
+                  setCreateUserError('Preencha todos os campos obrigatórios')
+                  return
+                }
+
+                if (newUserData.password.length < 6) {
+                  setCreateUserError('A senha deve ter pelo menos 6 caracteres')
+                  return
+                }
+
+                if (newUserData.password !== newUserData.confirmPassword) {
+                  setCreateUserError('As senhas não coincidem')
+                  return
+                }
+
+                createUserMutation.mutate({
+                  username: newUserData.username,
+                  email: newUserData.email,
+                  password: newUserData.password,
+                  first_name: newUserData.first_name,
+                  last_name: newUserData.last_name
+                })
+              }}
+              disabled={createUserMutation.isPending}
+            >
+              {createUserMutation.isPending ? 'Criando...' : 'Criar Usuário'}
             </Button>
           </div>
         </div>

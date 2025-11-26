@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db.base import get_db
 from app.models.user import User, Profile
-from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate
+from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate
 from app.api.deps import get_current_user, get_current_admin
 from app.core.security import get_password_hash
 
@@ -59,6 +59,51 @@ async def list_users(
     """Listar todos os usuários"""
     users = db.query(User).offset(skip).limit(limit).all()
     return users
+
+@router.post("/", response_model=UserSchema)
+async def create_user(
+    user_data: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Criar novo usuário (apenas administradores)"""
+    # Verificar se usuário já existe
+    existing_user = db.query(User).filter(User.username == user_data.username).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nome de usuário já existe"
+        )
+    
+    existing_email = db.query(User).filter(User.email == user_data.email).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email já cadastrado"
+        )
+    
+    # Criar novo usuário
+    new_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        password=get_password_hash(user_data.password),
+        first_name=user_data.first_name,
+        last_name=user_data.last_name,
+        is_active=True,
+        is_staff=False,
+        is_superuser=False
+    )
+    
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Criar perfil automaticamente
+    profile = Profile(user_id=new_user.id)
+    db.add(profile)
+    db.commit()
+    
+    return new_user
 
 # Rotas específicas devem vir ANTES das rotas genéricas
 @router.put("/{user_id}/password", response_model=UserSchema)
