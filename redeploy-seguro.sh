@@ -77,7 +77,7 @@ if docker stack ls | grep -q "$STACK_NAME"; then
         
         # Aguardar remoção completa
         echo "   Aguardando remoção completa dos serviços..."
-        MAX_WAIT=60
+        MAX_WAIT=30
         WAIT_TIME=0
         
         while [ $WAIT_TIME -lt $MAX_WAIT ]; do
@@ -103,8 +103,8 @@ if docker stack ls | grep -q "$STACK_NAME"; then
         fi
         
         # Aguardar um pouco mais para garantir que as redes foram liberadas
-        echo "   Aguardando liberação de recursos (10 segundos)..."
-        sleep 10
+        echo "   Aguardando liberação de recursos (5 segundos)..."
+        sleep 5
         
         # Limpar redes órfãs do stack (se houver)
         echo "   Limpando redes órfãs..."
@@ -112,7 +112,7 @@ if docker stack ls | grep -q "$STACK_NAME"; then
         if [ -n "$ORPHAN_NETWORKS" ]; then
             echo "   Removendo redes órfãs..."
             echo "$ORPHAN_NETWORKS" | xargs -r docker network rm 2>/dev/null || true
-            sleep 3
+            sleep 2
         fi
     else
         echo -e "${RED}✗ Erro ao remover stack${NC}"
@@ -205,7 +205,7 @@ ORPHAN_NETWORKS=$(docker network ls --filter "label=com.docker.stack.namespace=$
 if [ -n "$ORPHAN_NETWORKS" ]; then
     echo "   Removendo redes órfãs encontradas..."
     echo "$ORPHAN_NETWORKS" | xargs -r docker network rm 2>/dev/null || true
-    sleep 3
+    sleep 1
 else
     echo -e "${GREEN}✓ Nenhuma rede órfã encontrada${NC}"
 fi
@@ -216,7 +216,7 @@ EXISTING_NETWORK=$(docker network ls --filter "name=$NETWORK_NAME" -q 2>/dev/nul
 if [ -n "$EXISTING_NETWORK" ]; then
     echo -e "${YELLOW}⚠ Rede $NETWORK_NAME ainda existe, tentando remover...${NC}"
     docker network rm "$NETWORK_NAME" 2>/dev/null || true
-    sleep 2
+    sleep 1
 fi
 
 echo ""
@@ -287,7 +287,7 @@ echo ""
 
 # 10. Aguardar serviços iniciarem
 echo "9. Aguardando serviços iniciarem..."
-sleep 10
+sleep 5
 
 # Verificar status dos serviços
 echo "   Status dos serviços:"
@@ -297,7 +297,7 @@ echo ""
 
 # 11. Verificar se backend está na rede nginx_public
 echo "10. Verificando rede nginx_public..."
-sleep 5  # Aguardar serviços iniciarem
+sleep 3  # Aguardar serviços iniciarem
 
 # Verificar se backend está na rede nginx_public
 NETWORK_CHECK=$(docker service inspect "$BACKEND_SERVICE" 2>/dev/null | grep -A 10 "Networks" | grep "nginx_public")
@@ -311,7 +311,7 @@ else
     
     if [ $UPDATE_EXIT -eq 0 ]; then
         echo -e "${GREEN}✓ Rede adicionada${NC}"
-        sleep 5
+        sleep 3
     else
         # Verificar se o erro é porque já está na rede
         if echo "$UPDATE_OUTPUT" | grep -qi "already attached\|already in network"; then
@@ -319,7 +319,7 @@ else
         else
             echo -e "${YELLOW}⚠ Aviso ao adicionar rede (pode já estar conectado)${NC}"
             echo "   Verificando novamente..."
-            sleep 2
+            sleep 1
             NETWORK_CHECK2=$(docker service inspect "$BACKEND_SERVICE" 2>/dev/null | grep -A 10 "Networks" | grep "nginx_public")
             if [ -n "$NETWORK_CHECK2" ]; then
                 echo -e "${GREEN}✓ Backend está na rede nginx_public${NC}"
@@ -332,7 +332,7 @@ echo ""
 
 # 12. Verificar saúde do backend
 echo "11. Verificando saúde do backend..."
-MAX_RETRIES=30
+MAX_RETRIES=15
 RETRY_COUNT=0
 BACKEND_HEALTHY=false
 
@@ -407,8 +407,8 @@ if [ -n "$NPM_SERVICE" ]; then
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓ Comando de reinício do NPM executado${NC}"
-        echo "   Aguardando NPM estabilizar (20 segundos)..."
-        sleep 20
+        echo "   Aguardando NPM estabilizar (10 segundos)..."
+        sleep 10
         
         # Verificar se está rodando corretamente
         NEW_REPLICAS=$(docker service ls --filter "id=$NPM_SERVICE" --format "{{.Replicas}}")
