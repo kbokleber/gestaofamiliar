@@ -241,15 +241,23 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         BACKEND_CONTAINER=$(docker ps --filter "name=$BACKEND_TASK" --format "{{.ID}}" | head -n 1)
         
         if [ -n "$BACKEND_CONTAINER" ]; then
-            # Testar health endpoint
-            HEALTH_RESPONSE=$(docker exec "$BACKEND_CONTAINER" curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health 2>/dev/null)
-            
-            if [ "$HEALTH_RESPONSE" = "200" ]; then
-                echo -e "${GREEN}✓ Backend está respondendo! (HTTP 200)${NC}"
+            # Verificar se o processo está rodando (curl pode não estar disponível)
+            if docker exec "$BACKEND_CONTAINER" ps aux | grep -q "[u]vicorn\|[p]ython.*main:app"; then
+                echo -e "${GREEN}✓ Backend está rodando!${NC}"
                 BACKEND_HEALTHY=true
                 break
-            elif [ -n "$HEALTH_RESPONSE" ]; then
-                echo "   Backend retornou HTTP $HEALTH_RESPONSE (aguardando...)"
+            else
+                # Tentar curl se disponível
+                if docker exec "$BACKEND_CONTAINER" which curl > /dev/null 2>&1; then
+                    HEALTH_RESPONSE=$(docker exec "$BACKEND_CONTAINER" curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health 2>/dev/null)
+                    if [ "$HEALTH_RESPONSE" = "200" ]; then
+                        echo -e "${GREEN}✓ Backend está respondendo! (HTTP 200)${NC}"
+                        BACKEND_HEALTHY=true
+                        break
+                    elif [ -n "$HEALTH_RESPONSE" ]; then
+                        echo "   Backend retornou HTTP $HEALTH_RESPONSE (aguardando...)"
+                    fi
+                fi
             fi
         fi
     fi
@@ -300,10 +308,18 @@ echo "  3. Se houver problemas, verifique os logs:"
 echo "     docker service logs -f $BACKEND_SERVICE"
 echo "     docker service logs -f $FRONTEND_SERVICE"
 echo ""
+echo -e "${YELLOW}⚠ IMPORTANTE - Configuração do NPM:${NC}"
+echo "   Verifique no Nginx Proxy Manager se o Forward Hostname está correto:"
+echo "   - Deve ser: ${GREEN}$BACKEND_SERVICE${NC}"
+echo "   - NÃO use: ma-familiar_backend ou backend"
+echo "   - Use exatamente: sistema-familiar_backend"
+echo "   - Forward Port: 8001"
+echo ""
 echo "Se o login não funcionar:"
 echo "  1. Verifique se o banco de dados está acessível:"
 echo "     docker network inspect db_network"
 echo "  2. Verifique se o DATABASE_URL no .env está correto"
 echo "  3. Verifique os logs do backend para erros específicos"
+echo "  4. Verifique se o NPM está configurado com o nome correto do serviço"
 echo ""
 
