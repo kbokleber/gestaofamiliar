@@ -38,17 +38,34 @@ print_error() {
 # Função para obter o container do backend
 get_backend_container() {
     # Tentar obter o container do backend do Docker Swarm
-    CONTAINER=$(docker service ps -f "name=sistema-familiar_backend" -q --no-trunc | head -1)
-    if [ -z "$CONTAINER" ]; then
-        # Tentar obter de outra forma
-        CONTAINER=$(docker ps --filter "name=backend" --format "{{.ID}}" | head -1)
+    TASK_ID=$(docker service ps sistema-familiar_backend -q --no-trunc --filter "desired-state=running" | head -1)
+    if [ -z "$TASK_ID" ]; then
+        # Tentar obter qualquer task do serviço
+        TASK_ID=$(docker service ps sistema-familiar_backend -q --no-trunc | head -1)
     fi
-    if [ -z "$CONTAINER" ]; then
+    
+    if [ -z "$TASK_ID" ]; then
+        # Tentar obter container diretamente
+        CONTAINER=$(docker ps --filter "name=sistema-familiar_backend" --format "{{.ID}}" | head -1)
+        if [ -n "$CONTAINER" ]; then
+            echo "$CONTAINER"
+            return 0
+        fi
+        
+        # Última tentativa: buscar por qualquer container com "backend"
+        CONTAINER=$(docker ps --filter "name=backend" --format "{{.ID}}" | head -1)
+        if [ -n "$CONTAINER" ]; then
+            echo "$CONTAINER"
+            return 0
+        fi
+        
         print_error "Não foi possível encontrar o container do backend"
         print_info "Tente executar manualmente: docker ps"
         exit 1
     fi
-    echo "sistema-familiar_backend.1.${CONTAINER}"
+    
+    # Construir nome do container no formato do Docker Swarm
+    echo "sistema-familiar_backend.1.${TASK_ID}"
 }
 
 # Função para executar script Python no container
@@ -109,9 +126,12 @@ CONTAINER=$(get_backend_container)
 print_success "Container encontrado: $CONTAINER"
 
 # Verificar se o container está rodando
-if ! docker exec "$CONTAINER" echo "Container ativo" > /dev/null 2>&1; then
-    print_error "Container não está respondendo"
-    exit 1
+print_info "Verificando se o container está ativo..."
+if docker exec "$CONTAINER" echo "Container ativo" > /dev/null 2>&1; then
+    print_success "Container está respondendo"
+else
+    print_warning "Container não respondeu ao teste inicial, mas continuando..."
+    print_info "Se houver erros, verifique manualmente: docker ps"
 fi
 
 # Verificar se os scripts existem
