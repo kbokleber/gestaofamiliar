@@ -75,7 +75,7 @@ class MaintenanceOrder(Base):
     documents = Column(Text, nullable=True)  # JSON com array de documentos em base64 (igual às outras telas)
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
     # Relacionamentos
     equipment = relationship("Equipment", back_populates="maintenance_orders")

@@ -522,8 +522,17 @@ async def delete_maintenance_order(
             detail="Ordem de manutenção não encontrada"
         )
     
-    db.delete(order)
-    db.commit()
+    try:
+        db.delete(order)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao excluir ordem de manutenção: {str(e)}"
+        )
 
 # ===== DASHBOARD & STATS =====
 @router.get("/dashboard/stats")
