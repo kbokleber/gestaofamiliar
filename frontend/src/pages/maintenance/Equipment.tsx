@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Settings, Plus, Edit2, Trash2, X, Save, Paperclip, ArrowLeft } from 'lucide-react'
 import api from '../../lib/api'
-import Modal from '../../components/Modal'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import { formatDateBR, toDateInputValue } from '../../utils/dateUtils'
@@ -41,7 +40,7 @@ export default function Equipment() {
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null)
   const [formData, setFormData] = useState({
@@ -104,7 +103,7 @@ export default function Equipment() {
       if (isEditingInline) {
         cancelEdit()
       } else {
-        closeModal()
+        closeCreateView()
       }
     } catch (err: any) {
       console.error('Erro ao salvar:', err)
@@ -176,7 +175,7 @@ export default function Equipment() {
     setDocuments([])
   }
 
-  const openModal = () => {
+  const openCreateView = () => {
     setEditingEquipment(null)
     setFormData({
       name: '',
@@ -190,11 +189,11 @@ export default function Equipment() {
       notes: ''
     })
     setDocuments([])
-    setIsModalOpen(true)
+    setViewMode('create')
   }
 
-  const closeModal = () => {
-    setIsModalOpen(false)
+  const closeCreateView = () => {
+    setViewMode('list')
     setEditingEquipment(null)
     setDocuments([])
   }
@@ -244,7 +243,175 @@ export default function Equipment() {
 
   return (
     <div>
-      {!isEditingInline ? (
+      {viewMode === 'create' ? (
+        // Tela completa de cadastro
+        <div className="min-h-screen bg-gray-50">
+          <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={closeCreateView}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Voltar"
+                >
+                  <ArrowLeft className="h-5 w-5 text-gray-600" />
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900">Novo Equipamento</h1>
+              </div>
+            </div>
+          </div>
+          
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+              {/* Nome */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Equipamento *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Ex: Notebook Dell, Geladeira Brastemp"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Tipo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({...formData, type: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">Selecione...</option>
+                    {TYPE_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    {STATUS_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Marca */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                  <input
+                    type="text"
+                    value={formData.brand}
+                    onChange={(e) => setFormData({...formData, brand: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Ex: Dell, Samsung, Brastemp"
+                  />
+                </div>
+
+                {/* Modelo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
+                  <input
+                    type="text"
+                    value={formData.model}
+                    onChange={(e) => setFormData({...formData, model: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Ex: Inspiron 15, RT46"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Número de Série */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Número de Série</label>
+                  <input
+                    type="text"
+                    value={formData.serial_number}
+                    onChange={(e) => setFormData({...formData, serial_number: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="Número de série do equipamento"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Data de Compra */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Compra</label>
+                  <DateInput
+                    value={formData.purchase_date}
+                    onChange={(value) => setFormData({...formData, purchase_date: value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+
+                {/* Data de Vencimento da Garantia */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vencimento da Garantia</label>
+                  <DateInput
+                    value={formData.warranty_expiry}
+                    onChange={(value) => setFormData({...formData, warranty_expiry: value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              </div>
+
+              {/* Observações */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Informações adicionais sobre o equipamento..."
+                />
+              </div>
+
+              {/* Upload de Documentos */}
+              <div>
+                <DocumentUpload
+                  documents={documents}
+                  onChange={setDocuments}
+                  maxFiles={10}
+                  maxSizeMB={10}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={closeCreateView}
+                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 flex items-center justify-center"
+                >
+                  <Save className="mr-2 h-5 w-5" />
+                  Criar Equipamento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : !isEditingInline ? (
+        // Tela de lista
         <>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center">
@@ -252,7 +419,7 @@ export default function Equipment() {
               Equipamentos
             </h1>
             <button 
-              onClick={() => openModal()}
+              onClick={() => openCreateView()}
               className="w-full sm:w-auto px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center justify-center"
             >
               <Plus className="mr-2 h-5 w-5" />
@@ -571,168 +738,6 @@ export default function Equipment() {
           </form>
         </div>
       )}
-
-      {/* Modal de Criar */}
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Novo Equipamento">
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between z-10">
-            <h3 className="text-lg md:text-xl font-semibold text-gray-900">
-              Novo Equipamento
-            </h3>
-            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5 md:h-6 md:w-6" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto flex-1">
-            {/* Nome */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Equipamento *</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                placeholder="Ex: Notebook Dell, Geladeira Brastemp"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Tipo */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({...formData, type: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  <option value="">Selecione...</option>
-                  {TYPE_OPTIONS.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                >
-                  {STATUS_OPTIONS.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Marca */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
-                <input
-                  type="text"
-                  value={formData.brand}
-                  onChange={(e) => setFormData({...formData, brand: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Ex: Dell, Samsung, Brastemp"
-                />
-              </div>
-
-              {/* Modelo */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
-                <input
-                  type="text"
-                  value={formData.model}
-                  onChange={(e) => setFormData({...formData, model: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Ex: Inspiron 15, RT46"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Número de Série */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Número de Série</label>
-                <input
-                  type="text"
-                  value={formData.serial_number}
-                  onChange={(e) => setFormData({...formData, serial_number: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  placeholder="Número de série do equipamento"
-                />
-              </div>
-
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Data de Compra */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data de Compra</label>
-                <DateInput
-                  value={formData.purchase_date}
-                  onChange={(value) => setFormData({...formData, purchase_date: value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              {/* Data de Vencimento da Garantia */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Vencimento da Garantia</label>
-                <DateInput
-                  value={formData.warranty_expiry}
-                  onChange={(value) => setFormData({...formData, warranty_expiry: value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-            </div>
-
-            {/* Observações */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
-                placeholder="Informações adicionais sobre o equipamento..."
-              />
-            </div>
-
-            {/* Upload de Documentos */}
-            <div>
-              <DocumentUpload
-                documents={documents}
-                onChange={setDocuments}
-                maxFiles={10}
-                maxSizeMB={10}
-              />
-            </div>
-
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 pt-4 pb-2 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-6">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="w-full sm:w-auto px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 flex items-center justify-center"
-              >
-                <Save className="mr-2 h-5 w-5" />
-                Criar Equipamento
-              </button>
-            </div>
-          </form>
-        </div>
-      </Modal>
     </div>
   )
 }

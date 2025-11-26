@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Clock, Plus, Edit2, Trash2, X, Save, Filter, FileSpreadsheet, ArrowLeft, Paperclip } from 'lucide-react'
 import api from '../../lib/api'
-import Modal from '../../components/Modal'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import { toDateInputValue, formatDateFullBR } from '../../utils/dateUtils'
@@ -44,7 +43,7 @@ export default function MaintenanceOrders() {
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingOrder, setEditingOrder] = useState<MaintenanceOrder | null>(null)
   const [filters, setFilters] = useState({
@@ -219,7 +218,7 @@ export default function MaintenanceOrders() {
       if (isEditingInline) {
         cancelEdit()
       } else {
-        closeModal()
+        closeCreateView()
       }
     } catch (err: any) {
       console.error('Erro ao salvar:', err)
@@ -301,7 +300,7 @@ export default function MaintenanceOrders() {
     setDocuments([])
   }
 
-  const openModal = () => {
+  const openCreateView = () => {
     setEditingOrder(null)
     setFormData({
       equipment_id: equipment.length > 0 ? equipment[0].id : 0,
@@ -318,11 +317,11 @@ export default function MaintenanceOrders() {
       notes: ''
     })
     setDocuments([])
-    setIsModalOpen(true)
+    setViewMode('create')
   }
 
-  const closeModal = () => {
-    setIsModalOpen(false)
+  const closeCreateView = () => {
+    setViewMode('list')
     setEditingOrder(null)
     setDocuments([])
   }
@@ -410,7 +409,221 @@ export default function MaintenanceOrders() {
 
   return (
     <div>
-      {!isEditingInline ? (
+      {viewMode === 'create' ? (
+        // Tela completa de cadastro
+        <div className="min-h-screen bg-gray-50">
+          <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={closeCreateView}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Voltar"
+                >
+                  <ArrowLeft className="h-5 w-5 text-gray-600" />
+                </button>
+                <h1 className="text-2xl font-bold text-gray-900">Nova Ordem de Manutenção</h1>
+              </div>
+            </div>
+          </div>
+          
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                {/* Coluna Esquerda */}
+                <div className="space-y-4 md:space-y-6">
+                  {/* Equipamento */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento *</label>
+                    <select
+                      value={formData.equipment_id}
+                      onChange={(e) => setFormData({...formData, equipment_id: parseInt(e.target.value)})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      required
+                    >
+                      <option value={0}>Selecione o equipamento...</option>
+                      {equipment.map(eq => (
+                        <option key={eq.id} value={eq.id}>{eq.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Título */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                    <input
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => setFormData({...formData, title: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Ex: Troca de óleo"
+                      required
+                    />
+                  </div>
+
+                  {/* Prioridade */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Prioridade *</label>
+                    <select
+                      value={formData.priority}
+                      onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      required
+                    >
+                      <option value="BAIXA">Baixa</option>
+                      <option value="MEDIA">Média</option>
+                      <option value="ALTA">Alta</option>
+                      <option value="URGENTE">Urgente</option>
+                    </select>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({...formData, status: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      required
+                    >
+                      {STATUS_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Empresa Prestadora do Serviço */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Empresa Prestadora do Serviço</label>
+                    <input
+                      type="text"
+                      value={formData.service_provider}
+                      onChange={(e) => setFormData({...formData, service_provider: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Ex: Junior Moto Peças"
+                    />
+                  </div>
+
+                  {/* Data da Manutenção */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Data da Manutenção</label>
+                    <DateInput
+                      value={formData.completion_date}
+                      onChange={(value) => setFormData({...formData, completion_date: value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  {/* Custo */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Custo</label>
+                    <input
+                      type="text"
+                      value={formData.cost}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^\d,]/g, '')
+                        setFormData({...formData, cost: value})
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="0,00"
+                    />
+                  </div>
+
+                  {/* Data de Vencimento da Garantia */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento da Garantia</label>
+                    <DateInput
+                      value={formData.warranty_expiration}
+                      onChange={(value) => setFormData({...formData, warranty_expiration: value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Coluna Direita */}
+                <div className="space-y-4 md:space-y-6">
+                  {/* Descrição */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
+                    <textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      rows={5}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Descreva a manutenção realizada..."
+                      required
+                    />
+                  </div>
+
+                  {/* Termos da Garantia */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Termos da Garantia</label>
+                    <textarea
+                      value={formData.warranty_terms}
+                      onChange={(e) => setFormData({...formData, warranty_terms: e.target.value})}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Termos e condições da garantia..."
+                    />
+                  </div>
+
+                  {/* Número da Nota Fiscal */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Número da Nota Fiscal</label>
+                    <input
+                      type="text"
+                      value={formData.invoice_number}
+                      onChange={(e) => setFormData({...formData, invoice_number: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Número da nota fiscal"
+                    />
+                  </div>
+
+                  {/* Observações */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                    <textarea
+                      value={formData.notes}
+                      onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Observações adicionais..."
+                    />
+                  </div>
+
+                  {/* Upload de Documentos */}
+                  <div>
+                    <DocumentUpload
+                      documents={documents}
+                      onChange={setDocuments}
+                      maxFiles={10}
+                      maxSizeMB={10}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={closeCreateView}
+                  className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center justify-center"
+                >
+                  <Save className="mr-2 h-5 w-5" />
+                  Criar Ordem
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : !isEditingInline ? (
+        // Tela de lista
         <>
           {/* Cabeçalho */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
@@ -427,7 +640,7 @@ export default function MaintenanceOrders() {
                 Exportar Excel
               </button>
               <button 
-                onClick={() => openModal()}
+                onClick={() => openCreateView()}
                 className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
                 <Plus className="mr-2 h-5 w-5" />
@@ -650,10 +863,8 @@ export default function MaintenanceOrders() {
         </>
       )}
         </>
-      ) : null}
-
-      {/* Formulário de Edição na Tela */}
-      {isEditingInline && (
+      ) : (
+        /* Formulário de Edição na Tela */
         <div className="bg-white shadow rounded-lg p-4 md:p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center">
@@ -830,184 +1041,6 @@ export default function MaintenanceOrders() {
           </form>
         </div>
       )}
-
-      {/* Modal de Criar */}
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Nova Ordem de Manutenção">
-        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-          <div className="sticky top-0 bg-white border-b border-gray-200 px-4 md:px-6 py-4 flex items-center justify-between z-10">
-            <h3 className="text-lg md:text-xl font-semibold text-gray-900">
-              Nova Ordem de Manutenção
-            </h3>
-            <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5 md:h-6 md:w-6" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4 md:space-y-6 overflow-y-auto flex-1">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              {/* Coluna Esquerda */}
-              <div className="space-y-4 md:space-y-6">
-                {/* Equipamento */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento *</label>
-                  <select
-                    value={formData.equipment_id}
-                    onChange={(e) => setFormData({...formData, equipment_id: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required
-                  >
-                    <option value={0}>Selecione o equipamento...</option>
-                    {equipment.map(eq => (
-                      <option key={eq.id} value={eq.id}>{eq.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required
-                  >
-                    {STATUS_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Empresa Prestadora do Serviço */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Empresa Prestadora do Serviço</label>
-                  <input
-                    type="text"
-                    value={formData.service_provider}
-                    onChange={(e) => setFormData({...formData, service_provider: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Ex: Junior Moto Peças"
-                  />
-                </div>
-
-                {/* Data da Manutenção */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Data da Manutenção</label>
-                  <DateInput
-                    value={formData.completion_date}
-                    onChange={(value) => setFormData({...formData, completion_date: value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-
-                {/* Custo */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Custo</label>
-                  <input
-                    type="text"
-                    value={formData.cost}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/[^\d,]/g, '')
-                      setFormData({...formData, cost: value})
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="0,00"
-                  />
-                </div>
-
-                {/* Data de Vencimento da Garantia */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento da Garantia</label>
-                  <DateInput
-                    value={formData.warranty_expiration}
-                    onChange={(value) => setFormData({...formData, warranty_expiration: value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  />
-                </div>
-
-                {/* Upload de Documentos */}
-                <div>
-                  <DocumentUpload
-                    documents={documents}
-                    onChange={setDocuments}
-                    maxFiles={10}
-                    maxSizeMB={10}
-                  />
-                </div>
-              </div>
-
-              {/* Coluna Direita */}
-              <div className="space-y-4 md:space-y-6">
-                {/* Descrição */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                    rows={5}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Descreva a manutenção realizada..."
-                    required
-                  />
-                </div>
-
-                {/* Termos da Garantia */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Termos da Garantia</label>
-                  <textarea
-                    value={formData.warranty_terms}
-                    onChange={(e) => setFormData({...formData, warranty_terms: e.target.value})}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Termos e condições da garantia..."
-                  />
-                </div>
-
-                {/* Número da Nota Fiscal */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Número da Nota Fiscal</label>
-                  <input
-                    type="text"
-                    value={formData.invoice_number}
-                    onChange={(e) => setFormData({...formData, invoice_number: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Número da nota fiscal"
-                  />
-                </div>
-
-                {/* Observações */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-                  <textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Observações adicionais..."
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="sticky bottom-0 bg-white border-t border-gray-200 pt-4 pb-2 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 mt-6">
-              <button
-                type="button"
-                onClick={closeModal}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="w-full sm:w-auto px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center justify-center"
-              >
-                <Save className="mr-2 h-5 w-5" />
-                Criar Ordem
-              </button>
-            </div>
-          </form>
-        </div>
-      </Modal>
     </div>
   )
 }
