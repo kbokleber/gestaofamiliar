@@ -63,3 +63,14 @@ docker stack deploy -c docker-stack.yml sistema-familiar
 - Teste a aplicação após o deploy
 - Mantenha backup do banco de dados antes de grandes atualizações
 
+## 🚨 ATENÇÃO - Versão 1.1
+
+**A versão 1.1 requer migração do banco de dados ANTES do redeploy!**
+
+Consulte o arquivo `MIGRACAO-V1.1.md` para instruções detalhadas de migração.
+
+**Resumo rápido:**
+1. Fazer backup do banco
+2. Executar scripts de migração (ver MIGRACAO-V1.1.md)
+3. Depois fazer o redeploy normalmente
+
