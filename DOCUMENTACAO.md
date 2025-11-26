@@ -408,6 +408,7 @@ O script irá:
 5. ✅ Fazer deploy do stack com as variáveis corretas
 6. ✅ Verificar se o backend está na rede `nginx_public`
 7. ✅ Verificar a saúde do backend
+8. ✅ **Reiniciar o NPM automaticamente para limpar cache** (evita 502 Bad Gateway)
 
 **⏱️ Tempo estimado:** 2-3 minutos
 
