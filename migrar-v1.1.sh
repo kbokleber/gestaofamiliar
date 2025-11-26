@@ -508,43 +508,79 @@ print_info "=== PASSO 6/6: Migrando usuários existentes ==="
 MIGRATE_USERS_CODE='
 import sys
 sys.path.insert(0, "/app")
-from app.db.base import SessionLocal
-from app.models.user import User
-from app.models.family import Family
+from app.db.base import engine
+from sqlalchemy import text
 print("[INICIO] Migrando usuarios para familia padrao...")
-db = SessionLocal()
 try:
-    default_family = db.query(Family).filter(Family.codigo_unico == "DEFAULT").first()
-    if not default_family:
-        default_family = Family(name="Família Padrão", codigo_unico="DEFAULT")
-        db.add(default_family)
-        db.commit()
-        db.refresh(default_family)
-        print(f"[OK] Familia padrao criada: ID={default_family.id}")
-    else:
-        print(f"[INFO] Familia padrao ja existe: ID={default_family.id}")
-    
-    users_without_family = db.query(User).filter(User.family_id == None).all()
-    if users_without_family:
-        print(f"[INFO] Encontrados {len(users_without_family)} usuarios sem familia")
-        for user in users_without_family:
-            user.family_id = default_family.id
-        db.commit()
-        print(f"[OK] {len(users_without_family)} usuarios associados a familia padrao!")
-    else:
-        print("[OK] Todos os usuarios ja tem familia.")
-    
-    total_users = db.query(User).count()
-    users_in_default = db.query(User).filter(User.family_id == default_family.id).count()
-    print(f"[STATS] Total: {total_users}, Na familia padrao: {users_in_default}")
+    with engine.connect() as conn:
+        # Verificar se família padrão existe
+        check_family_query = text("""
+            SELECT id, name 
+            FROM families 
+            WHERE codigo_unico = :codigo
+        """)
+        result = conn.execute(check_family_query, {"codigo": "DEFAULT"})
+        family_row = result.fetchone()
+        
+        if not family_row:
+            # Criar família padrão
+            print("[INFO] Criando familia padrao...")
+            create_family_query = text("""
+                INSERT INTO families (name, codigo_unico, created_at, updated_at)
+                VALUES (:name, :codigo, NOW(), NOW())
+                RETURNING id
+            """)
+            result = conn.execute(create_family_query, {"name": "Família Padrão", "codigo": "DEFAULT"})
+            default_family_id = result.fetchone()[0]
+            conn.commit()
+            print(f"[OK] Familia padrao criada: ID={default_family_id}")
+        else:
+            default_family_id = family_row[0]
+            print(f"[INFO] Familia padrao ja existe: ID={default_family_id}, Nome={family_row[1]}")
+        
+        # Contar usuários sem família
+        count_query = text("""
+            SELECT COUNT(*) 
+            FROM auth_user 
+            WHERE family_id IS NULL
+        """)
+        result = conn.execute(count_query)
+        count = result.fetchone()[0]
+        
+        if count > 0:
+            print(f"[INFO] Encontrados {count} usuarios sem familia")
+            # Associar usuários à família padrão
+            update_query = text("""
+                UPDATE auth_user 
+                SET family_id = :family_id 
+                WHERE family_id IS NULL
+            """)
+            conn.execute(update_query, {"family_id": default_family_id})
+            conn.commit()
+            print(f"[OK] {count} usuarios associados a familia padrao!")
+        else:
+            print("[OK] Todos os usuarios ja tem familia.")
+        
+        # Estatísticas finais
+        total_query = text("SELECT COUNT(*) FROM auth_user")
+        result = conn.execute(total_query)
+        total_users = result.fetchone()[0]
+        
+        users_in_default_query = text("""
+            SELECT COUNT(*) 
+            FROM auth_user 
+            WHERE family_id = :family_id
+        """)
+        result = conn.execute(users_in_default_query, {"family_id": default_family_id})
+        users_in_default = result.fetchone()[0]
+        
+        print(f"[STATS] Total de usuarios: {total_users}")
+        print(f"[STATS] Usuarios na familia padrao: {users_in_default}")
 except Exception as e:
-    db.rollback()
     print(f"[ERRO] Erro: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
-finally:
-    db.close()
 '
 if run_script "migrate_users_to_family.py" "$CONTAINER" || run_python_code "$MIGRATE_USERS_CODE" "$CONTAINER" "Migrar usuários para família padrão"; then
     print_success "Usuários migrados para família padrão"
