@@ -169,8 +169,28 @@ docker stack services "$STACK_NAME" --format "table {{.Name}}\t{{.Replicas}}\t{{
 
 echo ""
 
-# 8. Verificar saúde do backend
-echo "7. Verificando saúde do backend..."
+# 8. Verificar se backend está na rede nginx_public
+echo "7. Verificando rede nginx_public..."
+sleep 5  # Aguardar serviços iniciarem
+
+if docker service inspect "$BACKEND_SERVICE" 2>/dev/null | grep -q "nginx_public"; then
+    echo -e "${GREEN}✓ Backend está na rede nginx_public${NC}"
+else
+    echo -e "${YELLOW}⚠ Backend NÃO está na rede nginx_public${NC}"
+    echo "   Adicionando rede..."
+    docker service update --network-add nginx_public "$BACKEND_SERVICE"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✓ Rede adicionada${NC}"
+        sleep 5
+    else
+        echo -e "${RED}✗ Erro ao adicionar rede${NC}"
+    fi
+fi
+
+echo ""
+
+# 9. Verificar saúde do backend
+echo "8. Verificando saúde do backend..."
 MAX_RETRIES=30
 RETRY_COUNT=0
 BACKEND_HEALTHY=false
@@ -184,12 +204,14 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         
         if [ -n "$BACKEND_CONTAINER" ]; then
             # Testar health endpoint
-            HEALTH_RESPONSE=$(docker exec "$BACKEND_CONTAINER" curl -s http://localhost:8001/health 2>/dev/null)
+            HEALTH_RESPONSE=$(docker exec "$BACKEND_CONTAINER" curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health 2>/dev/null)
             
-            if [ -n "$HEALTH_RESPONSE" ]; then
-                echo -e "${GREEN}✓ Backend está respondendo!${NC}"
+            if [ "$HEALTH_RESPONSE" = "200" ]; then
+                echo -e "${GREEN}✓ Backend está respondendo! (HTTP 200)${NC}"
                 BACKEND_HEALTHY=true
                 break
+            elif [ -n "$HEALTH_RESPONSE" ]; then
+                echo "   Backend retornou HTTP $HEALTH_RESPONSE (aguardando...)"
             fi
         fi
     fi
