@@ -251,21 +251,29 @@ try:
         check_query = text("""
             SELECT column_name 
             FROM information_schema.columns 
-            WHERE table_name='auth_user' AND column_name='family_id'
+            WHERE table_name = :table_name AND column_name = :column_name
         """)
-        result = conn.execute(check_query)
+        result = conn.execute(check_query, {"table_name": "auth_user", "column_name": "family_id"})
         exists = result.fetchone() is not None
         if exists:
             print("[INFO] Coluna family_id ja existe.")
         else:
             alter_query = text("""
                 ALTER TABLE auth_user 
-                ADD COLUMN family_id INTEGER,
-                ADD CONSTRAINT fk_auth_user_family 
-                FOREIGN KEY (family_id) REFERENCES families(id)
+                ADD COLUMN family_id INTEGER
             """)
             conn.execute(alter_query)
             conn.commit()
+            
+            # Adicionar constraint separadamente
+            fk_query = text("""
+                ALTER TABLE auth_user 
+                ADD CONSTRAINT fk_auth_user_family 
+                FOREIGN KEY (family_id) REFERENCES families(id)
+            """)
+            conn.execute(fk_query)
+            conn.commit()
+            
             index_query = text("""
                 CREATE INDEX IF NOT EXISTS ix_auth_user_family_id 
                 ON auth_user(family_id)
@@ -275,6 +283,8 @@ try:
             print("[OK] Coluna family_id adicionada!")
 except Exception as e:
     print(f"[ERRO] Erro: {e}")
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 '
 if run_script "add_family_id_to_users.py" "$CONTAINER" || run_python_code "$ADD_FAMILY_ID_CODE" "$CONTAINER" "Adicionar family_id em auth_user"; then
@@ -298,9 +308,9 @@ try:
         check_query = text("""
             SELECT table_name 
             FROM information_schema.tables 
-            WHERE table_name='user_families'
+            WHERE table_name = :table_name
         """)
-        result = conn.execute(check_query)
+        result = conn.execute(check_query, {"table_name": "user_families"})
         exists = result.fetchone() is not None
         if exists:
             print("[INFO] Tabela user_families ja existe.")
@@ -418,23 +428,32 @@ try:
     with engine.connect() as conn:
         tables = [("maintenance_equipment", "family_id", "fk_maintenance_equipment_family")]
         for table_name, column_name, fk_name in tables:
-            check_query = text(f"""
+            check_query = text("""
                 SELECT column_name 
                 FROM information_schema.columns 
-                WHERE table_name=:table_name AND column_name=:column_name
+                WHERE table_name = :table_name AND column_name = :column_name
             """)
             result = conn.execute(check_query, {"table_name": table_name, "column_name": column_name})
             exists = result.fetchone() is not None
             if not exists:
                 print(f"  [INFO] Adicionando {column_name} em {table_name}...")
+                # Adicionar coluna primeiro
                 alter_query = text(f"""
                     ALTER TABLE {table_name} 
-                    ADD COLUMN {column_name} INTEGER,
-                    ADD CONSTRAINT {fk_name} 
-                    FOREIGN KEY ({column_name}) REFERENCES families(id)
+                    ADD COLUMN {column_name} INTEGER
                 """)
                 conn.execute(alter_query)
                 conn.commit()
+                
+                # Adicionar constraint separadamente
+                fk_query = text(f"""
+                    ALTER TABLE {table_name} 
+                    ADD CONSTRAINT {fk_name} 
+                    FOREIGN KEY ({column_name}) REFERENCES families(id)
+                """)
+                conn.execute(fk_query)
+                conn.commit()
+                
                 index_query = text(f"""
                     CREATE INDEX IF NOT EXISTS ix_{table_name}_{column_name} 
                     ON {table_name}({column_name})
@@ -443,8 +462,8 @@ try:
                 conn.commit()
                 
                 # Associar registros à família padrão
-                family_query = text("SELECT id FROM families WHERE codigo_unico = 'DEFAULT' LIMIT 1")
-                result = conn.execute(family_query)
+                family_query = text("SELECT id FROM families WHERE codigo_unico = :codigo LIMIT 1")
+                result = conn.execute(family_query, {"codigo": "DEFAULT"})
                 family_row = result.fetchone()
                 if family_row:
                     default_family_id = family_row[0]
@@ -461,6 +480,8 @@ try:
         print("[OK] Migracao de tabelas concluida!")
 except Exception as e:
     print(f"[ERRO] Erro: {e}")
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 '
 if run_script "migrate_all_family_tables.py" "$CONTAINER" || run_python_code "$MIGRATE_ALL_TABLES_CODE" "$CONTAINER" "Adicionar family_id em outras tabelas"; then
@@ -508,6 +529,8 @@ try:
 except Exception as e:
     db.rollback()
     print(f"[ERRO] Erro: {e}")
+    import traceback
+    traceback.print_exc()
     sys.exit(1)
 finally:
     db.close()
