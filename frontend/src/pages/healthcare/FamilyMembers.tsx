@@ -542,16 +542,59 @@ export default function FamilyMembers() {
                     <Users className="h-16 w-16" />
                   )}
                 </div>
-                <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg z-10 pointer-events-auto" title="Adicionar foto" htmlFor="photo-input-edit">
+                <div className="absolute bottom-0 right-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowPhotoMenu(!showPhotoMenu)}
+                    className="bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 shadow-lg z-10"
+                    title="Adicionar foto"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                  
+                  {showPhotoMenu && (
+                    <div className="absolute bottom-12 right-0 bg-white rounded-lg shadow-xl border border-gray-200 py-2 min-w-[180px] z-20">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPhotoMenu(false)
+                          triggerCameraInput('photo-camera-edit')
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center space-x-3"
+                      >
+                        <Camera className="h-5 w-5 text-blue-600" />
+                        <span className="text-gray-700">Câmera</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPhotoMenu(false)
+                          triggerCameraInput('photo-gallery-edit')
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-100 flex items-center space-x-3 border-t border-gray-200"
+                      >
+                        <Image className="h-5 w-5 text-green-600" />
+                        <span className="text-gray-700">Galeria</span>
+                      </button>
+                    </div>
+                  )}
+                  
                   <input 
-                    id="photo-input-edit"
+                    id="photo-camera-edit"
+                    type="file" 
+                    accept="image/jpeg,image/jpg,image/png,image/gif" 
+                    capture="environment"
+                    className="hidden" 
+                    onChange={handlePhotoChange}
+                  />
+                  <input 
+                    id="photo-gallery-edit"
                     type="file" 
                     accept="image/jpeg,image/jpg,image/png,image/gif" 
                     className="hidden" 
                     onChange={handlePhotoChange}
                   />
-                  <Edit2 className="h-4 w-4" />
-                </label>
+                </div>
               </div>
             </div>
 
