@@ -85,14 +85,13 @@ export default function MaintenanceOrders() {
     }
   }
 
-  // React Query para cache automático
+  // Primeira query: carregar ordens SEM documentos (rápido)
   const { data: orders = [], isLoading: loading, error: ordersError } = useQuery<MaintenanceOrder[]>({
     queryKey: ['maintenance-orders'],
     queryFn: async () => {
-      const response = await api.get('/maintenance/orders')
-      // Salvar no localStorage (sem documents para ser mais leve)
-      const cacheData = response.data.map((o: MaintenanceOrder) => ({ ...o, documents: null }))
-      localStorage.setItem('maintenance-orders-cache', JSON.stringify(cacheData))
+      // Carregar sem documentos para ser mais rápido
+      const response = await api.get('/maintenance/orders', { params: { include_documents: false } })
+      localStorage.setItem('maintenance-orders-cache', JSON.stringify(response.data))
       return response.data
     },
     placeholderData: getPlaceholderOrders(),
@@ -102,8 +101,8 @@ export default function MaintenanceOrders() {
   const { data: equipment = [] } = useQuery<Equipment[]>({
     queryKey: ['maintenance-equipment'],
     queryFn: async () => {
-      const response = await api.get('/maintenance/equipment')
-      // Salvar no localStorage (sem documents para ser mais leve)
+      // Carregar sem documentos para ser mais rápido
+      const response = await api.get('/maintenance/equipment', { params: { include_documents: false } })
       const cacheData = response.data.map((e: any) => ({ id: e.id, name: e.name }))
       localStorage.setItem('maintenance-equipment-cache', JSON.stringify(cacheData))
       return response.data

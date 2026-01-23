@@ -78,11 +78,13 @@ async def create_equipment(
 @router.get("/equipment", response_model=List[EquipmentSchema])
 async def list_equipment(
     equipment_type: str = None,
+    include_documents: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Listar todos os equipamentos (compartilhados entre usuários da mesma família)"""
+    """Listar todos os equipamentos (compartilhados entre usuários da mesma família).
+    Use include_documents=false para carregamento mais rápido."""
     from app.api.deps import get_user_family_ids
     
     # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
@@ -100,7 +102,32 @@ async def list_equipment(
     if equipment_type:
         query = query.filter(Equipment.type == equipment_type)
     
-    return query.order_by(Equipment.created_at.desc()).all()
+    equipments = query.order_by(Equipment.created_at.desc()).all()
+    
+    # Se não incluir documentos, limpar para economizar banda
+    if not include_documents:
+        return [
+            {
+                "id": e.id,
+                "family_id": e.family_id,
+                "name": e.name,
+                "type": e.type,
+                "brand": e.brand,
+                "model": e.model,
+                "serial_number": e.serial_number,
+                "purchase_date": e.purchase_date,
+                "warranty_expiry": e.warranty_expiry,
+                "service_provider": e.service_provider,
+                "status": e.status,
+                "owner_id": e.owner_id,
+                "notes": e.notes,
+                "documents": None,
+                "created_at": e.created_at,
+                "updated_at": e.updated_at
+            }
+            for e in equipments
+        ]
+    return equipments
 
 @router.get("/equipment/{equipment_id}", response_model=EquipmentDetail)
 async def get_equipment(
@@ -325,11 +352,13 @@ async def create_maintenance_order(
 async def list_maintenance_orders(
     equipment_id: int = None,
     status: str = None,
+    include_documents: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Listar todas as ordens de manutenção (compartilhadas entre usuários da mesma família)"""
+    """Listar todas as ordens de manutenção (compartilhadas entre usuários da mesma família).
+    Use include_documents=false para carregamento mais rápido."""
     from app.api.deps import get_user_family_ids
     
     # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
@@ -354,7 +383,34 @@ async def list_maintenance_orders(
     if status:
         query = query.filter(MaintenanceOrder.status == status)
     
-    return query.order_by(MaintenanceOrder.completion_date.desc()).all()
+    orders = query.order_by(MaintenanceOrder.completion_date.desc()).all()
+    
+    # Se não incluir documentos, limpar para economizar banda
+    if not include_documents:
+        return [
+            {
+                "id": o.id,
+                "equipment_id": o.equipment_id,
+                "title": o.title,
+                "description": o.description,
+                "status": o.status,
+                "priority": o.priority,
+                "service_provider": o.service_provider,
+                "completion_date": o.completion_date,
+                "cost": o.cost,
+                "warranty_expiration": o.warranty_expiration,
+                "warranty_terms": o.warranty_terms,
+                "invoice_number": o.invoice_number,
+                "invoice_file": o.invoice_file,
+                "notes": o.notes,
+                "documents": None,
+                "created_by_id": o.created_by_id,
+                "created_at": o.created_at,
+                "updated_at": o.updated_at
+            }
+            for o in orders
+        ]
+    return orders
 
 @router.get("/orders/{order_id}", response_model=MaintenanceOrderDetail)
 async def get_maintenance_order(

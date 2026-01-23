@@ -66,14 +66,13 @@ export default function Equipment() {
     }
   }
 
-  // React Query para cache automático
+  // React Query para cache automático - carregar SEM documentos para ser mais rápido
   const { data: equipment = [], isLoading: loading, error: equipmentError } = useQuery<Equipment[]>({
     queryKey: ['maintenance-equipment'],
     queryFn: async () => {
-      const response = await api.get('/maintenance/equipment')
-      // Salvar no localStorage (sem documents para ser mais leve)
-      const cacheData = response.data.map((e: Equipment) => ({ ...e, documents: null }))
-      localStorage.setItem('equipment-list-cache', JSON.stringify(cacheData))
+      // Carregar sem documentos para ser mais rápido
+      const response = await api.get('/maintenance/equipment', { params: { include_documents: false } })
+      localStorage.setItem('equipment-list-cache', JSON.stringify(response.data))
       return response.data
     },
     placeholderData: getPlaceholderEquipment(),
