@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -292,6 +293,15 @@ async def create_appointment(
             detail="Membro da família não encontrado"
         )
     
+    # DEBUG: Log do que foi recebido
+    import logging
+    logger = logging.getLogger("uvicorn")
+    logger.info("="*60)
+    logger.info("🔍 DEBUG - Criar Consulta")
+    logger.info(f"📥 Recebido do Pydantic: {appointment_data.appointment_date}")
+    logger.info(f"📥 Tipo: {type(appointment_data.appointment_date)}")
+    logger.info(f"📥 Timezone: {appointment_data.appointment_date.tzinfo}")
+    
     # Usar model_dump para garantir que campos opcionais sejam incluídos
     appointment_dict = appointment_data.model_dump(exclude_none=False)
     
@@ -300,8 +310,9 @@ async def create_appointment(
     appointment_dict.pop('updated_at', None)
     appointment_dict.pop('id', None)
     
-    # Definir created_at e updated_at explicitamente para garantir que não sejam None
-    now = datetime.now(timezone.utc)
+    # Remover timezone de created_at e updated_at também (salvar como naive)
+    from datetime import datetime as dt_module
+    now = dt_module.now()  # Naive datetime (sem timezone)
     appointment_dict['created_at'] = now
     appointment_dict['updated_at'] = now
     
@@ -309,6 +320,7 @@ async def create_appointment(
     db.add(appointment)
     db.commit()
     db.refresh(appointment)
+    
     return appointment
 
 @router.get("/appointments", response_model=List[MedicalAppointmentSchema])
@@ -318,14 +330,14 @@ async def list_appointments(
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Listar consultas médicas (apenas da família do usuário)"""
+    """Listar consultas médicas (apenas da família do usuário) - COM CORREÇÃO DE TIMEZONE"""
     from app.api.deps import get_user_family_ids
     
     # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
     if (current_user.is_superuser or current_user.is_staff) and family_id is None:
         family_ids = get_user_family_ids(current_user, db)
         if not family_ids:
-            return []
+            return JSONResponse(content=[])
         query = db.query(MedicalAppointment).join(FamilyMember).filter(
             FamilyMember.family_id.in_(family_ids)
         )
@@ -340,7 +352,8 @@ async def list_appointments(
     if member_id:
         query = query.filter(MedicalAppointment.family_member_id == member_id)
     
-    return query.order_by(MedicalAppointment.appointment_date.desc()).all()
+    appointments = query.order_by(MedicalAppointment.appointment_date.desc()).all()
+    return appointments
 
 @router.put("/appointments/{appointment_id}", response_model=MedicalAppointmentSchema)
 async def update_appointment(
@@ -469,8 +482,9 @@ async def create_medication(
     data_dict.pop('updated_at', None)
     data_dict.pop('id', None)
     
-    # Definir created_at e updated_at explicitamente para garantir que não sejam None
-    now = datetime.now(timezone.utc)
+    # Definir created_at e updated_at como naive datetime
+    from datetime import datetime as dt_module
+    now = dt_module.now()
     data_dict['created_at'] = now
     data_dict['updated_at'] = now
     
@@ -697,8 +711,9 @@ async def create_procedure(
     procedure_dict.pop('updated_at', None)
     procedure_dict.pop('id', None)
     
-    # Definir created_at e updated_at explicitamente para garantir que não sejam None
-    now = datetime.now(timezone.utc)
+    # Definir created_at e updated_at como naive datetime
+    from datetime import datetime as dt_module
+    now = dt_module.now()
     procedure_dict['created_at'] = now
     procedure_dict['updated_at'] = now
     
@@ -830,4 +845,14 @@ async def delete_procedure(
     
     db.delete(procedure)
     db.commit()
+
+
+
+
+
+
+
+
+
+
 

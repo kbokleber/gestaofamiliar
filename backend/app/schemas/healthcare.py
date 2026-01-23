@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_serializer, field_validator
+﻿from pydantic import BaseModel, field_serializer, field_validator
 from typing import Optional, List, Any
 from datetime import date, datetime
 import base64
@@ -190,4 +190,5 @@ class FamilyMemberDetail(FamilyMember):
     appointments: List[MedicalAppointment] = []
     procedures: List[MedicalProcedure] = []
     medications: List[Medication] = []
+
 

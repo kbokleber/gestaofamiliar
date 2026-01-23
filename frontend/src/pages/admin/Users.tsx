@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus, Edit } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
+import Loading from '../../components/Loading'
 
 interface User {
   id: number
@@ -348,9 +349,7 @@ export default function AdminUsers() {
 
       {/* Lista de usuários */}
       {isLoading ? (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Carregando usuários...</p>
-        </div>
+        <Loading message="Carregando usuários..." />
       ) : filteredUsers.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500">Nenhum usuário encontrado</p>

@@ -3,6 +3,7 @@ import { Clock, Plus, Edit2, Trash2, Save, Filter, FileSpreadsheet, ArrowLeft, P
 import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
+import Loading from '../../components/Loading'
 import { toDateInputValue, formatDateFullBR } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
 
@@ -386,11 +387,7 @@ export default function MaintenanceOrders() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-600">Carregando...</p>
-      </div>
-    )
+    return <Loading message="Carregando ordens de manutenção..." />
   }
 
   if (error) {

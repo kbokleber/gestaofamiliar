@@ -3,6 +3,7 @@ import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical, Ca
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import DateInput from '../../components/DateInput'
+import Loading from '../../components/Loading'
 import { formatDateBR, calculateAge, toDateInputValue } from '../../utils/dateUtils'
 import {
   DndContext,
@@ -474,7 +475,7 @@ export default function FamilyMembers() {
 
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><p className="text-gray-600">Carregando...</p></div>
+    return <Loading message="Carregando membros da família..." />
   }
 
   if (error) {

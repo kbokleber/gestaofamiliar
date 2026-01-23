@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 20
     DB_POOL_RECYCLE: int = 3600  # 1 hora
     
+    # Debug SQL (desabilitado por padrão para performance)
+    SQL_DEBUG: bool = False
+    
     # Security
     SECRET_KEY: str
     ALGORITHM: str = "HS256"

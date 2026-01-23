@@ -3,6 +3,7 @@ import { Settings, Plus, Edit2, Trash2, Save, Paperclip, ArrowLeft } from 'lucid
 import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
+import Loading from '../../components/Loading'
 import { formatDateBR, toDateInputValue } from '../../utils/dateUtils'
 
 interface Equipment {
@@ -222,11 +223,7 @@ export default function Equipment() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-600">Carregando...</p>
-      </div>
-    )
+    return <Loading message="Carregando equipamentos..." />
   }
 
   if (error) {

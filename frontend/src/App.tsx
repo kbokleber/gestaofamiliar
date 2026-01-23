@@ -6,6 +6,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import FamilyMembers from './pages/healthcare/FamilyMembers'
 import Appointments from './pages/healthcare/Appointments'
+import AppointmentsTest from './pages/healthcare/AppointmentsTest'
 import Procedures from './pages/healthcare/Procedures'
 import Medications from './pages/healthcare/Medications'
 import Equipment from './pages/maintenance/Equipment'
@@ -30,6 +31,7 @@ function App() {
         {/* Healthcare Routes */}
         <Route path="/healthcare/members" element={<FamilyMembers />} />
         <Route path="/healthcare/appointments" element={<Appointments />} />
+        <Route path="/healthcare/appointments-test" element={<AppointmentsTest />} />
         <Route path="/healthcare/procedures" element={<Procedures />} />
         <Route path="/healthcare/medications" element={<Medications />} />
         

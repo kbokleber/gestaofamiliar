@@ -8,6 +8,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-sistema_familiar}
+      TZ: America/Sao_Paulo
+      PGTZ: America/Sao_Paulo
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -30,6 +32,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      TZ: America/Sao_Paulo
     ports:
       - "8001:8001"
     depends_on:
@@ -46,6 +49,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: sistema-familiar-frontend
+    environment:
+      TZ: America/Sao_Paulo
     ports:
       - "80:80"
     depends_on:

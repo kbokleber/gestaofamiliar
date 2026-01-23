@@ -119,6 +119,8 @@ Set-Location '$backendPath'
 if (Test-Path '.\venv\Scripts\Activate.ps1') {
     .\venv\Scripts\Activate.ps1
 }
+`$env:TZ = 'America/Sao_Paulo'
+Write-Host 'Timezone configurado: America/Sao_Paulo' -ForegroundColor Cyan
 Write-Host 'Backend iniciando em http://localhost:8001' -ForegroundColor Green
 Write-Host 'Documentacao: http://localhost:8001/api/v1/docs' -ForegroundColor Cyan
 Write-Host ''

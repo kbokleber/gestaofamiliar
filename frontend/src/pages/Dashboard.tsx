@@ -3,6 +3,7 @@ import { Heart, Users, Calendar, Settings, Clock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import api from '../lib/api'
 import { isFutureDateTime } from '../utils/dateUtils'
+import Loading from '../components/Loading'
 
 interface DashboardStats {
   totalMembers: number
@@ -93,6 +94,10 @@ export default function Dashboard() {
       color: 'bg-purple-500',
     },
   ]
+
+  if (loading) {
+    return <Loading message="Carregando dashboard..." />
+  }
 
   return (
     <div>

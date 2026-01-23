@@ -4,6 +4,7 @@ import api from '../../lib/api'
 import DateTimeInput from '../../components/DateTimeInput'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
+import Loading from '../../components/Loading'
 import { formatDateTimeBR, toDateTimeInputValue } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
 
@@ -294,11 +295,7 @@ export default function Procedures() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-600">Carregando...</p>
-      </div>
-    )
+    return <Loading message="Carregando procedimentos..." />
   }
 
   if (error) {

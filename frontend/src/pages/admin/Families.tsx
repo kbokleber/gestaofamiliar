@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, ChevronUp } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
+import Loading from '../../components/Loading'
 
 interface Family {
   id: number
@@ -384,10 +385,7 @@ export default function AdminFamilies() {
 
       {/* Loading */}
       {isLoading && (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-          <p className="mt-2 text-gray-600">Carregando famílias...</p>
-        </div>
+        <Loading message="Carregando famílias..." />
       )}
 
       {/* Lista de famílias */}

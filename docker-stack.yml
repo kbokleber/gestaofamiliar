@@ -9,6 +9,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      TZ: America/Sao_Paulo
     ports:
       - "8001:8001"
     networks:
@@ -30,6 +31,8 @@ services:
 
   frontend:
     image: sistema-familiar-frontend:latest
+    environment:
+      TZ: America/Sao_Paulo
     ports:
       - "5173:80"
     networks:
