@@ -56,13 +56,28 @@ export default function Equipment() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
+  // Carregar dados do localStorage como placeholder
+  const getPlaceholderEquipment = (): Equipment[] | undefined => {
+    try {
+      const cached = localStorage.getItem('equipment-list-cache')
+      return cached ? JSON.parse(cached) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
   // React Query para cache automático
   const { data: equipment = [], isLoading: loading, error: equipmentError } = useQuery<Equipment[]>({
     queryKey: ['maintenance-equipment'],
     queryFn: async () => {
       const response = await api.get('/maintenance/equipment')
+      // Salvar no localStorage (sem documents para ser mais leve)
+      const cacheData = response.data.map((e: Equipment) => ({ ...e, documents: null }))
+      localStorage.setItem('equipment-list-cache', JSON.stringify(cacheData))
       return response.data
-    }
+    },
+    placeholderData: getPlaceholderEquipment(),
+    staleTime: 5 * 60 * 1000,
   })
 
   const error = equipmentError ? (equipmentError as Error).message : null
