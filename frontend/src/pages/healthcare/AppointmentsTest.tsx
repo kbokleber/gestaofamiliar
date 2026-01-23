@@ -30,7 +30,6 @@ interface Appointment {
 export default function AppointmentsTest() {
   const navigate = useNavigate()
   const [appointments, setAppointments] = useState<Appointment[]>([])
-  const [members, setMembers] = useState<FamilyMember[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,7 +55,6 @@ export default function AppointmentsTest() {
       // Buscar membros
       const membersResponse = await api.get('/healthcare/members')
       const membersData = membersResponse.data
-      setMembers(membersData)
       
       // Adicionar nome do membro em cada consulta
       const appointmentsWithMembers = appointmentsData.map((apt: Appointment) => ({
