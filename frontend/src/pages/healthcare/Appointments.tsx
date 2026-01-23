@@ -59,7 +59,7 @@ export default function Appointments() {
   const [documents, setDocuments] = useState<Document[]>([])
 
   // React Query para cache automático
-  const { data: appointments = [], isLoading: loadingAppointments, error: appointmentsError } = useQuery({
+  const { data: appointments = [], isLoading: loadingAppointments, error: appointmentsError } = useQuery<Appointment[]>({
     queryKey: ['healthcare-appointments'],
     queryFn: async () => {
       const response = await api.get('/healthcare/appointments')
@@ -67,7 +67,7 @@ export default function Appointments() {
     }
   })
 
-  const { data: members = [] } = useQuery({
+  const { data: members = [] } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
     queryFn: async () => {
       const response = await api.get('/healthcare/members')

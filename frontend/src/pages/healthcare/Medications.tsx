@@ -74,7 +74,7 @@ export default function Medications() {
   const [documents, setDocuments] = useState<Document[]>([])
 
   // React Query para cache automático
-  const { data: medications = [], isLoading: loading, error: medicationsError } = useQuery({
+  const { data: medications = [], isLoading: loading, error: medicationsError } = useQuery<Medication[]>({
     queryKey: ['healthcare-medications', showActiveOnly],
     queryFn: async () => {
       const response = await api.get('/healthcare/medications', {
@@ -84,7 +84,7 @@ export default function Medications() {
     }
   })
 
-  const { data: members = [] } = useQuery({
+  const { data: members = [] } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
     queryFn: async () => {
       const response = await api.get('/healthcare/members')

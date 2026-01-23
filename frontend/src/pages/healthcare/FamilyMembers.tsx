@@ -61,7 +61,7 @@ export default function FamilyMembers() {
   })
 
   // Usar React Query para cache automático
-  const { data: membersData = [], isLoading: loading, error: queryError, refetch } = useQuery({
+  const { data: membersData = [], isLoading: loading, error: queryError } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
     queryFn: async () => {
       const token = useAuthStore.getState().token

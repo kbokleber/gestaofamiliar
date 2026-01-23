@@ -67,7 +67,7 @@ export default function MaintenanceOrders() {
   const [documents, setDocuments] = useState<Document[]>([])
 
   // React Query para cache automático
-  const { data: orders = [], isLoading: loading, error: ordersError } = useQuery({
+  const { data: orders = [], isLoading: loading, error: ordersError } = useQuery<MaintenanceOrder[]>({
     queryKey: ['maintenance-orders'],
     queryFn: async () => {
       const response = await api.get('/maintenance/orders')
@@ -75,7 +75,7 @@ export default function MaintenanceOrders() {
     }
   })
 
-  const { data: equipment = [] } = useQuery({
+  const { data: equipment = [] } = useQuery<Equipment[]>({
     queryKey: ['maintenance-equipment'],
     queryFn: async () => {
       const response = await api.get('/maintenance/equipment')

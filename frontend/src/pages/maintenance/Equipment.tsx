@@ -57,7 +57,7 @@ export default function Equipment() {
   const [documents, setDocuments] = useState<Document[]>([])
 
   // React Query para cache automático
-  const { data: equipment = [], isLoading: loading, error: equipmentError } = useQuery({
+  const { data: equipment = [], isLoading: loading, error: equipmentError } = useQuery<Equipment[]>({
     queryKey: ['maintenance-equipment'],
     queryFn: async () => {
       const response = await api.get('/maintenance/equipment')
