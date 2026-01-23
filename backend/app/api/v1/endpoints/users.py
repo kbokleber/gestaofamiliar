@@ -159,7 +159,8 @@ async def create_user(
             phone='',
             address='',
             city='',
-            state=''
+            state='',
+            created_at=datetime.now(timezone.utc)
         )
         db.add(profile)
         db.commit()
