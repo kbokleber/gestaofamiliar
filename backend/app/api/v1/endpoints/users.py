@@ -146,16 +146,32 @@ async def create_user(
         family_id=family_id
     )
     
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    # Criar perfil automaticamente
-    profile = Profile(user_id=new_user.id)
-    db.add(profile)
-    db.commit()
-    
-    return new_user
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        # Criar perfil automaticamente
+        profile = Profile(
+            user_id=new_user.id,
+            phone='',
+            address='',
+            city='',
+            state=''
+        )
+        db.add(profile)
+        db.commit()
+        
+        return new_user
+    except Exception as e:
+        db.rollback()
+        import traceback
+        print(f"Erro ao criar usuário: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao criar usuário: {str(e)}"
+        )
 
 # Rotas específicas devem vir ANTES das rotas genéricas
 @router.put("/{user_id}/password", response_model=UserSchema)
