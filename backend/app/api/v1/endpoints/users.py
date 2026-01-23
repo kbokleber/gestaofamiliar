@@ -154,13 +154,15 @@ async def create_user(
         db.refresh(new_user)
         
         # Criar perfil automaticamente
+        now = datetime.now(timezone.utc)
         profile = Profile(
             user_id=new_user.id,
             phone='',
             address='',
             city='',
             state='',
-            created_at=datetime.now(timezone.utc)
+            created_at=now,
+            updated_at=now
         )
         db.add(profile)
         db.commit()
@@ -353,3 +355,35 @@ async def read_user(
             detail="Usuário não encontrado"
         )
     return user
+
+@router.delete("/{user_id}")
+async def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin)
+):
+    """Excluir usuário (apenas administradores)"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado"
+        )
+    
+    # Não permitir excluir a si mesmo
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Você não pode excluir sua própria conta"
+        )
+    
+    # Excluir perfil primeiro (se existir)
+    profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+    if profile:
+        db.delete(profile)
+    
+    # Excluir usuário
+    db.delete(user)
+    db.commit()
+    
+    return {"message": "Usuário excluído com sucesso"}

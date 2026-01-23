@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
-import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus, Edit } from 'lucide-react'
+import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus, Edit, Trash2 } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import Loading from '../../components/Loading'
@@ -121,6 +121,21 @@ export default function AdminUsers() {
     },
     onError: (error: any) => {
       alert(error.response?.data?.detail || 'Erro ao alterar status do usuário')
+    }
+  })
+
+  // Mutação para excluir usuário
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const response = await api.delete(`/users/${userId}`)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      alert('Usuário excluído com sucesso!')
+    },
+    onError: (error: any) => {
+      alert(error.response?.data?.detail || 'Erro ao excluir usuário')
     }
   })
 
@@ -483,10 +498,23 @@ export default function AdminUsers() {
                       }
                       setShowPermissionsModal(true)
                     }}
-                    className="w-full flex items-center justify-center px-3 py-2 border border-purple-600 text-purple-600 text-sm rounded-md hover:bg-purple-50"
+                    className="w-full flex items-center justify-center px-3 py-2 border border-purple-600 text-purple-600 text-sm rounded-md hover:bg-purple-50 mb-2"
                   >
                     Editar Permissões
                   </button>
+                  {user.id !== currentUser?.id && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`Tem certeza que deseja EXCLUIR o usuário "${user.username}"? Esta ação não pode ser desfeita!`)) {
+                          deleteUserMutation.mutate(user.id)
+                        }
+                      }}
+                      className="w-full flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Excluir Usuário
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -615,22 +643,36 @@ export default function AdminUsers() {
                           Senha
                         </button>
                         {user.id !== currentUser?.id && (
-                          <button
-                            onClick={() => {
-                              if (confirm(`Tem certeza que deseja ${user.is_active ? 'desativar' : 'ativar'} este usuário?`)) {
-                                toggleActiveMutation.mutate(user.id)
-                              }
-                            }}
-                            className={`${
-                              user.is_active
-                                ? 'text-red-600 hover:text-red-900'
-                                : 'text-green-600 hover:text-green-900'
-                            } flex items-center gap-1`}
-                            title={user.is_active ? 'Desativar usuário' : 'Ativar usuário'}
-                          >
-                            {user.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                            {user.is_active ? 'Desativar' : 'Ativar'}
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Tem certeza que deseja ${user.is_active ? 'desativar' : 'ativar'} este usuário?`)) {
+                                  toggleActiveMutation.mutate(user.id)
+                                }
+                              }}
+                              className={`${
+                                user.is_active
+                                  ? 'text-red-600 hover:text-red-900'
+                                  : 'text-green-600 hover:text-green-900'
+                              } flex items-center gap-1`}
+                              title={user.is_active ? 'Desativar usuário' : 'Ativar usuário'}
+                            >
+                              {user.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                              {user.is_active ? 'Desativar' : 'Ativar'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Tem certeza que deseja EXCLUIR o usuário "${user.username}"? Esta ação não pode ser desfeita!`)) {
+                                  deleteUserMutation.mutate(user.id)
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-900 flex items-center gap-1"
+                              title="Excluir usuário"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Excluir
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
