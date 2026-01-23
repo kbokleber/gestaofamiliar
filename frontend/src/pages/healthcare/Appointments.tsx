@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Calendar, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import DateTimeInput from '../../components/DateTimeInput'
 import DateInput from '../../components/DateInput'
@@ -32,12 +33,9 @@ interface Appointment {
 }
 
 export default function Appointments() {
-  const [appointments, setAppointments] = useState<Appointment[]>([])
+  const queryClient = useQueryClient()
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([])
   const [showUpcomingOnly, setShowUpcomingOnly] = useState(true)
-  const [members, setMembers] = useState<FamilyMember[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [filters, setFilters] = useState({
     member_id: 0,
     start_date: '',
@@ -60,10 +58,25 @@ export default function Appointments() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
-  useEffect(() => {
-    fetchAppointments()
-    fetchMembers()
-  }, [])
+  // React Query para cache automático
+  const { data: appointments = [], isLoading: loadingAppointments, error: appointmentsError } = useQuery({
+    queryKey: ['healthcare-appointments'],
+    queryFn: async () => {
+      const response = await api.get('/healthcare/appointments')
+      return response.data
+    }
+  })
+
+  const { data: members = [] } = useQuery({
+    queryKey: ['healthcare-members'],
+    queryFn: async () => {
+      const response = await api.get('/healthcare/members')
+      return response.data
+    }
+  })
+
+  const loading = loadingAppointments
+  const error = appointmentsError ? (appointmentsError as Error).message : null
 
   useEffect(() => {
     applyFilters()
@@ -143,27 +156,9 @@ export default function Appointments() {
     )
   }
 
-  const fetchAppointments = async () => {
-    try {
-      setLoading(true)
-      const response = await api.get('/healthcare/appointments')
-      setAppointments(response.data)
-      setError(null)
-    } catch (err: any) {
-      console.error('Erro ao buscar consultas:', err)
-      setError(err.response?.data?.detail || 'Erro ao carregar consultas')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchMembers = async () => {
-    try {
-      const response = await api.get('/healthcare/members')
-      setMembers(response.data)
-    } catch (err: any) {
-      console.error('Erro ao buscar membros:', err)
-    }
+  // Função para invalidar cache e refetch
+  const fetchAppointments = () => {
+    queryClient.invalidateQueries({ queryKey: ['healthcare-appointments'] })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

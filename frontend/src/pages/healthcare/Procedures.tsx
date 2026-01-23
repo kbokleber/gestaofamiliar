@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Activity, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import DateTimeInput from '../../components/DateTimeInput'
 import DateInput from '../../components/DateInput'
@@ -31,11 +32,8 @@ interface Procedure {
 }
 
 export default function Procedures() {
-  const [procedures, setProcedures] = useState<Procedure[]>([])
+  const queryClient = useQueryClient()
   const [filteredProcedures, setFilteredProcedures] = useState<Procedure[]>([])
-  const [members, setMembers] = useState<FamilyMember[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null)
@@ -57,10 +55,24 @@ export default function Procedures() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
-  useEffect(() => {
-    fetchProcedures()
-    fetchMembers()
-  }, [])
+  // React Query para cache automático
+  const { data: procedures = [], isLoading: loading, error: proceduresError } = useQuery({
+    queryKey: ['healthcare-procedures'],
+    queryFn: async () => {
+      const response = await api.get('/healthcare/procedures')
+      return response.data
+    }
+  })
+
+  const { data: members = [] } = useQuery({
+    queryKey: ['healthcare-members'],
+    queryFn: async () => {
+      const response = await api.get('/healthcare/members')
+      return response.data
+    }
+  })
+
+  const error = proceduresError ? (proceduresError as Error).message : null
 
   useEffect(() => {
     applyFilters()
@@ -133,27 +145,9 @@ export default function Procedures() {
     )
   }
 
-  const fetchProcedures = async () => {
-    try {
-      setLoading(true)
-      const response = await api.get('/healthcare/procedures')
-      setProcedures(response.data)
-      setError(null)
-    } catch (err: any) {
-      console.error('Erro ao buscar procedimentos:', err)
-      setError(err.response?.data?.detail || 'Erro ao carregar procedimentos')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchMembers = async () => {
-    try {
-      const response = await api.get('/healthcare/members')
-      setMembers(response.data)
-    } catch (err: any) {
-      console.error('Erro ao buscar membros:', err)
-    }
+  // Função para invalidar cache e refetch
+  const fetchProcedures = () => {
+    queryClient.invalidateQueries({ queryKey: ['healthcare-procedures'] })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

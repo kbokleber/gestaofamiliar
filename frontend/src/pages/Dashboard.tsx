@@ -1,60 +1,65 @@
-import { useState, useEffect } from 'react'
 import { Heart, Users, Calendar, Settings, Clock } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import { isFutureDateTime } from '../utils/dateUtils'
 import Loading from '../components/Loading'
 
-interface DashboardStats {
-  totalMembers: number
-  totalAppointments: number
-  totalEquipment: number
-  activeMedications: number
-  totalMaintenanceOrders: number
-}
-
 export default function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalMembers: 0,
-    totalAppointments: 0,
-    totalEquipment: 0,
-    activeMedications: 0,
-    totalMaintenanceOrders: 0
-  })
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true)
-      const [membersRes, appointmentsRes, equipmentRes, medicationsRes, ordersRes] = await Promise.all([
-        api.get('/healthcare/members'),
-        api.get('/healthcare/appointments'),
-        api.get('/maintenance/equipment'),
-        api.get('/healthcare/medications', { params: { active_only: true } }),
-        api.get('/maintenance/orders')
-      ])
-
-      // Filtrar apenas consultas futuras (sem problemas de timezone)
-      const upcomingAppointments = appointmentsRes.data.filter((appointment: any) => {
-        return isFutureDateTime(appointment.appointment_date)
-      })
-
-      setStats({
-        totalMembers: membersRes.data.length,
-        totalAppointments: upcomingAppointments.length,
-        totalEquipment: equipmentRes.data.length,
-        activeMedications: medicationsRes.data.length,
-        totalMaintenanceOrders: ordersRes.data.length
-      })
-    } catch (error) {
-      console.error('Erro ao carregar dados do dashboard:', error)
-    } finally {
-      setLoading(false)
+  // Usar React Query para cache automático - dados ficam em cache por 5 min
+  const { data: members = [], isLoading: loadingMembers } = useQuery({
+    queryKey: ['healthcare-members'],
+    queryFn: async () => {
+      const res = await api.get('/healthcare/members')
+      return res.data
     }
+  })
+
+  const { data: appointments = [], isLoading: loadingAppointments } = useQuery({
+    queryKey: ['healthcare-appointments'],
+    queryFn: async () => {
+      const res = await api.get('/healthcare/appointments')
+      return res.data
+    }
+  })
+
+  const { data: equipment = [], isLoading: loadingEquipment } = useQuery({
+    queryKey: ['maintenance-equipment'],
+    queryFn: async () => {
+      const res = await api.get('/maintenance/equipment')
+      return res.data
+    }
+  })
+
+  const { data: medications = [], isLoading: loadingMedications } = useQuery({
+    queryKey: ['healthcare-medications-active'],
+    queryFn: async () => {
+      const res = await api.get('/healthcare/medications', { params: { active_only: true } })
+      return res.data
+    }
+  })
+
+  const { data: orders = [], isLoading: loadingOrders } = useQuery({
+    queryKey: ['maintenance-orders'],
+    queryFn: async () => {
+      const res = await api.get('/maintenance/orders')
+      return res.data
+    }
+  })
+
+  const loading = loadingMembers || loadingAppointments || loadingEquipment || loadingMedications || loadingOrders
+
+  // Filtrar apenas consultas futuras
+  const upcomingAppointments = appointments.filter((appointment: any) => {
+    return isFutureDateTime(appointment.appointment_date)
+  })
+
+  const stats = {
+    totalMembers: members.length,
+    totalAppointments: upcomingAppointments.length,
+    totalEquipment: equipment.length,
+    activeMedications: medications.length,
+    totalMaintenanceOrders: orders.length
   }
 
   const dashboardCards = [

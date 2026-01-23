@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical, Camera, Image } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import DateInput from '../../components/DateInput'
@@ -38,9 +39,7 @@ interface FamilyMember {
 }
 
 export default function FamilyMembers() {
-  const [members, setMembers] = useState<FamilyMember[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null)
@@ -61,44 +60,26 @@ export default function FamilyMembers() {
     order: 0
   })
 
-  useEffect(() => {
-    fetchMembers()
-  }, [])
-
-  const fetchMembers = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      // Verificar se há token antes de fazer a requisição
+  // Usar React Query para cache automático
+  const { data: membersData = [], isLoading: loading, error: queryError, refetch } = useQuery({
+    queryKey: ['healthcare-members'],
+    queryFn: async () => {
       const token = useAuthStore.getState().token
       if (!token) {
-        setError('Você precisa fazer login para acessar esta página')
-        setTimeout(() => {
-          window.location.href = '/login'
-        }, 2000)
-        return
+        throw new Error('Você precisa fazer login para acessar esta página')
       }
-      
-      // Admin não precisa passar family_id - backend retorna todas as famílias
       const response = await api.get('/healthcare/members')
       // Ordenar membros por order (menor número primeiro)
-      const sortedMembers = [...response.data].sort((a, b) => (a.order || 0) - (b.order || 0))
-      setMembers(sortedMembers)
-      setError(null)
-    } catch (err: any) {
-      console.error('Erro ao carregar membros:', err)
-      
-      // Se for erro 401, o interceptor já vai redirecionar
-      if (err.response?.status === 401) {
-        setError('Sessão expirada. Redirecionando para login...')
-        // O interceptor já faz o logout e redireciona
-      } else {
-        setError(err.response?.data?.detail || 'Erro ao carregar membros. Verifique sua conexão.')
-      }
-    } finally {
-      setLoading(false)
+      return [...response.data].sort((a: FamilyMember, b: FamilyMember) => (a.order || 0) - (b.order || 0))
     }
+  })
+
+  const members = membersData
+  const error = queryError ? (queryError as Error).message : null
+
+  // Função para invalidar o cache e refetch
+  const fetchMembers = () => {
+    queryClient.invalidateQueries({ queryKey: ['healthcare-members'] })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -359,9 +340,9 @@ export default function FamilyMembers() {
       const oldIndex = members.findIndex((m) => m.id === active.id)
       const newIndex = members.findIndex((m) => m.id === over.id)
 
-      // Reordenar localmente
+      // Reordenar localmente (atualiza o cache do React Query)
       const newMembers = arrayMove(members, oldIndex, newIndex)
-      setMembers(newMembers)
+      queryClient.setQueryData(['healthcare-members'], newMembers)
 
       // Atualizar ordem no backend
       try {

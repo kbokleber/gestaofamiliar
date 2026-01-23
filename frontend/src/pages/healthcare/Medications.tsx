@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Pill, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
@@ -46,11 +47,8 @@ const FREQUENCY_OPTIONS = [
 ]
 
 export default function Medications() {
-  const [medications, setMedications] = useState<Medication[]>([])
+  const queryClient = useQueryClient()
   const [filteredMedications, setFilteredMedications] = useState<Medication[]>([])
-  const [members, setMembers] = useState<FamilyMember[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showActiveOnly, setShowActiveOnly] = useState(true)
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
@@ -75,43 +73,34 @@ export default function Medications() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
-  useEffect(() => {
-    fetchMedications()
-    fetchMembers()
-  }, [showActiveOnly])
+  // React Query para cache automático
+  const { data: medications = [], isLoading: loading, error: medicationsError } = useQuery({
+    queryKey: ['healthcare-medications', showActiveOnly],
+    queryFn: async () => {
+      const response = await api.get('/healthcare/medications', {
+        params: { active_only: showActiveOnly }
+      })
+      return response.data
+    }
+  })
+
+  const { data: members = [] } = useQuery({
+    queryKey: ['healthcare-members'],
+    queryFn: async () => {
+      const response = await api.get('/healthcare/members')
+      return response.data
+    }
+  })
+
+  const error = medicationsError ? (medicationsError as Error).message : null
 
   useEffect(() => {
     applyFilters()
   }, [medications, filters])
 
-  const fetchMedications = async () => {
-    try {
-      setLoading(true)
-      const response = await api.get('/healthcare/medications', {
-        params: { active_only: showActiveOnly }
-      })
-      console.log('Medicamentos recebidos:', response.data)
-      // Log para verificar se documents está presente
-      response.data.forEach((med: Medication) => {
-        console.log(`Medicamento ${med.id} (${med.name}): documents = ${med.documents ? 'SIM (' + med.documents.length + ' chars)' : 'NÃO'}`)
-      })
-      setMedications(response.data)
-      setError(null)
-    } catch (err: any) {
-      console.error('Erro ao buscar medicamentos:', err)
-      setError(err.response?.data?.detail || 'Erro ao carregar medicamentos')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchMembers = async () => {
-    try {
-      const response = await api.get('/healthcare/members')
-      setMembers(response.data)
-    } catch (err: any) {
-      console.error('Erro ao buscar membros:', err)
-    }
+  // Função para invalidar cache e refetch
+  const fetchMedications = () => {
+    queryClient.invalidateQueries({ queryKey: ['healthcare-medications'] })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

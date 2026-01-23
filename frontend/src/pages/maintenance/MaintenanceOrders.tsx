@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Clock, Plus, Edit2, Trash2, Save, Filter, FileSpreadsheet, ArrowLeft, Paperclip } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
@@ -39,11 +40,8 @@ const STATUS_OPTIONS = [
 ]
 
 export default function MaintenanceOrders() {
-  const [orders, setOrders] = useState<MaintenanceOrder[]>([])
+  const queryClient = useQueryClient()
   const [filteredOrders, setFilteredOrders] = useState<MaintenanceOrder[]>([])
-  const [equipment, setEquipment] = useState<Equipment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingOrder, setEditingOrder] = useState<MaintenanceOrder | null>(null)
@@ -68,36 +66,32 @@ export default function MaintenanceOrders() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
-  useEffect(() => {
-    fetchOrders()
-    fetchEquipment()
-  }, [])
+  // React Query para cache automático
+  const { data: orders = [], isLoading: loading, error: ordersError } = useQuery({
+    queryKey: ['maintenance-orders'],
+    queryFn: async () => {
+      const response = await api.get('/maintenance/orders')
+      return response.data
+    }
+  })
+
+  const { data: equipment = [] } = useQuery({
+    queryKey: ['maintenance-equipment'],
+    queryFn: async () => {
+      const response = await api.get('/maintenance/equipment')
+      return response.data
+    }
+  })
+
+  const error = ordersError ? (ordersError as Error).message : null
 
   useEffect(() => {
     applyFilters()
   }, [orders, filters])
 
-  const fetchOrders = async () => {
-    try {
-      setLoading(true)
-      const response = await api.get('/maintenance/orders')
-      setOrders(response.data)
-      setError(null)
-    } catch (err: any) {
-      console.error('Erro ao buscar ordens:', err)
-      setError(err.response?.data?.detail || 'Erro ao carregar ordens de manutenção')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchEquipment = async () => {
-    try {
-      const response = await api.get('/maintenance/equipment')
-      setEquipment(response.data)
-    } catch (err: any) {
-      console.error('Erro ao buscar equipamentos:', err)
-    }
+  // Função para invalidar cache e refetch
+  const fetchOrders = () => {
+    queryClient.invalidateQueries({ queryKey: ['maintenance-orders'] })
   }
 
   const applyFilters = () => {

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Settings, Plus, Edit2, Trash2, Save, Paperclip, ArrowLeft } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
@@ -38,9 +39,7 @@ const TYPE_OPTIONS = [
 ]
 
 export default function Equipment() {
-  const [equipment, setEquipment] = useState<Equipment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null)
@@ -57,22 +56,20 @@ export default function Equipment() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
-  useEffect(() => {
-    fetchEquipment()
-  }, [])
-
-  const fetchEquipment = async () => {
-    try {
-      setLoading(true)
+  // React Query para cache automático
+  const { data: equipment = [], isLoading: loading, error: equipmentError } = useQuery({
+    queryKey: ['maintenance-equipment'],
+    queryFn: async () => {
       const response = await api.get('/maintenance/equipment')
-      setEquipment(response.data)
-      setError(null)
-    } catch (err: any) {
-      console.error('Erro ao buscar equipamentos:', err)
-      setError(err.response?.data?.detail || 'Erro ao carregar equipamentos')
-    } finally {
-      setLoading(false)
+      return response.data
     }
+  })
+
+  const error = equipmentError ? (equipmentError as Error).message : null
+
+  // Função para invalidar cache e refetch
+  const fetchEquipment = () => {
+    queryClient.invalidateQueries({ queryKey: ['maintenance-equipment'] })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
