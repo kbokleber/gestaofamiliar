@@ -72,7 +72,13 @@ export default function Equipment() {
     queryFn: async () => {
       // Carregar sem documentos para ser mais rápido
       const response = await api.get('/maintenance/equipment', { params: { include_documents: false } })
-      localStorage.setItem('equipment-list-cache', JSON.stringify(response.data))
+      // Salvar apenas dados essenciais no cache
+      try {
+        const cacheData = response.data.map((e: Equipment) => ({
+          id: e.id, name: e.name, type: e.type, status: e.status
+        }))
+        localStorage.setItem('equipment-list-cache', JSON.stringify(cacheData))
+      } catch { /* localStorage cheio, ignorar */ }
       return response.data
     },
     placeholderData: getPlaceholderEquipment(),

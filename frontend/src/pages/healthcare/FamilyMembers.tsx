@@ -80,8 +80,11 @@ export default function FamilyMembers() {
       }
       const response = await api.get('/healthcare/members', { params: { include_photos: false } })
       const sorted = [...response.data].sort((a: FamilyMember, b: FamilyMember) => (a.order || 0) - (b.order || 0))
-      // Salvar no localStorage para uso como placeholder
-      localStorage.setItem('healthcare-members-meta', JSON.stringify(sorted))
+      // Salvar apenas dados essenciais no cache
+      try {
+        const cacheData = sorted.map(m => ({ id: m.id, name: m.name, birth_date: m.birth_date, order: m.order }))
+        localStorage.setItem('healthcare-members-meta', JSON.stringify(cacheData))
+      } catch { /* localStorage cheio, ignorar */ }
       return sorted
     },
     placeholderData: getPlaceholderMembers(),

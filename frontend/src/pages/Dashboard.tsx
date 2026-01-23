@@ -29,7 +29,9 @@ export default function Dashboard() {
     queryFn: async () => {
       const res = await api.get('/dashboard/stats')
       // Salvar no localStorage para usar como placeholder no próximo reload
-      localStorage.setItem('dashboard-stats', JSON.stringify(res.data))
+      try {
+        localStorage.setItem('dashboard-stats', JSON.stringify(res.data))
+      } catch { /* localStorage cheio, ignorar */ }
       return res.data
     },
     placeholderData: getPlaceholderData(),

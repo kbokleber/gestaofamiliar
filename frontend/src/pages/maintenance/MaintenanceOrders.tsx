@@ -91,7 +91,14 @@ export default function MaintenanceOrders() {
     queryFn: async () => {
       // Carregar sem documentos para ser mais rápido
       const response = await api.get('/maintenance/orders', { params: { include_documents: false } })
-      localStorage.setItem('maintenance-orders-cache', JSON.stringify(response.data))
+      // Salvar apenas dados essenciais no cache (sem campos grandes)
+      try {
+        const cacheData = response.data.map((o: MaintenanceOrder) => ({
+          id: o.id, equipment_id: o.equipment_id, title: o.title, status: o.status,
+          priority: o.priority, completion_date: o.completion_date
+        }))
+        localStorage.setItem('maintenance-orders-cache', JSON.stringify(cacheData))
+      } catch { /* localStorage cheio, ignorar */ }
       return response.data
     },
     placeholderData: getPlaceholderOrders(),
@@ -103,8 +110,10 @@ export default function MaintenanceOrders() {
     queryFn: async () => {
       // Carregar sem documentos para ser mais rápido
       const response = await api.get('/maintenance/equipment', { params: { include_documents: false } })
-      const cacheData = response.data.map((e: any) => ({ id: e.id, name: e.name }))
-      localStorage.setItem('maintenance-equipment-cache', JSON.stringify(cacheData))
+      try {
+        const cacheData = response.data.map((e: any) => ({ id: e.id, name: e.name }))
+        localStorage.setItem('maintenance-equipment-cache', JSON.stringify(cacheData))
+      } catch { /* localStorage cheio, ignorar */ }
       return response.data
     },
     placeholderData: getPlaceholderEquipment(),
