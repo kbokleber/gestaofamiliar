@@ -53,7 +53,8 @@ export default function AdminUsers() {
     password: '',
     confirmPassword: '',
     first_name: '',
-    last_name: ''
+    last_name: '',
+    family_id: 0
   })
   const [createUserError, setCreateUserError] = useState('')
 
@@ -131,6 +132,7 @@ export default function AdminUsers() {
       password: string
       first_name: string
       last_name: string
+      family_id: number
     }) => {
       const response = await api.post('/users/', userData)
       return response.data
@@ -144,7 +146,8 @@ export default function AdminUsers() {
         password: '',
         confirmPassword: '',
         first_name: '',
-        last_name: ''
+        last_name: '',
+        family_id: 0
       })
       setCreateUserError('')
       alert('Usuário criado com sucesso!')
@@ -329,7 +332,8 @@ export default function AdminUsers() {
               password: '',
               confirmPassword: '',
               first_name: '',
-              last_name: ''
+              last_name: '',
+              family_id: 0
             })
           }}
           className="flex items-center gap-2 w-full sm:w-auto"
@@ -714,7 +718,8 @@ export default function AdminUsers() {
             password: '',
             confirmPassword: '',
             first_name: '',
-            last_name: ''
+            last_name: '',
+            family_id: 0
           })
           setCreateUserError('')
         }}
@@ -825,6 +830,31 @@ export default function AdminUsers() {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Família *
+            </label>
+            <select
+              value={newUserData.family_id}
+              onChange={(e) => {
+                setNewUserData({ ...newUserData, family_id: parseInt(e.target.value) || 0 })
+                setCreateUserError('')
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              required
+            >
+              <option value={0}>Selecione uma família</option>
+              {families.map((family) => (
+                <option key={family.id} value={family.id}>
+                  {family.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              O usuário será associado a esta família ao ser criado
+            </p>
+          </div>
+
           {createUserError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <p className="text-sm text-red-800">{createUserError}</p>
@@ -842,7 +872,8 @@ export default function AdminUsers() {
                   password: '',
                   confirmPassword: '',
                   first_name: '',
-                  last_name: ''
+                  last_name: '',
+                  family_id: 0
                 })
                 setCreateUserError('')
               }}
@@ -866,12 +897,18 @@ export default function AdminUsers() {
                   return
                 }
 
+                if (!newUserData.family_id || newUserData.family_id === 0) {
+                  setCreateUserError('Selecione uma família para o usuário')
+                  return
+                }
+
                 createUserMutation.mutate({
                   username: newUserData.username,
                   email: newUserData.email,
                   password: newUserData.password,
                   first_name: newUserData.first_name,
-                  last_name: newUserData.last_name
+                  last_name: newUserData.last_name,
+                  family_id: newUserData.family_id
                 })
               }}
               disabled={createUserMutation.isPending}
