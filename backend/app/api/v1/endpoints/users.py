@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime, timezone
 from app.db.base import get_db
 from app.models.user import User, Profile
 from app.models.family import Family
@@ -143,7 +144,8 @@ async def create_user(
         is_active=True,
         is_staff=False,
         is_superuser=False,
-        family_id=family_id
+        family_id=family_id,
+        date_joined=datetime.now(timezone.utc)
     )
     
     try:
