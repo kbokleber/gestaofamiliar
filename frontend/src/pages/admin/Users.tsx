@@ -153,7 +153,16 @@ export default function AdminUsers() {
       alert('Usuário criado com sucesso!')
     },
     onError: (error: any) => {
-      setCreateUserError(error.response?.data?.detail || 'Erro ao criar usuário')
+      const errorDetail = error.response?.data?.detail
+      if (typeof errorDetail === 'string') {
+        setCreateUserError(errorDetail)
+      } else if (Array.isArray(errorDetail)) {
+        // Erros de validação Pydantic vêm como array
+        setCreateUserError(errorDetail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(', '))
+      } else {
+        setCreateUserError('Erro ao criar usuário: ' + (error.message || 'erro desconhecido'))
+      }
+      console.error('Erro ao criar usuário:', error.response?.data || error)
     }
   })
 
