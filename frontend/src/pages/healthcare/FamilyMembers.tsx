@@ -60,6 +60,16 @@ export default function FamilyMembers() {
     order: 0
   })
 
+  // Carregar dados do localStorage como placeholder (sem fotos para ser mais rápido)
+  const getPlaceholderMembers = (): FamilyMember[] | undefined => {
+    try {
+      const cached = localStorage.getItem('healthcare-members-meta')
+      return cached ? JSON.parse(cached) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
   // Usar React Query para cache automático
   const { data: membersData = [], isLoading: loading, error: queryError } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
@@ -70,8 +80,14 @@ export default function FamilyMembers() {
       }
       const response = await api.get('/healthcare/members')
       // Ordenar membros por order (menor número primeiro)
-      return [...response.data].sort((a: FamilyMember, b: FamilyMember) => (a.order || 0) - (b.order || 0))
-    }
+      const sorted = [...response.data].sort((a: FamilyMember, b: FamilyMember) => (a.order || 0) - (b.order || 0))
+      // Salvar metadados no localStorage (sem fotos para ser mais leve)
+      const metaOnly = sorted.map(m => ({ ...m, photo: undefined }))
+      localStorage.setItem('healthcare-members-meta', JSON.stringify(metaOnly))
+      return sorted
+    },
+    placeholderData: getPlaceholderMembers(),
+    staleTime: 5 * 60 * 1000, // 5 minutos
   })
 
   const members = membersData

@@ -2,105 +2,80 @@ import { Heart, Users, Calendar, Settings, Clock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
-import { isFutureDateTime } from '../utils/dateUtils'
 import Loading from '../components/Loading'
 
-export default function Dashboard() {
-  // Usar React Query para cache automático - dados ficam em cache por 5 min
-  const { data: members = [], isLoading: loadingMembers } = useQuery({
-    queryKey: ['healthcare-members'],
-    queryFn: async () => {
-      const res = await api.get('/healthcare/members')
-      return res.data
-    }
-  })
+interface DashboardStats {
+  total_members: number
+  total_appointments: number
+  total_equipment: number
+  active_medications: number
+  total_orders: number
+}
 
-  const { data: appointments = [], isLoading: loadingAppointments } = useQuery({
-    queryKey: ['healthcare-appointments'],
-    queryFn: async () => {
-      const res = await api.get('/healthcare/appointments')
-      return res.data
-    }
-  })
-
-  const { data: equipment = [], isLoading: loadingEquipment } = useQuery({
-    queryKey: ['maintenance-equipment'],
-    queryFn: async () => {
-      const res = await api.get('/maintenance/equipment')
-      return res.data
-    }
-  })
-
-  const { data: medications = [], isLoading: loadingMedications } = useQuery({
-    queryKey: ['healthcare-medications-active'],
-    queryFn: async () => {
-      const res = await api.get('/healthcare/medications', { params: { active_only: true } })
-      return res.data
-    }
-  })
-
-  const { data: orders = [], isLoading: loadingOrders } = useQuery({
-    queryKey: ['maintenance-orders'],
-    queryFn: async () => {
-      const res = await api.get('/maintenance/orders')
-      return res.data
-    }
-  })
-
-  const loading = loadingMembers || loadingAppointments || loadingEquipment || loadingMedications || loadingOrders
-
-  // Filtrar apenas consultas futuras
-  const upcomingAppointments = appointments.filter((appointment: any) => {
-    return isFutureDateTime(appointment.appointment_date)
-  })
-
-  const stats = {
-    totalMembers: members.length,
-    totalAppointments: upcomingAppointments.length,
-    totalEquipment: equipment.length,
-    activeMedications: medications.length,
-    totalMaintenanceOrders: orders.length
+// Carregar dados do localStorage como placeholder
+const getPlaceholderData = (): DashboardStats | undefined => {
+  try {
+    const cached = localStorage.getItem('dashboard-stats')
+    return cached ? JSON.parse(cached) : undefined
+  } catch {
+    return undefined
   }
+}
+
+export default function Dashboard() {
+  // Uma única requisição para todas as estatísticas do dashboard
+  const { data: stats, isLoading: loading } = useQuery<DashboardStats>({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const res = await api.get('/dashboard/stats')
+      // Salvar no localStorage para usar como placeholder no próximo reload
+      localStorage.setItem('dashboard-stats', JSON.stringify(res.data))
+      return res.data
+    },
+    placeholderData: getPlaceholderData(),
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  })
 
   const dashboardCards = [
     {
       name: 'Membros da Família',
-      value: loading ? '...' : stats.totalMembers.toString(),
+      value: stats?.total_members?.toString() ?? '...',
       icon: Users,
       href: '/healthcare/members',
       color: 'bg-blue-500',
     },
     {
       name: 'Próximas Consultas',
-      value: loading ? '...' : stats.totalAppointments.toString(),
+      value: stats?.total_appointments?.toString() ?? '...',
       icon: Calendar,
       href: '/healthcare/appointments',
       color: 'bg-green-500',
     },
     {
       name: 'Equipamentos',
-      value: loading ? '...' : stats.totalEquipment.toString(),
+      value: stats?.total_equipment?.toString() ?? '...',
       icon: Settings,
       href: '/maintenance/equipment',
       color: 'bg-orange-500',
     },
     {
       name: 'Medicações Ativas',
-      value: loading ? '...' : stats.activeMedications.toString(),
+      value: stats?.active_medications?.toString() ?? '...',
       icon: Heart,
       href: '/healthcare/medications',
       color: 'bg-red-500',
     },
     {
       name: 'Ordens de Manutenção',
-      value: loading ? '...' : stats.totalMaintenanceOrders.toString(),
+      value: stats?.total_orders?.toString() ?? '...',
       icon: Clock,
       href: '/maintenance/orders',
       color: 'bg-purple-500',
     },
   ]
 
-  if (loading) {
+  // Só mostra loading se não tem nem dados do cache
+  if (loading && !stats) {
     return <Loading message="Carregando dashboard..." />
   }
 
