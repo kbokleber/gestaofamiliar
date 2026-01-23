@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -65,9 +65,11 @@ async def create_family_member(
 async def list_family_members(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    family_id: Optional[int] = Depends(get_current_family)
+    family_id: Optional[int] = Depends(get_current_family),
+    include_photos: bool = True
 ):
-    """Listar todos os membros da família (compartilhados entre usuários da mesma família) ordenados por 'order' e depois nome"""
+    """Listar todos os membros da família (compartilhados entre usuários da mesma família) ordenados por 'order' e depois nome.
+    Use include_photos=false para carregamento mais rápido (sem fotos)."""
     from app.api.deps import get_user_family_ids
     
     # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
@@ -81,6 +83,30 @@ async def list_family_members(
         if family_id is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
         members = db.query(FamilyMember).filter(FamilyMember.family_id == family_id).order_by(FamilyMember.order, FamilyMember.name).all()
+    
+    # Se não incluir fotos, retornar sem o campo photo para economizar banda
+    if not include_photos:
+        return [
+            {
+                "id": m.id,
+                "family_id": m.family_id,
+                "name": m.name,
+                "photo": None,  # Não incluir foto
+                "birth_date": m.birth_date,
+                "gender": m.gender,
+                "relationship_type": m.relationship_type,
+                "blood_type": m.blood_type,
+                "allergies": m.allergies,
+                "chronic_conditions": m.chronic_conditions,
+                "emergency_contact": m.emergency_contact,
+                "emergency_phone": m.emergency_phone,
+                "notes": m.notes,
+                "order": m.order,
+                "created_at": m.created_at,
+                "updated_at": m.updated_at
+            }
+            for m in members
+        ]
     return members
 
 @router.get("/members/{member_id}", response_model=FamilyMemberDetail)

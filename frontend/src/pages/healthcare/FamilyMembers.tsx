@@ -70,8 +70,26 @@ export default function FamilyMembers() {
     }
   }
 
-  // Usar React Query para cache automático
-  const { data: membersData = [], isLoading: loading, error: queryError } = useQuery<FamilyMember[]>({
+  // Primeira query: carregar membros SEM fotos (rápido)
+  const { data: membersWithoutPhotos = [], isLoading: loadingBasic } = useQuery<FamilyMember[]>({
+    queryKey: ['healthcare-members-basic'],
+    queryFn: async () => {
+      const token = useAuthStore.getState().token
+      if (!token) {
+        throw new Error('Você precisa fazer login para acessar esta página')
+      }
+      const response = await api.get('/healthcare/members', { params: { include_photos: false } })
+      const sorted = [...response.data].sort((a: FamilyMember, b: FamilyMember) => (a.order || 0) - (b.order || 0))
+      // Salvar no localStorage para uso como placeholder
+      localStorage.setItem('healthcare-members-meta', JSON.stringify(sorted))
+      return sorted
+    },
+    placeholderData: getPlaceholderMembers(),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  // Segunda query: carregar membros COM fotos (mais lento, carrega em background)
+  const { data: membersWithPhotos = [] } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
     queryFn: async () => {
       const token = useAuthStore.getState().token
@@ -79,16 +97,16 @@ export default function FamilyMembers() {
         throw new Error('Você precisa fazer login para acessar esta página')
       }
       const response = await api.get('/healthcare/members')
-      // Ordenar membros por order (menor número primeiro)
-      const sorted = [...response.data].sort((a: FamilyMember, b: FamilyMember) => (a.order || 0) - (b.order || 0))
-      // Salvar metadados no localStorage (sem fotos para ser mais leve)
-      const metaOnly = sorted.map(m => ({ ...m, photo: undefined }))
-      localStorage.setItem('healthcare-members-meta', JSON.stringify(metaOnly))
-      return sorted
+      return [...response.data].sort((a: FamilyMember, b: FamilyMember) => (a.order || 0) - (b.order || 0))
     },
-    placeholderData: getPlaceholderMembers(),
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 5 * 60 * 1000,
+    enabled: membersWithoutPhotos.length > 0, // Só carrega depois que os dados básicos estiverem prontos
   })
+
+  // Usar membros com fotos se disponíveis, senão usar sem fotos
+  const membersData = membersWithPhotos.length > 0 ? membersWithPhotos : membersWithoutPhotos
+  const loading = loadingBasic
+  const queryError = null
 
   const members = membersData
   const error = queryError ? (queryError as Error).message : null
