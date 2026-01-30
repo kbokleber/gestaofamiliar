@@ -122,11 +122,17 @@ async def list_equipment(
                 "owner_id": e.owner_id,
                 "notes": e.notes,
                 "documents": None,
+                "has_documents": bool(e.documents and len(e.documents) > 2), # > 2 por causa de "[]"
                 "created_at": e.created_at,
                 "updated_at": e.updated_at
             }
             for e in equipments
         ]
+    
+    # Se incluir documentos, também marcar has_documents
+    for e in equipments:
+        e.has_documents = bool(e.documents and len(e.documents) > 2)
+        
     return equipments
 
 @router.get("/equipment/{equipment_id}", response_model=EquipmentDetail)
@@ -404,12 +410,18 @@ async def list_maintenance_orders(
                 "invoice_file": o.invoice_file,
                 "notes": o.notes,
                 "documents": None,
+                "has_documents": bool(o.documents and len(o.documents) > 2),
                 "created_by_id": o.created_by_id,
                 "created_at": o.created_at,
                 "updated_at": o.updated_at
             }
             for o in orders
         ]
+    
+    # Se incluir documentos, também marcar has_documents
+    for o in orders:
+        o.has_documents = bool(o.documents and len(o.documents) > 2)
+        
     return orders
 
 @router.get("/orders/{order_id}", response_model=MaintenanceOrderDetail)
@@ -421,47 +433,9 @@ async def get_maintenance_order(
 ):
     """Obter detalhes de uma ordem de manutenção"""
     from app.api.deps import get_user_family_ids
+    import logging
+    logging.info(f"[DEBUG] ===== INICIO GET ORDER {order_id} =====")
     
-    # Se for admin sem family_id especificado, verificar se a ordem pertence a alguma das famílias do admin
-    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
-        family_ids = get_user_family_ids(current_user, db)
-        if not family_ids:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Ordem de manutenção não encontrada"
-            )
-        order = db.query(MaintenanceOrder).join(Equipment).filter(
-            MaintenanceOrder.id == order_id,
-            Equipment.family_id.in_(family_ids)
-        ).first()
-    else:
-        # Usuário normal ou admin com family_id específico
-        if family_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
-        order = db.query(MaintenanceOrder).join(Equipment).filter(
-            MaintenanceOrder.id == order_id,
-            Equipment.family_id == family_id
-        ).first()
-    
-    if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Ordem de manutenção não encontrada"
-        )
-    
-    return order
-
-@router.put("/orders/{order_id}", response_model=MaintenanceOrderSchema)
-async def update_maintenance_order(
-    order_id: int,
-    order_data: MaintenanceOrderUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    family_id: Optional[int] = Depends(get_current_family)
-):
-    """Atualizar ordem de manutenção"""
-    from app.api.deps import get_user_family_ids
-    print(f"[DEBUG] ===== INÍCIO UPDATE ORDER {order_id} =====")
     try:
         # Se for admin sem family_id especificado, verificar se a ordem pertence a alguma das famílias do admin
         if (current_user.is_superuser or current_user.is_staff) and family_id is None:
@@ -485,13 +459,80 @@ async def update_maintenance_order(
             ).first()
         
         if not order:
-            print(f"[ERROR] Ordem {order_id} não encontrada")
+            logging.error(f"[ERROR] Ordem {order_id} nao encontrada")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Ordem de manutenção não encontrada"
             )
         
-        print(f"[DEBUG] Ordem {order_id} encontrada")
+        logging.info(f"[DEBUG] Ordem {order_id} encontrada, serializando...")
+        
+        # Testar serialização manualmente para debug
+        try:
+            from app.schemas.maintenance import MaintenanceOrderDetail as DetailSchema
+            DetailSchema.model_validate(order)
+            logging.info(f"[DEBUG] Serializacao Pydantic OK")
+        except Exception as e:
+            logging.error(f"[ERROR] Falha na serializacao: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+            # Não interromper aqui, deixar o FastAPI tentar retornar
+            
+        logging.info(f"[DEBUG] ===== FIM GET ORDER {order_id} (SUCESSO) =====")
+        return order
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logging.error(f"[ERROR] Erro inesperado no GET ORDER {order_id}: {e}")
+        logging.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao carregar detalhes da ordem: {str(e)}"
+        )
+
+@router.put("/orders/{order_id}", response_model=MaintenanceOrderSchema)
+async def update_maintenance_order(
+    order_id: int,
+    order_data: MaintenanceOrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Atualizar ordem de manutenção"""
+    from app.api.deps import get_user_family_ids
+    import logging
+    logging.info(f"[DEBUG] ===== INICIO UPDATE ORDER {order_id} =====")
+    try:
+        # Se for admin sem family_id especificado, verificar se a ordem pertence a alguma das famílias do admin
+        if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+            family_ids = get_user_family_ids(current_user, db)
+            if not family_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Ordem de manutenção não encontrada"
+                )
+            order = db.query(MaintenanceOrder).join(Equipment).filter(
+                MaintenanceOrder.id == order_id,
+                Equipment.family_id.in_(family_ids)
+            ).first()
+        else:
+            # Usuário normal ou admin com family_id específico
+            if family_id is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+            order = db.query(MaintenanceOrder).join(Equipment).filter(
+                MaintenanceOrder.id == order_id,
+                Equipment.family_id == family_id
+            ).first()
+        
+        if not order:
+            logging.error(f"[ERROR] Ordem {order_id} nao encontrada")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Ordem de manutenção não encontrada"
+            )
+        
+        logging.info(f"[DEBUG] Ordem {order_id} encontrada")
         
         # IMPORTANTE: Para campos opcionais como documents, precisamos garantir que sejam processados
         # mesmo quando são None. O problema é que exclude_unset=True pode não incluir campos None
@@ -507,9 +548,9 @@ async def update_maintenance_order(
         # e deve ser atualizado. Se não está em update_dict mas está em all_data, adicionar.
         if 'documents' in all_data:
             update_dict['documents'] = all_data['documents']
-            print(f"[DEBUG] UPDATE ORDER {order_id} - documents presente: {all_data['documents'] is not None}")
+            logging.info(f"[DEBUG] UPDATE ORDER {order_id} - documents presente: {all_data['documents'] is not None}")
             if all_data['documents']:
-                print(f"[DEBUG] UPDATE ORDER {order_id} - documents tamanho: {len(str(all_data['documents']))} caracteres")
+                logging.info(f"[DEBUG] UPDATE ORDER {order_id} - documents tamanho: {len(str(all_data['documents']))} caracteres")
         
         # Atualizar campos (incluindo documents agora)
         for field, value in update_dict.items():
@@ -519,19 +560,32 @@ async def update_maintenance_order(
             setattr(order, field, value)
         
         try:
-            print(f"[DEBUG] Fazendo commit da ordem {order_id}...")
+            import logging
+            logging.info(f"[DEBUG] Fazendo commit da ordem {order_id}...")
             db.commit()
-            print(f"[DEBUG] ✅ Commit realizado com sucesso")
+            logging.info(f"[DEBUG] Commit realizado com sucesso")
             db.refresh(order)
-            print(f"[DEBUG] ✅ Ordem {order_id} atualizada com sucesso")
-            print(f"[DEBUG] ===== FIM UPDATE ORDER {order_id} (SUCESSO) =====")
+            logging.info(f"[DEBUG] Ordem {order_id} atualizada com sucesso")
+            
+            # Verificar se a serialização funciona antes de retornar
+            from app.schemas.maintenance import MaintenanceOrder as MaintenanceOrderSchema
+            logging.info(f"[DEBUG] Testando serializacao Pydantic...")
+            try:
+                test_schema = MaintenanceOrderSchema.model_validate(order)
+                logging.info(f"[DEBUG] Serializacao OK, retornando order")
+            except Exception as schema_err:
+                logging.error(f"[ERROR] Falha na serializacao Pydantic: {schema_err}")
+                raise
+            
+            logging.info(f"[DEBUG] ===== FIM UPDATE ORDER {order_id} (SUCESSO) =====")
             return order
         except Exception as e:
             db.rollback()
-            print(f"[ERROR] ❌ Erro ao fazer commit da ordem {order_id}: {e}")
-            print(f"[ERROR] Tipo do erro: {type(e).__name__}")
+            import logging
+            logging.error(f"Erro ao fazer commit da ordem {order_id}: {e}")
+            logging.error(f"Tipo do erro: {type(e).__name__}")
             import traceback
-            traceback.print_exc()
+            logging.error(traceback.format_exc())
             
             # Verificar se é erro de tamanho de campo
             error_str = str(e).lower()
@@ -550,9 +604,10 @@ async def update_maintenance_order(
         raise
     except Exception as e:
         # Capturar qualquer outro erro não tratado
-        print(f"[ERROR] ❌❌❌ ERRO NÃO TRATADO no update_maintenance_order: {e}")
+        import logging
+        logging.error(f"ERRO NAO TRATADO no update_maintenance_order: {e}")
         import traceback
-        traceback.print_exc()
+        logging.error(traceback.format_exc())
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

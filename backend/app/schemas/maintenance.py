@@ -16,6 +16,7 @@ class EquipmentBase(BaseModel):
     status: str = "OPERACIONAL"
     notes: str = ""
     documents: Optional[str] = None  # JSON string com array de documentos
+    has_documents: Optional[bool] = None  # Indica se existem documentos (para listagem)
 
 class EquipmentCreate(EquipmentBase):
     owner_id: Optional[int] = None
@@ -33,11 +34,13 @@ class EquipmentUpdate(BaseModel):
     owner_id: Optional[int] = None
     notes: Optional[str] = None
     documents: Optional[str] = None
+    has_documents: Optional[bool] = None
 
 class Equipment(EquipmentBase):
     id: int
     owner_id: Optional[int] = None
     documents: Optional[str] = None
+    has_documents: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
     
@@ -79,6 +82,7 @@ class MaintenanceOrderBase(BaseModel):
 class MaintenanceOrderCreate(MaintenanceOrderBase):
     equipment_id: int
     documents: Optional[str] = None  # JSON string com array de documentos
+    has_documents: Optional[bool] = None
 
 class MaintenanceOrderUpdate(BaseModel):
     title: Optional[str] = None
@@ -93,12 +97,14 @@ class MaintenanceOrderUpdate(BaseModel):
     invoice_number: Optional[str] = None
     notes: Optional[str] = None
     documents: Optional[str] = None  # JSON string com array de documentos
+    has_documents: Optional[bool] = None
 
 class MaintenanceOrder(MaintenanceOrderBase):
     id: int
     equipment_id: int
     invoice_file: Optional[str] = None
     documents: Optional[str] = None  # JSON string com array de documentos
+    has_documents: Optional[bool] = None
     created_by_id: int
     created_at: datetime
     updated_at: datetime

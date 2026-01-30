@@ -27,7 +27,8 @@ interface MaintenanceOrder {
   warranty_terms: string
   invoice_number: string
   notes: string
-  documents?: string | null  // JSON string com array de documentos (igual às outras telas)
+  documents?: string | null  // JSON string com array de documentos
+  has_documents?: boolean     // Indica se existem documentos
   created_at: string
   updated_at: string
 }
@@ -203,22 +204,22 @@ export default function MaintenanceOrders() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!formData.equipment_id || formData.equipment_id === 0) {
       alert('Por favor, selecione um equipamento')
       return
     }
-    
+
     if (!formData.description) {
       alert('Por favor, preencha a descrição')
       return
     }
-    
+
     try {
       // IMPORTANTE: Sempre enviar o campo documents, mesmo que seja null ou string vazia
       // Isso garante que o backend saiba que o campo foi enviado e pode processá-lo
       const documentsJson = documents.length > 0 ? JSON.stringify(documents) : null
-      
+
       const dataToSend = {
         ...formData,
         title: formData.title || formData.description.substring(0, 100) || 'Manutenção', // Usar descrição como título se não fornecido
@@ -228,7 +229,7 @@ export default function MaintenanceOrders() {
         cost: formData.cost ? parseFloat(formData.cost.replace(',', '.')) : null,
         documents: documentsJson  // Sempre incluir, mesmo que seja null
       }
-      
+
       // Debug: verificar o que está sendo enviado
       console.log('Enviando dados:', {
         ...dataToSend,
@@ -236,7 +237,7 @@ export default function MaintenanceOrders() {
       })
       console.log('Documentos array:', documents)
       console.log('Documentos JSON:', documentsJson ? documentsJson.substring(0, 100) + '...' : 'null')
-      
+
       if (editingOrder) {
         console.log(`Atualizando ordem ${editingOrder.id} com ${documents.length} documentos`)
         const response = await api.put(`/maintenance/orders/${editingOrder.id}`, dataToSend)
@@ -255,7 +256,7 @@ export default function MaintenanceOrders() {
     } catch (err: any) {
       console.error('Erro ao salvar:', err)
       console.error('Detalhes do erro:', err.response?.data)
-      
+
       let errorMessage = 'Erro ao salvar ordem de manutenção'
       if (err.response?.data?.detail) {
         if (Array.isArray(err.response.data.detail)) {
@@ -264,7 +265,7 @@ export default function MaintenanceOrders() {
           errorMessage = err.response.data.detail
         }
       }
-      
+
       alert(errorMessage)
     }
   }
@@ -280,36 +281,49 @@ export default function MaintenanceOrders() {
   }
 
   const startEdit = async (order: MaintenanceOrder) => {
-    setEditingOrder(order)
-    setFormData({
-      equipment_id: order.equipment_id,
-      title: order.title,
-      description: order.description,
-      status: order.status || 'PENDENTE',
-      priority: order.priority || 'MEDIA',
-      service_provider: order.service_provider || '',
-      completion_date: toDateInputValue(order.completion_date),
-      cost: order.cost ? order.cost.toString().replace('.', ',') : '',
-      warranty_expiration: toDateInputValue(order.warranty_expiration),
-      warranty_terms: order.warranty_terms || '',
-      invoice_number: order.invoice_number || '',
-      notes: order.notes || ''
-    })
-    
-    // Carregar documentos existentes se houver (igual às outras telas)
-    if (order.documents) {
-      try {
-        const parsedDocs = JSON.parse(order.documents)
-        setDocuments(Array.isArray(parsedDocs) ? parsedDocs : [])
-      } catch (e) {
-        console.error('Erro ao parsear documentos:', e)
+    // Buscar a ordem completa (com documentos) antes de editar
+    try {
+      const response = await api.get(`/maintenance/orders/${order.id}`)
+      const fullOrder = response.data
+
+      setEditingOrder(fullOrder)
+
+      const equipmentId = Number(fullOrder.equipment_id || order.equipment_id)
+      console.log(`[DEBUG] Editando Ordem ${order.id}: equipment_id=${equipmentId}`)
+
+      setFormData({
+        equipment_id: equipmentId,
+        title: fullOrder.title || order.title,
+        description: fullOrder.description || order.description,
+        status: fullOrder.status || order.status || 'PENDENTE',
+        priority: fullOrder.priority || order.priority || 'MEDIA',
+        service_provider: fullOrder.service_provider || order.service_provider || '',
+        completion_date: toDateInputValue(fullOrder.completion_date || order.completion_date),
+        cost: (fullOrder.cost || order.cost) ? (fullOrder.cost || order.cost).toString().replace('.', ',') : '',
+        warranty_expiration: toDateInputValue(fullOrder.warranty_expiration || order.warranty_expiration),
+        warranty_terms: fullOrder.warranty_terms || order.warranty_terms || '',
+        invoice_number: fullOrder.invoice_number || order.invoice_number || '',
+        notes: fullOrder.notes || order.notes || ''
+      })
+
+      // Carregar documentos da ordem completa
+      if (fullOrder.documents) {
+        try {
+          const parsedDocs = JSON.parse(fullOrder.documents)
+          setDocuments(Array.isArray(parsedDocs) ? parsedDocs : [])
+        } catch (e) {
+          console.error('Erro ao parsear documentos:', e)
+          setDocuments([])
+        }
+      } else {
         setDocuments([])
       }
-    } else {
-      setDocuments([])
+
+      setIsEditingInline(true)
+    } catch (err) {
+      console.error('Erro ao carregar detalhes da ordem:', err)
+      alert('Erro ao carregar detalhes da ordem para edição')
     }
-    
-    setIsEditingInline(true)
   }
 
   const cancelEdit = () => {
@@ -372,10 +386,10 @@ export default function MaintenanceOrders() {
 
   const getStatusLabel = (status: string) => {
     if (!status) return 'Desconhecido'
-    
+
     // Normalizar status para maiúsculas e remover espaços
     const normalizedStatus = status.toUpperCase().trim()
-    
+
     // Mapeamento direto (mais confiável e rápido)
     const statusMap: Record<string, string> = {
       'PENDENTE': 'Pendente',
@@ -383,19 +397,19 @@ export default function MaintenanceOrders() {
       'CONCLUIDA': 'Concluída',
       'CANCELADA': 'Cancelada'
     }
-    
+
     // Buscar no mapeamento primeiro (cobre todos os casos normalizados)
     const label = statusMap[normalizedStatus]
     if (label) {
       return label
     }
-    
+
     // Se não encontrar, buscar no STATUS_OPTIONS como fallback
     const option = STATUS_OPTIONS.find(opt => opt.value === normalizedStatus || opt.value.toUpperCase() === normalizedStatus)
     if (option) {
       return option.label
     }
-    
+
     // Último fallback: formatar o status manualmente
     // Converte "em_andamento" para "Em Andamento"
     return normalizedStatus
@@ -425,7 +439,7 @@ export default function MaintenanceOrders() {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <p className="text-red-600">Erro: {error}</p>
-        <button 
+        <button
           onClick={fetchOrders}
           className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
         >
@@ -454,7 +468,7 @@ export default function MaintenanceOrders() {
               </div>
             </div>
           </div>
-          
+
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -465,7 +479,7 @@ export default function MaintenanceOrders() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento *</label>
                     <select
                       value={formData.equipment_id}
-                      onChange={(e) => setFormData({...formData, equipment_id: parseInt(e.target.value)})}
+                      onChange={(e) => setFormData({ ...formData, equipment_id: parseInt(e.target.value) })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       required
                     >
@@ -482,7 +496,7 @@ export default function MaintenanceOrders() {
                     <input
                       type="text"
                       value={formData.title}
-                      onChange={(e) => setFormData({...formData, title: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Ex: Troca de óleo"
                       required
@@ -494,7 +508,7 @@ export default function MaintenanceOrders() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Prioridade *</label>
                     <select
                       value={formData.priority}
-                      onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       required
                     >
@@ -510,7 +524,7 @@ export default function MaintenanceOrders() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
                     <select
                       value={formData.status}
-                      onChange={(e) => setFormData({...formData, status: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       required
                     >
@@ -526,7 +540,7 @@ export default function MaintenanceOrders() {
                     <input
                       type="text"
                       value={formData.service_provider}
-                      onChange={(e) => setFormData({...formData, service_provider: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, service_provider: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Ex: Junior Moto Peças"
                     />
@@ -537,7 +551,7 @@ export default function MaintenanceOrders() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Data da Manutenção</label>
                     <DateInput
                       value={formData.completion_date}
-                      onChange={(value) => setFormData({...formData, completion_date: value})}
+                      onChange={(value) => setFormData({ ...formData, completion_date: value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                   </div>
@@ -550,7 +564,7 @@ export default function MaintenanceOrders() {
                       value={formData.cost}
                       onChange={(e) => {
                         const value = e.target.value.replace(/[^\d,]/g, '')
-                        setFormData({...formData, cost: value})
+                        setFormData({ ...formData, cost: value })
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="0,00"
@@ -562,7 +576,7 @@ export default function MaintenanceOrders() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento da Garantia</label>
                     <DateInput
                       value={formData.warranty_expiration}
-                      onChange={(value) => setFormData({...formData, warranty_expiration: value})}
+                      onChange={(value) => setFormData({ ...formData, warranty_expiration: value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                   </div>
@@ -575,7 +589,7 @@ export default function MaintenanceOrders() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
                     <textarea
                       value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={5}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Descreva a manutenção realizada..."
@@ -588,7 +602,7 @@ export default function MaintenanceOrders() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Termos da Garantia</label>
                     <textarea
                       value={formData.warranty_terms}
-                      onChange={(e) => setFormData({...formData, warranty_terms: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, warranty_terms: e.target.value })}
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Termos e condições da garantia..."
@@ -601,7 +615,7 @@ export default function MaintenanceOrders() {
                     <input
                       type="text"
                       value={formData.invoice_number}
-                      onChange={(e) => setFormData({...formData, invoice_number: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Número da nota fiscal"
                     />
@@ -612,7 +626,7 @@ export default function MaintenanceOrders() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                     <textarea
                       value={formData.notes}
-                      onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Observações adicionais..."
@@ -660,14 +674,14 @@ export default function MaintenanceOrders() {
               Histórico de Manutenções
             </h1>
             <div className="flex gap-2 w-full sm:w-auto">
-              <button 
+              <button
                 onClick={handleExportExcel}
                 className="flex-1 sm:flex-none px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center justify-center"
               >
                 <FileSpreadsheet className="mr-2 h-5 w-5" />
                 Exportar Excel
               </button>
-              <button 
+              <button
                 onClick={() => openCreateView()}
                 className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
               >
@@ -678,225 +692,225 @@ export default function MaintenanceOrders() {
           </div>
 
           {/* Filtros */}
-      <div className="bg-white shadow rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento</label>
-            <select
-              value={filters.equipment_id}
-              onChange={(e) => setFilters({...filters, equipment_id: parseInt(e.target.value)})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-              <option value={0}>Todos os Equipamentos</option>
-              {equipment.map(eq => (
-                <option key={eq.id} value={eq.id}>{eq.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
-            <DateInput
-              value={filters.start_date}
-              onChange={(value) => setFilters({...filters, start_date: value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
-            <DateInput
-              value={filters.end_date}
-              onChange={(value) => setFilters({...filters, end_date: value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={handleFilter}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
-            >
-              <Filter className="mr-2 h-5 w-5" />
-              Filtrar
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Lista de Ordens */}
-      {filteredOrders.length === 0 ? (
-        <div className="bg-white shadow rounded-lg p-6">
-          <p className="text-gray-600 text-center py-8">
-            Nenhuma ordem de manutenção encontrada.
-          </p>
-        </div>
-      ) : (
-        <>
-          {/* Visualização em Cards para Mobile/Tablet */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4 mb-6">
-            {filteredOrders.map((order) => (
-              <div key={order.id} className="bg-white shadow rounded-lg p-4 space-y-3">
-                {/* Cabeçalho do Card */}
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{getEquipmentName(order.equipment_id)}</h3>
-                      {order.documents && (
-                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
-                      )}
-                    </div>
-                    {order.service_provider && (
-                      <div className="text-sm text-gray-500 mt-1">
-                        {order.service_provider}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                      {getStatusLabel(order.status || '')}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Informações do Card */}
-                <div className="space-y-2 text-sm">
-                  {order.completion_date && (
-                    <div>
-                      <span className="font-medium text-gray-700">Data da Manutenção:</span>
-                      <span className="ml-2 text-gray-900">{formatDateFullBR(order.completion_date)}</span>
-                    </div>
-                  )}
-                  {order.cost && (
-                    <div>
-                      <span className="font-medium text-gray-700">Custo:</span>
-                      <span className="ml-2 text-gray-900">{formatCurrency(order.cost)}</span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="font-medium text-gray-700">Garantia até:</span>
-                    <span className="ml-2 text-gray-900">
-                      {order.warranty_expiration ? formatDateFullBR(order.warranty_expiration) : 'Sem garantia'}
-                    </span>
-                  </div>
-                  {order.description && (
-                    <div>
-                      <span className="font-medium text-gray-700">Descrição:</span>
-                      <span className="ml-2 text-gray-900 line-clamp-2">{order.description}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Ações do Card */}
-                <div className="flex gap-2 pt-3 border-t border-gray-200">
-                  <button 
-                    onClick={() => startEdit(order)}
-                    className="flex-1 flex items-center justify-center px-3 py-2 bg-yellow-100 text-yellow-600 text-sm rounded-md hover:bg-yellow-200"
-                  >
-                    <Edit2 className="h-4 w-4 mr-1" />
-                    Editar
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(order.id)}
-                    className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Excluir
-                  </button>
-                </div>
+          <div className="bg-white shadow rounded-lg p-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento</label>
+                <select
+                  value={filters.equipment_id}
+                  onChange={(e) => setFilters({ ...filters, equipment_id: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value={0}>Todos os Equipamentos</option>
+                  {equipment.map(eq => (
+                    <option key={eq.id} value={eq.id}>{eq.name}</option>
+                  ))}
+                </select>
               </div>
-            ))}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
+                <DateInput
+                  value={filters.start_date}
+                  onChange={(value) => setFilters({ ...filters, start_date: value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
+                <DateInput
+                  value={filters.end_date}
+                  onChange={(value) => setFilters({ ...filters, end_date: value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={handleFilter}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
+                >
+                  <Filter className="mr-2 h-5 w-5" />
+                  Filtrar
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Visualização em Tabela para Desktop */}
-          <div className="hidden lg:block bg-white shadow rounded-lg overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Equipamento
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Empresa
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Data da Manutenção
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Custo
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Garantia até
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ações
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-medium text-gray-900">{getEquipmentName(order.equipment_id)}</div>
-                      {order.documents && (
-                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+          {/* Lista de Ordens */}
+          {filteredOrders.length === 0 ? (
+            <div className="bg-white shadow rounded-lg p-6">
+              <p className="text-gray-600 text-center py-8">
+                Nenhuma ordem de manutenção encontrada.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Visualização em Cards para Mobile/Tablet */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4 mb-6">
+                {filteredOrders.map((order) => (
+                  <div key={order.id} className="bg-white shadow rounded-lg p-4 space-y-3">
+                    {/* Cabeçalho do Card */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-semibold text-gray-900">{getEquipmentName(order.equipment_id)}</h3>
+                          {(order.documents || order.has_documents) && (
+                            <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                          )}
+                        </div>
+                        {order.service_provider && (
+                          <div className="text-sm text-gray-500 mt-1">
+                            {order.service_provider}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                          {getStatusLabel(order.status || '')}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Informações do Card */}
+                    <div className="space-y-2 text-sm">
+                      {order.completion_date && (
+                        <div>
+                          <span className="font-medium text-gray-700">Data da Manutenção:</span>
+                          <span className="ml-2 text-gray-900">{formatDateFullBR(order.completion_date)}</span>
+                        </div>
+                      )}
+                      {order.cost && (
+                        <div>
+                          <span className="font-medium text-gray-700">Custo:</span>
+                          <span className="ml-2 text-gray-900">{formatCurrency(order.cost)}</span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-medium text-gray-700">Garantia até:</span>
+                        <span className="ml-2 text-gray-900">
+                          {order.warranty_expiration ? formatDateFullBR(order.warranty_expiration) : 'Sem garantia'}
+                        </span>
+                      </div>
+                      {order.description && (
+                        <div>
+                          <span className="font-medium text-gray-700">Descrição:</span>
+                          <span className="ml-2 text-gray-900 line-clamp-2">{order.description}</span>
+                        </div>
                       )}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{order.service_provider || '-'}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {order.completion_date ? formatDateFullBR(order.completion_date) : '-'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{formatCurrency(order.cost)}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {order.warranty_expiration ? formatDateFullBR(order.warranty_expiration) : 'Sem garantia'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
-                      {getStatusLabel(order.status || '')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end gap-2">
-                      <button 
+
+                    {/* Ações do Card */}
+                    <div className="flex gap-2 pt-3 border-t border-gray-200">
+                      <button
                         onClick={() => startEdit(order)}
-                        className="p-2 bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200"
-                        title="Editar"
+                        className="flex-1 flex items-center justify-center px-3 py-2 bg-yellow-100 text-yellow-600 text-sm rounded-md hover:bg-yellow-200"
                       >
-                        <Edit2 className="h-4 w-4" />
+                        <Edit2 className="h-4 w-4 mr-1" />
+                        Editar
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(order.id)}
-                        className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200"
-                        title="Excluir"
+                        className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Excluir
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        </>
-      )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Visualização em Tabela para Desktop */}
+              <div className="hidden lg:block bg-white shadow rounded-lg overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Equipamento
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Empresa
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Data da Manutenção
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Custo
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Garantia até
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Ações
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredOrders.map((order) => (
+                      <tr key={order.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-gray-900">{getEquipmentName(order.equipment_id)}</div>
+                            {order.documents && (
+                              <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{order.service_provider || '-'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {order.completion_date ? formatDateFullBR(order.completion_date) : '-'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{formatCurrency(order.cost)}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {order.warranty_expiration ? formatDateFullBR(order.warranty_expiration) : 'Sem garantia'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(order.status)}`}>
+                            {getStatusLabel(order.status || '')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => startEdit(order)}
+                              className="p-2 bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200"
+                              title="Editar"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(order.id)}
+                              className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200"
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </>
       ) : (
         /* Formulário de Edição na Tela */
         <div className="bg-white shadow rounded-lg p-4 md:p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center">
-              <ArrowLeft 
+              <ArrowLeft
                 onClick={cancelEdit}
                 className="mr-3 h-6 w-6 cursor-pointer text-gray-600 hover:text-gray-900"
               />
@@ -913,7 +927,7 @@ export default function MaintenanceOrders() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento *</label>
                   <select
                     value={formData.equipment_id}
-                    onChange={(e) => setFormData({...formData, equipment_id: parseInt(e.target.value)})}
+                    onChange={(e) => setFormData({ ...formData, equipment_id: parseInt(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     required
                   >
@@ -929,7 +943,7 @@ export default function MaintenanceOrders() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
                   <select
                     value={formData.status}
-                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     required
                   >
@@ -945,7 +959,7 @@ export default function MaintenanceOrders() {
                   <input
                     type="text"
                     value={formData.service_provider}
-                    onChange={(e) => setFormData({...formData, service_provider: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, service_provider: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Ex: Junior Moto Peças"
                   />
@@ -956,7 +970,7 @@ export default function MaintenanceOrders() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Data da Manutenção</label>
                   <DateInput
                     value={formData.completion_date}
-                    onChange={(value) => setFormData({...formData, completion_date: value})}
+                    onChange={(value) => setFormData({ ...formData, completion_date: value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
@@ -969,7 +983,7 @@ export default function MaintenanceOrders() {
                     value={formData.cost}
                     onChange={(e) => {
                       const value = e.target.value.replace(/[^\d,]/g, '')
-                      setFormData({...formData, cost: value})
+                      setFormData({ ...formData, cost: value })
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="0,00"
@@ -981,7 +995,7 @@ export default function MaintenanceOrders() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento da Garantia</label>
                   <DateInput
                     value={formData.warranty_expiration}
-                    onChange={(value) => setFormData({...formData, warranty_expiration: value})}
+                    onChange={(value) => setFormData({ ...formData, warranty_expiration: value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
@@ -1004,7 +1018,7 @@ export default function MaintenanceOrders() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Descrição *</label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={5}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Descreva a manutenção realizada..."
@@ -1017,7 +1031,7 @@ export default function MaintenanceOrders() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Termos da Garantia</label>
                   <textarea
                     value={formData.warranty_terms}
-                    onChange={(e) => setFormData({...formData, warranty_terms: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, warranty_terms: e.target.value })}
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Termos e condições da garantia..."
@@ -1030,7 +1044,7 @@ export default function MaintenanceOrders() {
                   <input
                     type="text"
                     value={formData.invoice_number}
-                    onChange={(e) => setFormData({...formData, invoice_number: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, invoice_number: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Número da nota fiscal"
                   />
@@ -1041,7 +1055,7 @@ export default function MaintenanceOrders() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
                   <textarea
                     value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Observações adicionais..."

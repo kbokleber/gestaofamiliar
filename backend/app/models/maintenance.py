@@ -24,8 +24,11 @@ class Equipment(Base):
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
     notes = Column(Text, nullable=False, default='')
     documents = Column(Text, nullable=True)  # JSON com array de documentos em base64
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    
+    @property
+    def has_documents(self):
+        return bool(self.documents and len(self.documents) > 2)
     
     # Relacionamentos
     family = relationship("Family", back_populates="equipment")
@@ -77,6 +80,10 @@ class MaintenanceOrder(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     
+    @property
+    def has_documents(self):
+        return bool(self.documents and len(self.documents) > 2)
+    
     # Relacionamentos
     equipment = relationship("Equipment", back_populates="maintenance_orders")
     created_by = relationship("User", back_populates="maintenance_orders")
@@ -90,7 +97,7 @@ class MaintenanceImage(Base):
     __tablename__ = "maintenance_maintenanceimage"
     
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("maintenance_maintenanceorder.id"), nullable=False)
+    maintenance_order_id = Column(Integer, ForeignKey("maintenance_maintenanceorder.id"), nullable=False)
     image = Column(Text, nullable=False)  # Armazena base64 completo (pode ser muito grande)
     description = Column(String(200), nullable=False, default='')
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
