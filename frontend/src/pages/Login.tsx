@@ -37,10 +37,12 @@ export default function Login() {
       setAuth(userData, access_token)
       navigate('/')
     } catch (err: any) {
-      console.error('Erro no login:', err)
-      const errorMsg = err.response?.data?.detail || err.message || 'Erro ao fazer login'
-      alert('ERRO: ' + errorMsg + '\n\nDetalhes: ' + JSON.stringify(err.response?.data || err))
-      setError(errorMsg)
+      if (import.meta.env.DEV) {
+        console.error('Erro no login:', err)
+      }
+      const raw = err.response?.data?.detail ?? err.message ?? 'Erro ao fazer login'
+      const errorMsg = Array.isArray(raw) ? raw.map((x: { msg?: string }) => x?.msg ?? String(x)).join('. ') : String(raw)
+      setError(errorMsg || 'Erro ao fazer login')
     } finally {
       setLoading(false)
     }

@@ -102,6 +102,7 @@ class MaintenanceOrderUpdate(BaseModel):
 class MaintenanceOrder(MaintenanceOrderBase):
     id: int
     equipment_id: int
+    equipment_name: Optional[str] = None  # Nome do equipamento (preenchido na listagem para evitar N+1 e "Desconhecido")
     invoice_file: Optional[str] = None
     documents: Optional[str] = None  # JSON string com array de documentos
     has_documents: Optional[bool] = None

@@ -24,18 +24,17 @@ const getPlaceholderData = (): DashboardStats | undefined => {
 
 export default function Dashboard() {
   // Uma única requisição para todas as estatísticas do dashboard
-  const { data: stats, isLoading: loading } = useQuery<DashboardStats>({
+  const { data: stats, isLoading: loading, isError: queryError, refetch } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const res = await api.get('/dashboard/stats')
-      // Salvar no localStorage para usar como placeholder no próximo reload
       try {
         localStorage.setItem('dashboard-stats', JSON.stringify(res.data))
       } catch { /* localStorage cheio, ignorar */ }
       return res.data
     },
     placeholderData: getPlaceholderData(),
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 5 * 60 * 1000,
   })
 
   const dashboardCards = [
@@ -76,9 +75,27 @@ export default function Dashboard() {
     },
   ]
 
-  // Só mostra loading se não tem nem dados do cache
   if (loading && !stats) {
     return <Loading message="Carregando dashboard..." />
+  }
+
+  if (queryError) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg" role="alert">
+          <p className="font-medium">Erro ao carregar os dados.</p>
+          <p className="text-sm mt-1">Tente novamente ou recarregue a página.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -24,7 +24,12 @@ export default function Loading({
   }
 
   const content = (
-    <div className="flex flex-col items-center justify-center gap-4">
+    <div
+      className="flex flex-col items-center justify-center gap-4"
+      role="status"
+      aria-live="polite"
+      aria-label={message}
+    >
       {/* Spinner animado */}
       <div className="relative">
         {/* Círculo externo com gradiente */}

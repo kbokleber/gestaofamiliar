@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import json
 from datetime import datetime, timezone
@@ -372,14 +372,14 @@ async def list_maintenance_orders(
         family_ids = get_user_family_ids(current_user, db)
         if not family_ids:
             return []
-        query = db.query(MaintenanceOrder).join(Equipment).filter(
+        query = db.query(MaintenanceOrder).options(joinedload(MaintenanceOrder.equipment)).join(Equipment).filter(
             Equipment.family_id.in_(family_ids)
         )
     else:
         # Usuário normal ou admin com family_id específico
         if family_id is None:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
-        query = db.query(MaintenanceOrder).join(Equipment).filter(
+        query = db.query(MaintenanceOrder).options(joinedload(MaintenanceOrder.equipment)).join(Equipment).filter(
             Equipment.family_id == family_id
         )
     
@@ -391,12 +391,16 @@ async def list_maintenance_orders(
     
     orders = query.order_by(MaintenanceOrder.completion_date.desc()).all()
     
-    # Se não incluir documentos, limpar para economizar banda
+    def equipment_name(o: MaintenanceOrder) -> str:
+        return (o.equipment.name if o.equipment else "Desconhecido")
+    
+    # Se não incluir documentos, retornar dicts com equipment_name (evita N+1 e "Desconhecido" no front)
     if not include_documents:
         return [
             {
                 "id": o.id,
                 "equipment_id": o.equipment_id,
+                "equipment_name": equipment_name(o),
                 "title": o.title,
                 "description": o.description,
                 "status": o.status,
@@ -418,10 +422,10 @@ async def list_maintenance_orders(
             for o in orders
         ]
     
-    # Se incluir documentos, também marcar has_documents
+    # Se incluir documentos, preencher equipment_name para o schema e has_documents
     for o in orders:
         o.has_documents = bool(o.documents and len(o.documents) > 2)
-        
+        setattr(o, "equipment_name", equipment_name(o))
     return orders
 
 @router.get("/orders/{order_id}", response_model=MaintenanceOrderDetail)

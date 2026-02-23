@@ -16,6 +16,7 @@ interface Equipment {
 interface MaintenanceOrder {
   id: number
   equipment_id: number
+  equipment_name?: string | null  // Nome do equipamento (vindo da API para evitar "Desconhecido")
   title: string
   description: string
   status: string
@@ -95,8 +96,8 @@ export default function MaintenanceOrders() {
       // Salvar apenas dados essenciais no cache (sem campos grandes)
       try {
         const cacheData = response.data.map((o: MaintenanceOrder) => ({
-          id: o.id, equipment_id: o.equipment_id, title: o.title, status: o.status,
-          priority: o.priority, completion_date: o.completion_date
+          id: o.id, equipment_id: o.equipment_id, equipment_name: o.equipment_name ?? null,
+          title: o.title, status: o.status, priority: o.priority, completion_date: o.completion_date
         }))
         localStorage.setItem('maintenance-orders-cache', JSON.stringify(cacheData))
       } catch { /* localStorage cheio, ignorar */ }
@@ -106,20 +107,48 @@ export default function MaintenanceOrders() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: equipment = [] } = useQuery<Equipment[]>({
+  const { data: equipment = [], isLoading: equipmentLoading, error: equipmentError } = useQuery<Equipment[]>({
     queryKey: ['maintenance-equipment'],
     queryFn: async () => {
       // Carregar sem documentos para ser mais rápido
       const response = await api.get('/maintenance/equipment', { params: { include_documents: false } })
+      const data = Array.isArray(response.data) ? response.data : []
       try {
-        const cacheData = response.data.map((e: any) => ({ id: e.id, name: e.name }))
+        const cacheData = data.map((e: any) => ({ id: e.id, name: e.name || String(e.id) }))
         localStorage.setItem('maintenance-equipment-cache', JSON.stringify(cacheData))
       } catch { /* localStorage cheio, ignorar */ }
-      return response.data
+      return data
     },
     placeholderData: getPlaceholderEquipment(),
     staleTime: 5 * 60 * 1000,
   })
+
+  // Lista de opções do select: inclui equipamento atual ao editar (para exibir mesmo antes da lista carregar)
+  const equipmentOptions: Equipment[] = (() => {
+    const list = equipment.map((e: any) => ({ id: Number(e.id), name: e.name || `Equipamento #${e.id}` }))
+    const currentId = formData.equipment_id
+    if (currentId && !list.some((e) => e.id === currentId)) {
+      return [{ id: currentId, name: `Equipamento #${currentId}` }, ...list]
+    }
+    return list
+  })()
+
+  // Opções do filtro por equipamento: derivadas das ordens (sempre preenchidas, não dependem da API de equipamentos)
+  const filterEquipmentOptions: Equipment[] = (() => {
+    const seen = new Set<number>()
+    const list: Equipment[] = []
+    for (const order of orders) {
+      const id = Number(order.equipment_id)
+      if (id && !seen.has(id)) {
+        seen.add(id)
+        list.push({
+          id,
+          name: order.equipment_name || `Equipamento #${id}`
+        })
+      }
+    }
+    return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  })()
 
   const error = ordersError ? (ordersError as Error).message : null
 
@@ -172,7 +201,7 @@ export default function MaintenanceOrders() {
 
   const handleExportExcel = () => {
     const dataToExport = filteredOrders.map(order => ({
-      equipamento: getEquipmentName(order.equipment_id),
+      equipamento: getEquipmentName(order),
       empresa: order.service_provider || '-',
       dataManutencao: order.completion_date ? formatDateFullBR(order.completion_date) : '-',
       custo: order.cost ? formatCurrency(order.cost) : '-',
@@ -281,6 +310,8 @@ export default function MaintenanceOrders() {
   }
 
   const startEdit = async (order: MaintenanceOrder) => {
+    // Garantir que a lista de equipamentos está carregada ao abrir a edição
+    queryClient.invalidateQueries({ queryKey: ['maintenance-equipment'] })
     // Buscar a ordem completa (com documentos) antes de editar
     try {
       const response = await api.get(`/maintenance/orders/${order.id}`)
@@ -418,8 +449,10 @@ export default function MaintenanceOrders() {
       .join(' ')
   }
 
-  const getEquipmentName = (equipmentId: number) => {
-    const eq = equipment.find(e => e.id === equipmentId)
+  const getEquipmentName = (order: MaintenanceOrder) => {
+    if (order.equipment_name) return order.equipment_name
+    const id = Number(order.equipment_id)
+    const eq = equipment.find(e => Number(e.id) === id)
     return eq ? eq.name : 'Desconhecido'
   }
 
@@ -478,14 +511,17 @@ export default function MaintenanceOrders() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento *</label>
                     <select
-                      value={formData.equipment_id}
-                      onChange={(e) => setFormData({ ...formData, equipment_id: parseInt(e.target.value) })}
+                      value={String(formData.equipment_id)}
+                      onChange={(e) => setFormData({ ...formData, equipment_id: parseInt(e.target.value, 10) || 0 })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                       required
+                      disabled={equipmentLoading}
                     >
-                      <option value={0}>Selecione o equipamento...</option>
-                      {equipment.map(eq => (
-                        <option key={eq.id} value={eq.id}>{eq.name}</option>
+                      <option value="0">
+                        {equipmentLoading ? 'Carregando equipamentos...' : equipmentError ? 'Erro ao carregar. Tente novamente.' : 'Selecione o equipamento...'}
+                      </option>
+                      {equipmentOptions.map(eq => (
+                        <option key={eq.id} value={String(eq.id)}>{eq.name}</option>
                       ))}
                     </select>
                   </div>
@@ -697,13 +733,13 @@ export default function MaintenanceOrders() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento</label>
                 <select
-                  value={filters.equipment_id}
-                  onChange={(e) => setFilters({ ...filters, equipment_id: parseInt(e.target.value) })}
+                  value={String(filters.equipment_id)}
+                  onChange={(e) => setFilters({ ...filters, equipment_id: parseInt(e.target.value, 10) || 0 })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
-                  <option value={0}>Todos os Equipamentos</option>
-                  {equipment.map(eq => (
-                    <option key={eq.id} value={eq.id}>{eq.name}</option>
+                  <option value="0">Todos os Equipamentos</option>
+                  {filterEquipmentOptions.map(eq => (
+                    <option key={eq.id} value={String(eq.id)}>{eq.name}</option>
                   ))}
                 </select>
               </div>
@@ -752,7 +788,7 @@ export default function MaintenanceOrders() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-semibold text-gray-900">{getEquipmentName(order.equipment_id)}</h3>
+                          <h3 className="text-lg font-semibold text-gray-900">{getEquipmentName(order)}</h3>
                           {(order.documents || order.has_documents) && (
                             <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
                           )}
@@ -852,7 +888,7 @@ export default function MaintenanceOrders() {
                       <tr key={order.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            <div className="text-sm font-medium text-gray-900">{getEquipmentName(order.equipment_id)}</div>
+                            <div className="text-sm font-medium text-gray-900">{getEquipmentName(order)}</div>
                             {order.documents && (
                               <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
                             )}
@@ -926,14 +962,17 @@ export default function MaintenanceOrders() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento *</label>
                   <select
-                    value={formData.equipment_id}
-                    onChange={(e) => setFormData({ ...formData, equipment_id: parseInt(e.target.value) })}
+                    value={String(formData.equipment_id)}
+                    onChange={(e) => setFormData({ ...formData, equipment_id: parseInt(e.target.value, 10) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     required
+                    disabled={equipmentLoading}
                   >
-                    <option value={0}>Selecione o equipamento...</option>
-                    {equipment.map(eq => (
-                      <option key={eq.id} value={eq.id}>{eq.name}</option>
+                    <option value="0">
+                      {equipmentLoading ? 'Carregando equipamentos...' : equipmentError ? 'Erro ao carregar. Tente novamente.' : 'Selecione o equipamento...'}
+                    </option>
+                    {equipmentOptions.map(eq => (
+                      <option key={eq.id} value={String(eq.id)}>{eq.name}</option>
                     ))}
                   </select>
                 </div>

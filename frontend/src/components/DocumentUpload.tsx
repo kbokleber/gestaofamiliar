@@ -96,29 +96,84 @@ export default function DocumentUpload({
   }
 
   const downloadDocument = (doc: Document) => {
-    const link = document.createElement('a')
-    link.href = `data:${doc.type};base64,${doc.data}`
-    link.download = doc.name
-    link.click()
+    if (!doc.data) {
+      alert('Arquivo sem dados para download.')
+      return
+    }
+    try {
+      const { mimeType } = getDisplayType(doc)
+      const blob = base64ToBlob(doc.data, mimeType)
+      const blobUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = doc.name
+      link.click()
+      URL.revokeObjectURL(blobUrl)
+    } catch (e) {
+      console.error('Erro ao fazer download:', e)
+      alert('Não foi possível fazer o download do arquivo.')
+    }
+  }
+
+  const getDisplayType = (doc: Document): { isPdf: boolean; mimeType: string } => {
+    const ext = (doc.name || '').split('.').pop()?.toLowerCase()
+    const storedType = (doc.type || '').toLowerCase()
+    const imageTypes: Record<string, string> = {
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif'
+    }
+    if (ext && imageTypes[ext]) {
+      return { isPdf: false, mimeType: imageTypes[ext] }
+    }
+    if (ext === 'pdf' || storedType === 'application/pdf') {
+      return { isPdf: true, mimeType: 'application/pdf' }
+    }
+    if (storedType.startsWith('image/')) return { isPdf: false, mimeType: storedType }
+    return { isPdf: false, mimeType: storedType || 'image/jpeg' }
+  }
+
+  const base64ToBlob = (base64: string, mimeType: string): Blob => {
+    const clean = String(base64).replace(/\s/g, '')
+    const byteChars = atob(clean)
+    const byteNumbers = new Array(byteChars.length)
+    for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i)
+    return new Blob([new Uint8Array(byteNumbers)], { type: mimeType })
   }
 
   const viewDocument = (doc: Document) => {
-    const newWindow = window.open()
+    if (!doc.data) {
+      alert('Arquivo sem dados para visualização. Pode ter sido salvo em formato antigo.')
+      return
+    }
+    const safeName = String(doc.name).replace(/</g, '&lt;').replace(/"/g, '&quot;')
+    const { isPdf, mimeType } = getDisplayType(doc)
+    const newWindow = window.open('', '_blank')
     if (newWindow) {
-      if (doc.type === 'application/pdf') {
-        newWindow.document.write(`
-          <iframe src="data:${doc.type};base64,${doc.data}" 
-                  style="width:100%; height:100%; border:none;" 
-                  title="${doc.name}">
-          </iframe>
-        `)
-      } else {
-        newWindow.document.write(`
-          <img src="data:${doc.type};base64,${doc.data}" 
-               alt="${doc.name}" 
-               style="max-width:100%; height:auto;" />
-        `)
+      try {
+        const blob = base64ToBlob(doc.data, mimeType)
+        const blobUrl = URL.createObjectURL(blob)
+        if (isPdf) {
+          newWindow.document.write(`
+            <!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeName}</title></head>
+            <body style="margin:0;overflow:hidden">
+              <iframe src="${blobUrl}" style="width:100%;height:100vh;border:none;" title="${safeName}"></iframe>
+            </body></html>
+          `)
+        } else {
+          newWindow.document.write(`
+            <!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeName}</title>
+            <style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1a1a1a}</style></head>
+            <body><img src="${blobUrl}" alt="${safeName}" style="max-width:100%;max-height:100vh;object-fit:contain" /></body></html>
+          `)
+        }
+        newWindow.document.close()
+        newWindow.addEventListener('beforeunload', () => URL.revokeObjectURL(blobUrl))
+      } catch (e) {
+        console.error('Erro ao visualizar:', e)
+        newWindow.close()
+        alert('Não foi possível abrir o arquivo. Tente fazer o download.')
       }
+    } else {
+      alert('O navegador bloqueou a janela de visualização. Permita pop-ups ou use o botão de download.')
     }
   }
 
