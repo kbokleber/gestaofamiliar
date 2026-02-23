@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import Loading from '../components/Loading'
+import { useAuthStore } from '../stores/authStore'
 
 interface DashboardStats {
   total_members: number
@@ -12,27 +13,32 @@ interface DashboardStats {
   total_orders: number
 }
 
-// Carregar dados do localStorage como placeholder
-const getPlaceholderData = (): DashboardStats | undefined => {
-  try {
-    const cached = localStorage.getItem('dashboard-stats')
-    return cached ? JSON.parse(cached) : undefined
-  } catch {
-    return undefined
-  }
-}
-
 export default function Dashboard() {
-  // Uma única requisição para todas as estatísticas do dashboard
+  const userId = useAuthStore((s) => s.user?.id)
+
+  // Cache por usuário para não mostrar dados de outra família ao trocar de usuário
+  const getPlaceholderData = (): DashboardStats | undefined => {
+    if (!userId) return undefined
+    try {
+      const cached = localStorage.getItem(`dashboard-stats-${userId}`)
+      return cached ? JSON.parse(cached) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
   const { data: stats, isLoading: loading, isError: queryError, refetch } = useQuery<DashboardStats>({
-    queryKey: ['dashboard-stats'],
+    queryKey: ['dashboard-stats', userId],
     queryFn: async () => {
       const res = await api.get('/dashboard/stats')
-      try {
-        localStorage.setItem('dashboard-stats', JSON.stringify(res.data))
-      } catch { /* localStorage cheio, ignorar */ }
+      if (userId) {
+        try {
+          localStorage.setItem(`dashboard-stats-${userId}`, JSON.stringify(res.data))
+        } catch { /* localStorage cheio, ignorar */ }
+      }
       return res.data
     },
+    enabled: !!userId,
     placeholderData: getPlaceholderData(),
     staleTime: 5 * 60 * 1000,
   })
