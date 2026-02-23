@@ -24,9 +24,10 @@ dist/
 .env.test.local
 .env.production.local
 
-# IDE
+# IDE / Editor
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
@@ -59,11 +60,16 @@ htmlcov/
 alembic/versions/*.py
 !alembic/versions/__init__.py
 
-# Arquivos temporários de teste
+# Arquivos temporários de teste / debug (raiz e backend)
 backend/test_*.py
+backend/add_family_to_admin.py
 backend/create_user_admin.py
 backend/adicionar_campo_documents.py
 backend/update_image_field.py
+test_db_conn.py
+debug_order.py
+check_tables.py
+tables_output.txt
 
 # Scripts temporários de migração
 adicionar-campo-documents.ps1
