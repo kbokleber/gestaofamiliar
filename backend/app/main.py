@@ -17,16 +17,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Adicionar logging de requisições
+# Adicionar logging de requisições - com arquivo para debug
 import logging
-logging.basicConfig(level=logging.INFO)
+import sys
+
+# Configurar logging para console E arquivo
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('app_debug.log', mode='a', encoding='utf-8')
+    ]
+)
 logger = logging.getLogger(__name__)
 
 @app.middleware("http")
 async def log_requests(request, call_next):
-    logger.info(f"📥 {request.method} {request.url}")
+    logger.info(f"[REQUEST] {request.method} {request.url}")
     response = await call_next(request)
-    logger.info(f"📤 {request.method} {request.url} - Status: {response.status_code}")
+    logger.info(f"[RESPONSE] {request.method} {request.url} - Status: {response.status_code}")
     return response
 
 # Incluir rotas da API
