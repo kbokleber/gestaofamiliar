@@ -14,6 +14,19 @@ A aplicação tem **3 partes**:
 
 ---
 
+## Banco novo ou banco externo?
+
+| Arquivo | Quando usar |
+|---------|-------------|
+| **`docker-compose.yml`** | Cria um **PostgreSQL novo** dentro do projeto (container + volume). Use quando quiser tudo no mesmo stack. |
+| **`docker-compose.external-db.yml`** | **Não** sobe Postgres. O backend usa a variável **`DATABASE_URL`** apontando para um banco **já existente** (PostgreSQL do Coolify, outro servidor, etc.). |
+
+No Coolify você pode criar um **Database** (PostgreSQL) e depois usar `docker-compose.external-db.yml` com a URL que o Coolify fornece.
+
+**Variáveis para banco externo** (`docker-compose.external-db.yml`): defina `DATABASE_URL` (ex.: `postgresql://usuario:senha@host:5432/banco`), `SECRET_KEY` e, se quiser, `VITE_API_URL`.
+
+---
+
 ## Opção 1: Deploy com Docker Compose (recomendado)
 
 Coolify consegue subir o repositório inteiro como um **stack Docker Compose**.
@@ -22,7 +35,9 @@ Coolify consegue subir o repositório inteiro como um **stack Docker Compose**.
 
 1. No Coolify: **Project** → **Add Resource** → **Docker Compose**.
 2. Conecte o repositório Git (GitHub/GitLab) com o projeto **SistemaFamiliar2.0**.
-3. Defina o **Docker Compose Location**: use o arquivo na raiz do repositório (`docker-compose.yml`).
+3. Defina o **Docker Compose Location**:
+   - **Banco novo (tudo no projeto):** `docker-compose.yml`
+   - **Banco externo (Coolify DB ou outro):** `docker-compose.external-db.yml`
 
 ### 2. Variáveis de ambiente
 

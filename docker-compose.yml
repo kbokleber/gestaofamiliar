@@ -48,9 +48,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        # No Coolify/produção: defina VITE_API_URL (ex: https://api.seudominio.com ou /api)
-        VITE_API_URL: ${VITE_API_URL:-}
     container_name: sistema-familiar-frontend
     environment:
       TZ: America/Sao_Paulo

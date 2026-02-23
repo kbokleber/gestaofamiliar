@@ -1,0 +1,49 @@
+# Use quando o banco PostgreSQL já existe fora do projeto
+# (Coolify Database, outro servidor, etc.)
+#
+# Defina no ambiente:
+#   DATABASE_URL=postgresql://usuario:senha@host:5432/nome_do_banco
+#   SECRET_KEY=...
+#
+# Exemplo: docker compose -f docker-compose.external-db.yml up -d
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sistema-familiar-backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      TZ: America/Sao_Paulo
+    ports:
+      - "8001:8001"
+    networks:
+      - sistema-familiar-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    container_name: sistema-familiar-frontend
+    environment:
+      TZ: America/Sao_Paulo
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - sistema-familiar-network
+    restart: unless-stopped
+
+networks:
+  sistema-familiar-network:
+    driver: bridge
