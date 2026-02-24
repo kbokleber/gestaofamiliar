@@ -19,11 +19,62 @@ A aplicação tem **3 partes**:
 | Arquivo | Quando usar |
 |---------|-------------|
 | **`docker-compose.yml`** | Cria um **PostgreSQL novo** dentro do projeto (container + volume). Use quando quiser tudo no mesmo stack. |
-| **`docker-compose.external-db.yml`** | **Não** sobe Postgres. O backend usa a variável **`DATABASE_URL`** apontando para um banco **já existente** (PostgreSQL do Coolify, outro servidor, etc.). |
+| **`docker-compose.external-db.yml`** | **Não** sobe Postgres. O backend usa a variável **`DATABASE_URL`** apontando para um banco **já existente** (PostgreSQL do Coolify, outro servidor, etc.). O frontend usa a **porta 3000** (evita conflito com a porta 80 já usada no servidor). |
 
-No Coolify você pode criar um **Database** (PostgreSQL) e depois usar `docker-compose.external-db.yml` com a URL que o Coolify fornece.
+No Coolify você pode criar um **Database** (PostgreSQL) e depois usar `docker-compose.external-db.yml` com a URL que o Coolify fornece. Ao configurar o domínio do frontend no Coolify, use a **porta 3000** (não 80).
 
 **Variáveis para banco externo** (`docker-compose.external-db.yml`): defina `DATABASE_URL` (ex.: `postgresql://usuario:senha@host:5432/banco`), `SECRET_KEY` e, se quiser, `VITE_API_URL`.
+
+---
+
+## Variáveis para copiar e colar
+
+O **host do banco** fica dentro da `DATABASE_URL`: `postgresql://usuario:senha@HOST:porta/nome_do_banco`. No Coolify, ao criar um Database PostgreSQL, ele informa o host (pode ser um hostname interno, ex.: `postgres.instancia` ou um IP).
+
+### Se usar `docker-compose.yml` (banco novo criado pelo próprio compose)
+
+Cole no Coolify em **Environment Variables** (uma linha por variável, no formato `NOME=valor`):
+
+```
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=coloque_uma_senha_forte_aqui
+POSTGRES_DB=sistema_familiar
+SECRET_KEY=cole_aqui_uma_chave_gerada_com_openssl_rand_hex_32
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+Para gerar `SECRET_KEY`: no terminal execute `openssl rand -hex 32` e use o resultado.
+
+---
+
+### Se usar `docker-compose.external-db.yml` (banco externo, ex.: PostgreSQL do Coolify)
+
+Substitua pelos dados reais que o Coolify (ou seu provedor) fornece: **host**, **porta**, **usuário**, **senha** e **nome do banco**. Cole no Coolify em **Environment Variables**:
+
+```
+DATABASE_URL=postgresql://USUARIO:SENHA@HOST:5432/NOME_DO_BANCO
+SECRET_KEY=cole_aqui_uma_chave_gerada_com_openssl_rand_hex_32
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+VITE_API_URL=https://api.seudominio.com
+```
+
+**Exemplo** (troque pelos seus dados):
+
+```
+DATABASE_URL=postgresql://postgres:minhasenha123@postgres.meuprojeto.svc:5432/sistema_familiar
+SECRET_KEY=a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef12
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+VITE_API_URL=https://api.seudominio.com
+```
+
+- **USUARIO** / **SENHA**: usuário e senha do PostgreSQL.
+- **HOST**: hostname ou IP do servidor do banco (no Coolify aparece na tela do recurso Database).
+- **5432**: porta padrão do PostgreSQL (ajuste se for outra).
+- **NOME_DO_BANCO**: nome do banco criado (ex.: `sistema_familiar`).
+- **VITE_API_URL**: URL pública do backend (para o frontend chamar a API). Se o front e a API forem no mesmo domínio com proxy em `/api`, use: `VITE_API_URL=/api`.
 
 ---
 
@@ -76,7 +127,7 @@ Assim o frontend fará requisições relativas para `/api`, e o proxy reverso do
 
 ### 4. Domínios e proxy no Coolify
 
-- Crie um **domínio** para o frontend (ex.: `app.seudominio.com`) e aponte para o serviço **frontend** (porta 80).
+- Crie um **domínio** para o frontend (ex.: `app.seudominio.com`) e aponte para o serviço **frontend** (porta **80** no `docker-compose.yml`; porta **3000** no `docker-compose.external-db.yml`).
 - Se quiser subdomínio para a API, crie outro domínio (ex.: `api.seudominio.com`) apontando para o **backend** (porta 8001).
 - Ou use um único domínio e configure no Coolify/Nginx um proxy:  
   `https://app.seudominio.com/api` → container backend:8001.
