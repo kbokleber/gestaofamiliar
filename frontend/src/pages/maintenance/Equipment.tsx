@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Settings, Plus, Edit2, Trash2, Save, Paperclip, ArrowLeft } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Settings, Plus, Edit2, Trash2, Save, Paperclip, ArrowLeft, Filter } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
@@ -43,6 +43,12 @@ export default function Equipment() {
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null)
+  const [filteredEquipment, setFilteredEquipment] = useState<Equipment[]>([])
+  const [filters, setFilters] = useState({
+    type: '',
+    status: '',
+    search: ''
+  })
   const [formData, setFormData] = useState({
     name: '',
     type: '',
@@ -86,6 +92,30 @@ export default function Equipment() {
   })
 
   const error = equipmentError ? (equipmentError as Error).message : null
+
+  const applyFilters = () => {
+    let filtered = [...equipment]
+    if (filters.type) {
+      filtered = filtered.filter(e => e.type === filters.type)
+    }
+    if (filters.status) {
+      filtered = filtered.filter(e => e.status === filters.status)
+    }
+    if (filters.search.trim()) {
+      const term = filters.search.trim().toLowerCase()
+      filtered = filtered.filter(e =>
+        (e.name && e.name.toLowerCase().includes(term)) ||
+        (e.brand && e.brand.toLowerCase().includes(term)) ||
+        (e.model && e.model.toLowerCase().includes(term)) ||
+        (e.serial_number && e.serial_number.toLowerCase().includes(term))
+      )
+    }
+    setFilteredEquipment(filtered)
+  }
+
+  useEffect(() => {
+    applyFilters()
+  }, [equipment, filters])
 
   // Função para invalidar cache e refetch
   const fetchEquipment = () => {
@@ -443,17 +473,70 @@ export default function Equipment() {
             </button>
           </div>
 
-          {equipment.length === 0 ? (
+          {/* Filtros */}
+          <div className="bg-white shadow rounded-lg p-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Busca</label>
+                <input
+                  type="text"
+                  value={filters.search}
+                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Nome, marca, modelo ou série..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select
+                  value={filters.type}
+                  onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Todos os tipos</option>
+                  {TYPE_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="">Todos os status</option>
+                  {STATUS_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={applyFilters}
+                  className="w-full px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center justify-center"
+                >
+                  <Filter className="mr-2 h-5 w-5" />
+                  Filtrar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {filteredEquipment.length === 0 ? (
         <div className="bg-white shadow rounded-lg p-6">
           <p className="text-gray-600 text-center py-8">
-            Nenhum equipamento cadastrado. Clique em "Novo Equipamento" para adicionar.
+            {equipment.length === 0
+              ? 'Nenhum equipamento cadastrado. Clique em "Novo Equipamento" para adicionar.'
+              : 'Nenhum equipamento encontrado com os filtros aplicados.'}
           </p>
         </div>
       ) : (
         <>
           {/* Visualização em Cards para Mobile/Tablet */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4 mb-6">
-            {equipment.map((item) => (
+            {filteredEquipment.map((item) => (
               <div key={item.id} className="bg-white shadow rounded-lg p-4 space-y-3">
                 {/* Cabeçalho do Card */}
                 <div className="flex items-start justify-between">
@@ -541,7 +624,7 @@ export default function Equipment() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {equipment.map((item) => (
+                {filteredEquipment.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
