@@ -1,5 +1,5 @@
-# Estágio 1: Build
-FROM node:18-alpine AS builder
+# Estágio 1: Build (Node 20 requerido por vite-plugin-pwa/workbox e outras deps)
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
