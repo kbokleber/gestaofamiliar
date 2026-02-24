@@ -23,8 +23,6 @@ services:
       TZ: America/Sao_Paulo
     ports:
       - "8001:8001"
-    networks:
-      - sistema-familiar-network
     restart: unless-stopped
 
   frontend:
@@ -41,10 +39,4 @@ services:
       - "3000:80"
     depends_on:
       - backend
-    networks:
-      - sistema-familiar-network
     restart: unless-stopped
-
-networks:
-  sistema-familiar-network:
-    driver: bridge

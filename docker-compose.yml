@@ -14,8 +14,6 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    networks:
-      - sistema-familiar-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
@@ -38,8 +36,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - sistema-familiar-network
     volumes:
       - ./backend:/app
     restart: unless-stopped
@@ -55,13 +51,7 @@ services:
       - "80:80"
     depends_on:
       - backend
-    networks:
-      - sistema-familiar-network
     restart: unless-stopped
-
-networks:
-  sistema-familiar-network:
-    driver: bridge
 
 volumes:
   postgres_data:

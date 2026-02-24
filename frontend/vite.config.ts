@@ -9,6 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
+      manifestFilename: 'manifest.json',
       workbox: {
         cleanupOutdatedCaches: true,
         skipWaiting: true,
