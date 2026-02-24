@@ -1,28 +1,48 @@
-# Use quando o banco PostgreSQL já existe fora do projeto
-# (Coolify Database, outro servidor, etc.)
-#
-# Defina no ambiente:
-#   DATABASE_URL=postgresql://usuario:senha@host:5432/nome_do_banco
-#   SECRET_KEY=...
+# Compose com PostgreSQL incluído (ideal para Coolify quando não quer usar recurso Database separado).
+# Defina no ambiente: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, SECRET_KEY.
+# Após o primeiro deploy, importe o backup no Postgres (DBeaver ou pg_restore).
 #
 # Exemplo: docker compose -f docker-compose.external-db.yml up -d
 
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: sistema-familiar-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-sistema_familiar_db}
+      TZ: America/Sao_Paulo
+      PGTZ: America/Sao_Paulo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: sistema-familiar-backend
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sistema_familiar_db}
       SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       TZ: America/Sao_Paulo
     ports:
       - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -40,3 +60,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  postgres_data:

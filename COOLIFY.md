@@ -14,16 +14,14 @@ A aplicação tem **3 partes**:
 
 ---
 
-## Banco novo ou banco externo?
+## Qual compose usar?
 
 | Arquivo | Quando usar |
 |---------|-------------|
-| **`docker-compose.yml`** | Cria um **PostgreSQL novo** dentro do projeto (container + volume). Use quando quiser tudo no mesmo stack. |
-| **`docker-compose.external-db.yml`** | **Não** sobe Postgres. O backend usa a variável **`DATABASE_URL`** apontando para um banco **já existente** (PostgreSQL do Coolify, outro servidor, etc.). O frontend usa a **porta 3000** (evita conflito com a porta 80 já usada no servidor). |
+| **`docker-compose.external-db.yml`** | **Recomendado no Coolify.** Inclui **PostgreSQL** + backend + frontend no mesmo stack. Frontend na **porta 3000** (evita conflito com a 80). Variáveis: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY`. Após o deploy, importe o backup no Postgres (DBeaver ou pg_restore). |
+| **`docker-compose.yml`** | Postgres + backend + frontend; frontend na porta 80. Útil para rodar local ou quando a 80 estiver livre. |
 
-No Coolify você pode criar um **Database** (PostgreSQL) e depois usar `docker-compose.external-db.yml` com a URL que o Coolify fornece. Ao configurar o domínio do frontend no Coolify, use a **porta 3000** (não 80).
-
-**Variáveis para banco externo** (`docker-compose.external-db.yml`): defina `DATABASE_URL` (ex.: `postgresql://usuario:senha@host:5432/banco`), `SECRET_KEY` e, se quiser, `VITE_API_URL`.
+No Coolify, use **`docker-compose.external-db.yml`** e configure o domínio do frontend para a **porta 3000**.
 
 ---
 
@@ -48,33 +46,25 @@ Para gerar `SECRET_KEY`: no terminal execute `openssl rand -hex 32` e use o resu
 
 ---
 
-### Se usar `docker-compose.external-db.yml` (banco externo, ex.: PostgreSQL do Coolify)
+### Se usar `docker-compose.external-db.yml` (Postgres dentro do compose – recomendado no Coolify)
 
-Substitua pelos dados reais que o Coolify (ou seu provedor) fornece: **host**, **porta**, **usuário**, **senha** e **nome do banco**. Cole no Coolify em **Environment Variables**:
+O Postgres sobe junto com a aplicação. Cole no Coolify em **Environment Variables** (obrigatório: `POSTGRES_PASSWORD` e `SECRET_KEY`):
 
 ```
-DATABASE_URL=postgresql://USUARIO:SENHA@HOST:5432/NOME_DO_BANCO
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=coloque_uma_senha_forte_aqui
+POSTGRES_DB=sistema_familiar_db
 SECRET_KEY=cole_aqui_uma_chave_gerada_com_openssl_rand_hex_32
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
-VITE_API_URL=https://api.seudominio.com
+VITE_API_URL=
 ```
 
-**Exemplo** (troque pelos seus dados):
+- **POSTGRES_PASSWORD**: senha do usuário postgres (obrigatória).
+- **POSTGRES_DB**: nome do banco (padrão `sistema_familiar_db`). Use o mesmo nome do backup para restaurar.
+- **VITE_API_URL**: deixe vazio para o frontend usar `/api` no mesmo domínio (o Nginx do front faz proxy para o backend).
 
-```
-DATABASE_URL=postgresql://postgres:minhasenha123@postgres.meuprojeto.svc:5432/sistema_familiar
-SECRET_KEY=a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef12
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-VITE_API_URL=https://api.seudominio.com
-```
-
-- **USUARIO** / **SENHA**: usuário e senha do PostgreSQL.
-- **HOST**: hostname ou IP do servidor do banco (no Coolify aparece na tela do recurso Database).
-- **5432**: porta padrão do PostgreSQL (ajuste se for outra).
-- **NOME_DO_BANCO**: nome do banco criado (ex.: `sistema_familiar`).
-- **VITE_API_URL**: URL pública do backend (para o frontend chamar a API). Se o front e a API forem no mesmo domínio com proxy em `/api`, use: `VITE_API_URL=/api`.
+Após o primeiro deploy, **importe o backup** no Postgres (DBeaver conectando no IP do servidor Coolify, porta 5432, ou use o terminal do Coolify para rodar `pg_restore`).
 
 ---
 
@@ -86,9 +76,7 @@ Coolify consegue subir o repositório inteiro como um **stack Docker Compose**.
 
 1. No Coolify: **Project** → **Add Resource** → **Docker Compose**.
 2. Conecte o repositório Git (GitHub/GitLab) com o projeto **SistemaFamiliar2.0**.
-3. Defina o **Docker Compose Location**:
-   - **Banco novo (tudo no projeto):** `docker-compose.yml`
-   - **Banco externo (Coolify DB ou outro):** `docker-compose.external-db.yml`
+3. Defina o **Docker Compose Location**: use **`docker-compose.external-db.yml`** (inclui Postgres; frontend na porta 3000).
 
 ### 2. Variáveis de ambiente
 
@@ -127,7 +115,11 @@ Assim o frontend fará requisições relativas para `/api`, e o proxy reverso do
 
 ### 4. Domínios e proxy no Coolify
 
-- Crie um **domínio** para o frontend (ex.: `app.seudominio.com`) e aponte para o serviço **frontend** (porta **80** no `docker-compose.yml`; porta **3000** no `docker-compose.external-db.yml`).
+- Crie um **domínio** para o frontend (ex.: `app.seudominio.com`) e aponte para o serviço **frontend**.
+  - **Importante:** no Coolify, ao vincular o domínio ao serviço **frontend**, informe a **porta da aplicação**:
+    - Se usa **`docker-compose.yml`** (banco novo): porta **80**.
+    - Se usa **`docker-compose.external-db.yml`** (banco externo): porta **3000** (o compose publica `3000:80` para evitar conflito com a 80 do servidor).
+  - Se a porta ficar errada (ex.: 80 quando o compose expõe 3000), o site pode dar **"Não é possível acessar esse site" / ERR_CONNECTION_RESET** mesmo com o build ok.
 - Se quiser subdomínio para a API, crie outro domínio (ex.: `api.seudominio.com`) apontando para o **backend** (porta 8001).
 - Ou use um único domínio e configure no Coolify/Nginx um proxy:  
   `https://app.seudominio.com/api` → container backend:8001.
@@ -188,6 +180,84 @@ Se o backend usar migrações (Alembic ou scripts), após o primeiro deploy aces
 alembic upgrade head
 # ou
 python -m app.scripts.create_tables
+```
+
+---
+
+## Backup e restauração do PostgreSQL
+
+Use estes passos para fazer backup de um banco (ex.: servidor atual) e importar no PostgreSQL do Coolify. **Não coloque senhas no repositório** — use variáveis de ambiente ou digite quando pedido.
+
+### 1. Fazer o backup do banco atual
+
+No PowerShell (ou terminal), com [PostgreSQL client](https://www.postgresql.org/download/windows/) instalado, ou usando Docker:
+
+**Opção A – pg_dump instalado na máquina**
+
+```powershell
+# Substitua pela sua URL de origem (ou use variável de ambiente)
+$env:PGPASSWORD = "sua_senha"
+pg_dump -h 89.116.186.192 -p 5432 -U postgres -d sistema_familiar_db -Fc -f backup_sistema_familiar.dump
+```
+
+**Opção B – usando Docker (não precisa instalar PostgreSQL)**
+
+```powershell
+docker run --rm -v "${PWD}:/backup" postgres:15-alpine pg_dump "postgresql://postgres:SUA_SENHA@89.116.186.192:5432/sistema_familiar_db" -Fc -f /backup/backup_sistema_familiar.dump
+```
+
+- `-Fc` = formato custom (compacto, ideal para `pg_restore`).
+- O arquivo `backup_sistema_familiar.dump` será criado na pasta atual.
+
+### 2. No Coolify: criar o banco e pegar a URL
+
+1. No Coolify: **Project** → **Add Resource** → **Database** → **PostgreSQL**.
+2. Crie o banco (ex.: nome `sistema_familiar` ou `sistema_familiar_db`).
+3. Anote a **connection string** que o Coolify mostra (host, porta, usuário, senha, nome do banco). Ela costuma ser algo como:
+   - `postgresql://usuario:senha@host:5432/nome_do_banco`
+   - O host pode ser interno (ex.: `postgres.instancia.svc`) ou um IP/domínio que o Coolify informar.
+
+### 3. Restaurar o backup no PostgreSQL do Coolify
+
+O Coolify pode expor o PostgreSQL na rede (porta pública ou rede interna). Você precisa conseguir conectar do seu PC ou de um container ao host:porta do banco.
+
+**Opção A – Conexão direta (Coolify expõe a porta do banco)**
+
+```powershell
+# Substitua HOST, PORTA, USUARIO, SENHA e NOME_DO_BANCO pelos dados que o Coolify mostrou
+$env:PGPASSWORD = "SENHA_DO_COOLIFY"
+pg_restore -h HOST -p PORTA -U USUARIO -d NOME_DO_BANCO --clean --if-exists --no-owner backup_sistema_familiar.dump
+```
+
+**Opção B – Usando Docker (funciona mesmo sem pg_restore instalado)**
+
+Coloque `backup_sistema_familiar.dump` na pasta atual. Substitua `HOST`, `PORTA`, `USUARIO`, `SENHA` e `NOME_DO_BANCO` pelos dados do PostgreSQL do Coolify. Se o Coolify estiver em outro servidor, use o IP ou domínio desse servidor.
+
+```powershell
+docker run --rm -v "${PWD}:/backup" -e PGPASSWORD=SENHA postgres:15-alpine pg_restore -h HOST -p PORTA -U USUARIO -d NOME_DO_BANCO --clean --if-exists --no-owner /backup/backup_sistema_familiar.dump
+```
+
+Exemplo (Coolify no IP 192.168.1.10, porta 5432):
+
+```powershell
+docker run --rm -v "${PWD}:/backup" -e PGPASSWORD=minhasenha postgres:15-alpine pg_restore -h 192.168.1.10 -p 5432 -U postgres -d sistema_familiar_db --clean --if-exists --no-owner /backup/backup_sistema_familiar.dump
+```
+
+### 4. Após a restauração
+
+1. No recurso **Docker Compose** (ou Application) do Sistema Familiar no Coolify, defina **DATABASE_URL** com a connection string do **novo** banco (o que você acabou de restaurar).
+2. Faça um novo deploy ou reinicie o backend para ele usar o banco com os dados importados.
+
+### Dica: backup em SQL (texto)
+
+Se preferir um arquivo `.sql` (mais fácil de inspecionar ou importar em outros sistemas):
+
+```powershell
+# Backup
+docker run --rm -v "${PWD}:/backup" postgres:15-alpine pg_dump "postgresql://postgres:SUA_SENHA@89.116.186.192:5432/sistema_familiar_db" -f /backup/backup.sql
+
+# Restore (no Coolify)
+docker run --rm -v "${PWD}:/backup" -e PGPASSWORD=SENHA_COOLIFY postgres:15-alpine psql "postgresql://USUARIO@HOST:PORTA/NOME_DO_BANCO" -f /backup/backup.sql
 ```
 
 ---
