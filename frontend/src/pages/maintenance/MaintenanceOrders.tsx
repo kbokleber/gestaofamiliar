@@ -504,6 +504,20 @@ export default function MaintenanceOrders() {
 
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 space-y-6">
+              {/* Mobile: Anexos no topo para ficar visível no celular */}
+              <div className="md:hidden p-4 bg-purple-50 rounded-lg border border-purple-200">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Paperclip className="h-5 w-5 text-purple-600" />
+                  Anexos / Documentos
+                </h3>
+                <DocumentUpload
+                  documents={documents}
+                  onChange={setDocuments}
+                  maxFiles={10}
+                  maxSizeMB={10}
+                />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 {/* Coluna Esquerda */}
                 <div className="space-y-4 md:space-y-6">
@@ -669,8 +683,8 @@ export default function MaintenanceOrders() {
                     />
                   </div>
 
-                  {/* Upload de Documentos */}
-                  <div>
+                  {/* Upload de Documentos (apenas desktop; no mobile aparece no topo) */}
+                  <div className="hidden md:block">
                     <DocumentUpload
                       documents={documents}
                       onChange={setDocuments}
@@ -955,6 +969,20 @@ export default function MaintenanceOrders() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+            {/* Mobile: Anexos no topo para ficar visível no celular */}
+            <div className="md:hidden p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Paperclip className="h-5 w-5 text-purple-600" />
+                Anexos / Documentos
+              </h3>
+              <DocumentUpload
+                documents={documents}
+                onChange={setDocuments}
+                maxFiles={10}
+                maxSizeMB={10}
+              />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               {/* Coluna Esquerda */}
               <div className="space-y-4 md:space-y-6">
@@ -1039,8 +1067,8 @@ export default function MaintenanceOrders() {
                   />
                 </div>
 
-                {/* Upload de Documentos */}
-                <div>
+                {/* Upload de Documentos (apenas desktop; no mobile aparece no topo) */}
+                <div className="hidden md:block">
                   <DocumentUpload
                     documents={documents}
                     onChange={setDocuments}

@@ -1,5 +1,6 @@
 # Compose com PostgreSQL incluído (ideal para Coolify quando não quer usar recurso Database separado).
-# Defina no ambiente: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, SECRET_KEY.
+# Obrigatório no ambiente: POSTGRES_PASSWORD e SECRET_KEY (se POSTGRES_PASSWORD estiver vazio, o container falha).
+# Opcional: POSTGRES_USER (padrão postgres), POSTGRES_DB (padrão sistema_familiar_db).
 # Após o primeiro deploy, importe o backup no Postgres (DBeaver ou pg_restore).
 #
 # Exemplo: docker compose -f docker-compose.external-db.yml up -d
@@ -21,10 +22,11 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U postgres -q"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
     restart: unless-stopped
 
   backend:
