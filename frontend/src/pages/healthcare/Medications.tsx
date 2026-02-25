@@ -46,6 +46,9 @@ const FREQUENCY_OPTIONS = [
   { value: 'as_needed', label: 'Conforme necessário' },
 ]
 
+const EMPTY_MEDICATIONS: Medication[] = []
+const EMPTY_MEMBERS: FamilyMember[] = []
+
 export default function Medications() {
   const queryClient = useQueryClient()
   const [filteredMedications, setFilteredMedications] = useState<Medication[]>([])
@@ -73,8 +76,8 @@ export default function Medications() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
-  // React Query para cache automático
-  const { data: medications = [], isLoading: loading, error: medicationsError } = useQuery<Medication[]>({
+  // React Query com defaults estáveis para evitar loop de re-render
+  const { data: medications = EMPTY_MEDICATIONS, isLoading: loading, error: medicationsError } = useQuery<Medication[]>({
     queryKey: ['healthcare-medications', showActiveOnly],
     queryFn: async () => {
       const response = await api.get('/healthcare/medications', {
@@ -84,7 +87,7 @@ export default function Medications() {
     }
   })
 
-  const { data: members = [] } = useQuery<FamilyMember[]>({
+  const { data: members = EMPTY_MEMBERS } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
     queryFn: async () => {
       const response = await api.get('/healthcare/members')
@@ -95,8 +98,29 @@ export default function Medications() {
   const error = medicationsError ? (medicationsError as Error).message : null
 
   useEffect(() => {
-    applyFilters()
-  }, [medications, filters])
+    let filtered = [...medications]
+    if (filters.member_id > 0) {
+      filtered = filtered.filter(medication => medication.family_member_id === filters.member_id)
+    }
+    if (filters.start_date) {
+      const startDate = new Date(filters.start_date)
+      startDate.setHours(0, 0, 0, 0)
+      filtered = filtered.filter(medication => {
+        const medicationDate = new Date(medication.start_date)
+        medicationDate.setHours(0, 0, 0, 0)
+        return medicationDate >= startDate
+      })
+    }
+    if (filters.end_date) {
+      const endDate = new Date(filters.end_date)
+      endDate.setHours(23, 59, 59, 999)
+      filtered = filtered.filter(medication => {
+        const medicationDate = new Date(medication.start_date)
+        return medicationDate <= endDate
+      })
+    }
+    setFilteredMedications(filtered)
+  }, [medications, filters.member_id, filters.start_date, filters.end_date])
 
   // Função para invalidar cache e refetch
   const fetchMedications = () => {

@@ -40,6 +40,15 @@ export default function Login() {
       if (import.meta.env.DEV) {
         console.error('Erro no login:', err)
       }
+      // Erro de rede / servidor não responde
+      if (err.code === 'ECONNREFUSED' || err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
+        setError('Não foi possível conectar ao servidor. Verifique se o backend está rodando (ex: porta 8001 ou 8081).')
+        return
+      }
+      if (err.code === 'ECONNABORTED') {
+        setError('O servidor demorou para responder. Tente novamente.')
+        return
+      }
       const raw = err.response?.data?.detail ?? err.message ?? 'Erro ao fazer login'
       const errorMsg = Array.isArray(raw) ? raw.map((x: { msg?: string }) => x?.msg ?? String(x)).join('. ') : String(raw)
       setError(errorMsg || 'Erro ao fazer login')

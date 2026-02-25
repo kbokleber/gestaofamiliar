@@ -32,6 +32,9 @@ interface Appointment {
   family_member?: FamilyMember
 }
 
+const EMPTY_APPOINTMENTS: Appointment[] = []
+const EMPTY_MEMBERS: FamilyMember[] = []
+
 export default function Appointments() {
   const queryClient = useQueryClient()
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([])
@@ -58,8 +61,8 @@ export default function Appointments() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
-  // React Query para cache automático
-  const { data: appointments = [], isLoading: loadingAppointments, error: appointmentsError } = useQuery<Appointment[]>({
+  // React Query com defaults estáveis para evitar loop de re-render (Maximum update depth)
+  const { data: appointments = EMPTY_APPOINTMENTS, isLoading: loadingAppointments, error: appointmentsError } = useQuery<Appointment[]>({
     queryKey: ['healthcare-appointments'],
     queryFn: async () => {
       const response = await api.get('/healthcare/appointments')
@@ -67,7 +70,7 @@ export default function Appointments() {
     }
   })
 
-  const { data: members = [] } = useQuery<FamilyMember[]>({
+  const { data: members = EMPTY_MEMBERS } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
     queryFn: async () => {
       const response = await api.get('/healthcare/members')
@@ -79,46 +82,58 @@ export default function Appointments() {
   const error = appointmentsError ? (appointmentsError as Error).message : null
 
   useEffect(() => {
-    applyFilters()
-  }, [appointments, showUpcomingOnly, filters])
-
-  const applyFilters = () => {
     let filtered = [...appointments]
 
-    // Filtro por membro
     if (filters.member_id > 0) {
       filtered = filtered.filter(appointment => appointment.family_member_id === filters.member_id)
     }
-
-    // Filtro por data inicial (considera data/hora completa)
     if (filters.start_date) {
       const startDate = new Date(filters.start_date)
       startDate.setHours(0, 0, 0, 0)
       filtered = filtered.filter(appointment => {
         const appointmentDate = new Date(appointment.appointment_date)
-        // Compara mantendo a hora original do appointment_date
         return appointmentDate >= startDate
       })
     }
-
-    // Filtro por data final (considera data/hora completa)
     if (filters.end_date) {
       const endDate = new Date(filters.end_date)
       endDate.setHours(23, 59, 59, 999)
       filtered = filtered.filter(appointment => {
         const appointmentDate = new Date(appointment.appointment_date)
-        // Compara mantendo a hora original do appointment_date
         return appointmentDate <= endDate
       })
     }
-
-    // Filtro por próximas consultas (sem problemas de timezone)
     if (showUpcomingOnly) {
-      filtered = filtered.filter(appointment => {
-        return isFutureDateTime(appointment.appointment_date)
-      })
+      filtered = filtered.filter(appointment => isFutureDateTime(appointment.appointment_date))
     }
 
+    setFilteredAppointments(filtered)
+  }, [appointments, showUpcomingOnly, filters.member_id, filters.start_date, filters.end_date])
+
+  const applyFilters = () => {
+    let filtered = [...appointments]
+    if (filters.member_id > 0) {
+      filtered = filtered.filter(appointment => appointment.family_member_id === filters.member_id)
+    }
+    if (filters.start_date) {
+      const startDate = new Date(filters.start_date)
+      startDate.setHours(0, 0, 0, 0)
+      filtered = filtered.filter(appointment => {
+        const appointmentDate = new Date(appointment.appointment_date)
+        return appointmentDate >= startDate
+      })
+    }
+    if (filters.end_date) {
+      const endDate = new Date(filters.end_date)
+      endDate.setHours(23, 59, 59, 999)
+      filtered = filtered.filter(appointment => {
+        const appointmentDate = new Date(appointment.appointment_date)
+        return appointmentDate <= endDate
+      })
+    }
+    if (showUpcomingOnly) {
+      filtered = filtered.filter(appointment => isFutureDateTime(appointment.appointment_date))
+    }
     setFilteredAppointments(filtered)
   }
 

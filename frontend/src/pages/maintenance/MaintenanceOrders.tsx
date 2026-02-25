@@ -41,6 +41,9 @@ const STATUS_OPTIONS = [
   { value: 'CANCELADA', label: 'Cancelada' }
 ]
 
+const EMPTY_ORDERS: MaintenanceOrder[] = []
+const EMPTY_EQUIPMENT_LIST: Equipment[] = []
+
 export default function MaintenanceOrders() {
   const queryClient = useQueryClient()
   const [filteredOrders, setFilteredOrders] = useState<MaintenanceOrder[]>([])
@@ -87,8 +90,8 @@ export default function MaintenanceOrders() {
     }
   }
 
-  // Primeira query: carregar ordens SEM documentos (rápido)
-  const { data: orders = [], isLoading: loading, error: ordersError } = useQuery<MaintenanceOrder[]>({
+  // Queries com defaults estáveis para evitar loop de re-render
+  const { data: orders = EMPTY_ORDERS, isLoading: loading, error: ordersError } = useQuery<MaintenanceOrder[]>({
     queryKey: ['maintenance-orders'],
     queryFn: async () => {
       // Carregar sem documentos para ser mais rápido
@@ -107,7 +110,7 @@ export default function MaintenanceOrders() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: equipment = [], isLoading: equipmentLoading, error: equipmentError } = useQuery<Equipment[]>({
+  const { data: equipment = EMPTY_EQUIPMENT_LIST, isLoading: equipmentLoading, error: equipmentError } = useQuery<Equipment[]>({
     queryKey: ['maintenance-equipment'],
     queryFn: async () => {
       // Carregar sem documentos para ser mais rápido
@@ -153,8 +156,28 @@ export default function MaintenanceOrders() {
   const error = ordersError ? (ordersError as Error).message : null
 
   useEffect(() => {
-    applyFilters()
-  }, [orders, filters])
+    let filtered = [...orders]
+    if (filters.equipment_id > 0) {
+      filtered = filtered.filter(order => order.equipment_id === filters.equipment_id)
+    }
+    if (filters.start_date) {
+      const startDate = new Date(filters.start_date)
+      startDate.setHours(0, 0, 0, 0)
+      filtered = filtered.filter(order => {
+        if (!order.completion_date) return false
+        return new Date(order.completion_date) >= startDate
+      })
+    }
+    if (filters.end_date) {
+      const endDate = new Date(filters.end_date)
+      endDate.setHours(23, 59, 59, 999)
+      filtered = filtered.filter(order => {
+        if (!order.completion_date) return false
+        return new Date(order.completion_date) <= endDate
+      })
+    }
+    setFilteredOrders(filtered)
+  }, [orders, filters.equipment_id, filters.start_date, filters.end_date])
 
   // Função para invalidar cache e refetch
   const fetchOrders = () => {

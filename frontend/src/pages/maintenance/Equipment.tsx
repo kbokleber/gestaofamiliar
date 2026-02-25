@@ -38,6 +38,8 @@ const TYPE_OPTIONS = [
   { value: 'outro', label: 'Outro' }
 ]
 
+const EMPTY_EQUIPMENT: Equipment[] = []
+
 export default function Equipment() {
   const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
@@ -72,13 +74,11 @@ export default function Equipment() {
     }
   }
 
-  // React Query para cache automático - carregar SEM documentos para ser mais rápido
-  const { data: equipment = [], isLoading: loading, error: equipmentError } = useQuery<Equipment[]>({
+  // React Query com default estável para evitar loop de re-render
+  const { data: equipment = EMPTY_EQUIPMENT, isLoading: loading, error: equipmentError } = useQuery<Equipment[]>({
     queryKey: ['maintenance-equipment'],
     queryFn: async () => {
-      // Carregar sem documentos para ser mais rápido
       const response = await api.get('/maintenance/equipment', { params: { include_documents: false } })
-      // Salvar apenas dados essenciais no cache
       try {
         const cacheData = response.data.map((e: Equipment) => ({
           id: e.id, name: e.name, type: e.type, status: e.status
@@ -114,8 +114,24 @@ export default function Equipment() {
   }
 
   useEffect(() => {
-    applyFilters()
-  }, [equipment, filters])
+    let filtered = [...equipment]
+    if (filters.type) {
+      filtered = filtered.filter(e => e.type === filters.type)
+    }
+    if (filters.status) {
+      filtered = filtered.filter(e => e.status === filters.status)
+    }
+    if (filters.search.trim()) {
+      const term = filters.search.trim().toLowerCase()
+      filtered = filtered.filter(e =>
+        (e.name && e.name.toLowerCase().includes(term)) ||
+        (e.brand && e.brand.toLowerCase().includes(term)) ||
+        (e.model && e.model.toLowerCase().includes(term)) ||
+        (e.serial_number && e.serial_number.toLowerCase().includes(term))
+      )
+    }
+    setFilteredEquipment(filtered)
+  }, [equipment, filters.type, filters.status, filters.search])
 
   // Função para invalidar cache e refetch
   const fetchEquipment = () => {

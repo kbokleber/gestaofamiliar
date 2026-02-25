@@ -31,6 +31,9 @@ interface Procedure {
   family_member?: FamilyMember
 }
 
+const EMPTY_PROCEDURES: Procedure[] = []
+const EMPTY_MEMBERS: FamilyMember[] = []
+
 export default function Procedures() {
   const queryClient = useQueryClient()
   const [filteredProcedures, setFilteredProcedures] = useState<Procedure[]>([])
@@ -55,8 +58,8 @@ export default function Procedures() {
   })
   const [documents, setDocuments] = useState<Document[]>([])
 
-  // React Query para cache automático
-  const { data: procedures = [], isLoading: loading, error: proceduresError } = useQuery<Procedure[]>({
+  // React Query para cache automático (default estável evita loop de re-render)
+  const { data: procedures = EMPTY_PROCEDURES, isLoading: loading, error: proceduresError } = useQuery<Procedure[]>({
     queryKey: ['healthcare-procedures'],
     queryFn: async () => {
       const response = await api.get('/healthcare/procedures')
@@ -64,7 +67,7 @@ export default function Procedures() {
     }
   })
 
-  const { data: members = [] } = useQuery<FamilyMember[]>({
+  const { data: members = EMPTY_MEMBERS } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
     queryFn: async () => {
       const response = await api.get('/healthcare/members')
@@ -75,39 +78,53 @@ export default function Procedures() {
   const error = proceduresError ? (proceduresError as Error).message : null
 
   useEffect(() => {
-    applyFilters()
-  }, [procedures, filters])
-
-  const applyFilters = () => {
     let filtered = [...procedures]
 
-    // Filtro por membro
     if (filters.member_id > 0) {
       filtered = filtered.filter(procedure => procedure.family_member_id === filters.member_id)
     }
-
-    // Filtro por data inicial (considera data/hora completa)
     if (filters.start_date) {
       const startDate = new Date(filters.start_date)
       startDate.setHours(0, 0, 0, 0)
       filtered = filtered.filter(procedure => {
         const procedureDate = new Date(procedure.procedure_date)
-        // Compara mantendo a hora original do procedure_date
         return procedureDate >= startDate
       })
     }
-
-    // Filtro por data final (considera data/hora completa)
     if (filters.end_date) {
       const endDate = new Date(filters.end_date)
       endDate.setHours(23, 59, 59, 999)
       filtered = filtered.filter(procedure => {
         const procedureDate = new Date(procedure.procedure_date)
-        // Compara mantendo a hora original do procedure_date
         return procedureDate <= endDate
       })
     }
 
+    setFilteredProcedures(filtered)
+  }, [procedures, filters.member_id, filters.start_date, filters.end_date])
+
+  const applyFilters = () => {
+    let filtered = [...procedures]
+
+    if (filters.member_id > 0) {
+      filtered = filtered.filter(procedure => procedure.family_member_id === filters.member_id)
+    }
+    if (filters.start_date) {
+      const startDate = new Date(filters.start_date)
+      startDate.setHours(0, 0, 0, 0)
+      filtered = filtered.filter(procedure => {
+        const procedureDate = new Date(procedure.procedure_date)
+        return procedureDate >= startDate
+      })
+    }
+    if (filters.end_date) {
+      const endDate = new Date(filters.end_date)
+      endDate.setHours(23, 59, 59, 999)
+      filtered = filtered.filter(procedure => {
+        const procedureDate = new Date(procedure.procedure_date)
+        return procedureDate <= endDate
+      })
+    }
     setFilteredProcedures(filtered)
   }
 

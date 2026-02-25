@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = "development"
     
+    # ----- Telegram / IA (config por família; esta URL é usada para registrar webhook) -----
+    BACKEND_PUBLIC_URL: Optional[str] = None  # ex: https://api.seudominio.com (para setWebhook por família)
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

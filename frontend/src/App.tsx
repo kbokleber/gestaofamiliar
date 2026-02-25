@@ -13,6 +13,7 @@ import Equipment from './pages/maintenance/Equipment'
 import MaintenanceOrders from './pages/maintenance/MaintenanceOrders'
 import AdminUsers from './pages/admin/Users'
 import AdminFamilies from './pages/admin/Families'
+import TelegramConfig from './pages/settings/TelegramConfig'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -38,6 +39,9 @@ function App() {
         {/* Maintenance Routes */}
         <Route path="/maintenance/equipment" element={<Equipment />} />
         <Route path="/maintenance/orders" element={<MaintenanceOrders />} />
+        
+        {/* Settings */}
+        <Route path="/settings/telegram" element={<TelegramConfig />} />
         
         {/* Admin Routes */}
         <Route path="/admin/users" element={<AdminUsers />} />

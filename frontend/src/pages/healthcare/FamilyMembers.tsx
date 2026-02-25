@@ -71,7 +71,7 @@ export default function FamilyMembers() {
   }
 
   // Primeira query: carregar membros SEM fotos (rápido)
-  const { data: membersWithoutPhotos = [], isLoading: loadingBasic } = useQuery<FamilyMember[]>({
+  const { data: membersWithoutPhotos = [], isLoading: loadingBasic, error: membersBasicError } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members-basic'],
     queryFn: async () => {
       const token = useAuthStore.getState().token
@@ -109,7 +109,7 @@ export default function FamilyMembers() {
   // Usar membros com fotos se disponíveis, senão usar sem fotos
   const membersData = membersWithPhotos.length > 0 ? membersWithPhotos : membersWithoutPhotos
   const loading = loadingBasic
-  const queryError = null
+  const queryError = membersBasicError
 
   const members = membersData
   const error = queryError ? (queryError as Error).message : null

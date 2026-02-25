@@ -21,4 +21,6 @@ class Family(Base):
     users_many = relationship("User", secondary="user_families", back_populates="families")  # Relação N:N (múltiplas famílias)
     family_members = relationship("FamilyMember", back_populates="family", cascade="all, delete-orphan")
     equipment = relationship("Equipment", back_populates="family", cascade="all, delete-orphan")
+    telegram_config = relationship("FamilyTelegramConfig", back_populates="family", uselist=False, cascade="all, delete-orphan")
+    ai_config = relationship("FamilyAIConfig", back_populates="family", uselist=False, cascade="all, delete-orphan")
 

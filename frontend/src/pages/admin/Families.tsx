@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
-import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, ChevronUp, Bot, Sparkles, Key, Loader2, CheckCircle } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import Loading from '../../components/Loading'
@@ -26,6 +26,19 @@ interface FamilyUser {
   is_superuser: boolean
 }
 
+interface FamilyBotConfig {
+  configured: boolean
+  bot_username: string | null
+}
+
+interface FamilyAIConfig {
+  enabled: boolean
+  provider: string
+  openai_model: string | null
+  has_openai_key: boolean
+  has_azure_config: boolean
+}
+
 export default function AdminFamilies() {
   const { user: currentUser } = useAuthStore()
   const queryClient = useQueryClient()
@@ -41,6 +54,21 @@ export default function AdminFamilies() {
   const [expandedFamily, setExpandedFamily] = useState<number | null>(null)
   const [showAddUserModal, setShowAddUserModal] = useState(false)
   const [selectedUserToAdd, setSelectedUserToAdd] = useState<number | null>(null)
+
+  // Telegram e IA (no modal de edição)
+  const [botToken, setBotToken] = useState('')
+  const [savingBot, setSavingBot] = useState(false)
+  const [aiEnabled, setAiEnabled] = useState(true)
+  const [aiProvider, setAiProvider] = useState<'openai' | 'azure' | 'none'>('openai')
+  const [openaiKey, setOpenaiKey] = useState('')
+  const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini')
+  const [azureEndpoint, setAzureEndpoint] = useState('')
+  const [azureKey, setAzureKey] = useState('')
+  const [azureDeployment, setAzureDeployment] = useState('')
+  const [savingAi, setSavingAi] = useState(false)
+  const [telegramError, setTelegramError] = useState('')
+  const [telegramSuccess, setTelegramSuccess] = useState('')
+  const [aiSuccess, setAiSuccess] = useState('')
 
   // Verificar se é admin (apenas superuser)
   const isAdmin = currentUser?.is_superuser
@@ -59,6 +87,99 @@ export default function AdminFamilies() {
   const filteredFamilies = families.filter(family =>
     family.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  // Carregar config Telegram/IA da família ao abrir modal de edição
+  const familyIdForConfig = showEditModal && selectedFamily ? selectedFamily.id : null
+  const { data: familyBotConfig } = useQuery<FamilyBotConfig>({
+    queryKey: ['telegram', 'family', 'bot', familyIdForConfig],
+    queryFn: async () => {
+      const { data } = await api.get('/telegram/family/bot', { params: { family_id: familyIdForConfig } })
+      return data
+    },
+    enabled: !!familyIdForConfig,
+  })
+  const { data: familyAIConfig, refetch: refetchFamilyAI } = useQuery<FamilyAIConfig>({
+    queryKey: ['telegram', 'family', 'ai', familyIdForConfig],
+    queryFn: async () => {
+      const { data } = await api.get('/telegram/family/ai', { params: { family_id: familyIdForConfig } })
+      return data
+    },
+    enabled: !!familyIdForConfig,
+  })
+
+  const handleSaveFamilyBot = async () => {
+    if (!selectedFamily) return
+    setSavingBot(true)
+    setTelegramError('')
+    setTelegramSuccess('')
+    try {
+      const { data } = await api.put('/telegram/family/bot', { bot_token: botToken }, { params: { family_id: selectedFamily.id } })
+      queryClient.invalidateQueries({ queryKey: ['telegram', 'family', 'bot', selectedFamily.id] })
+      setBotToken('')
+      setTelegramSuccess(data?.bot_username ? `Token salvo. Bot configurado: ${data.bot_username}` : 'Token do bot salvo com sucesso.')
+    } catch (err: any) {
+      const d = err.response?.data?.detail
+      setTelegramError(typeof d === 'string' ? d : Array.isArray(d) ? d.map((x: any) => x.msg || JSON.stringify(x)).join('. ') : 'Erro ao salvar token.')
+    } finally {
+      setSavingBot(false)
+    }
+  }
+
+  const handleSaveFamilyAI = async () => {
+    if (!selectedFamily) return
+    setSavingAi(true)
+    setTelegramError('')
+    setAiSuccess('')
+    try {
+      await api.put(
+        '/telegram/family/ai',
+        {
+          enabled: aiEnabled,
+          provider: aiProvider,
+          openai_api_key: openaiKey || undefined,
+          openai_model: openaiModel,
+          azure_endpoint: azureEndpoint || undefined,
+          azure_api_key: azureKey || undefined,
+          azure_deployment: azureDeployment || undefined,
+        },
+        { params: { family_id: selectedFamily.id } }
+      )
+      queryClient.invalidateQueries({ queryKey: ['telegram', 'family', 'ai', selectedFamily.id] })
+      refetchFamilyAI()
+      setAiSuccess('Configuração de IA salva com sucesso.')
+    } catch (err: any) {
+      const detail = err.response?.data?.detail
+      const msg = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: any) => d.msg || JSON.stringify(d)).join('. ')
+          : 'Erro ao salvar configuração de IA.'
+      setTelegramError(msg)
+    } finally {
+      setSavingAi(false)
+    }
+  }
+
+  // Sincronizar formulário de IA quando carregar config da família
+  useEffect(() => {
+    if (!familyAIConfig) return
+    setAiEnabled(familyAIConfig.enabled)
+    setAiProvider((familyAIConfig.provider as 'openai' | 'azure' | 'none') || 'openai')
+    setOpenaiModel(familyAIConfig.openai_model || 'gpt-4o-mini')
+  }, [familyAIConfig])
+
+  // Limpar campos sensíveis e mensagens ao trocar de família
+  useEffect(() => {
+    if (!selectedFamily) return
+    setBotToken('')
+    setOpenaiKey('')
+    setAzureEndpoint('')
+    setAzureKey('')
+    setAzureDeployment('')
+    setTelegramError('')
+    setTelegramSuccess('')
+    setAiSuccess('')
+  }, [selectedFamily?.id])
 
   // Mutação para criar família
   const createFamilyMutation = useMutation({
@@ -700,10 +821,12 @@ export default function AdminFamilies() {
           setSelectedFamily(null)
           setFamilyData({ name: '' })
           setError('')
+          setTelegramError('')
+          setBotToken('')
         }}
         title={`Editar Família - ${selectedFamily?.name}`}
       >
-        <div className="space-y-4">
+        <div className="space-y-6 max-h-[80vh] overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nome da Família *
@@ -720,6 +843,177 @@ export default function AdminFamilies() {
             />
           </div>
 
+          {/* Telegram e IA - só para esta família */}
+          <div className="border-t border-gray-200 pt-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Bot className="h-4 w-4 text-purple-500" />
+              Bot da família (Telegram)
+            </h3>
+            <p className="text-xs text-gray-600 mb-2">
+              Token do @BotFather. Só precisa fazer uma vez por família.
+            </p>
+            {familyBotConfig?.configured && (
+              <div className="space-y-1 mb-2">
+                <div className="flex items-center gap-2 text-green-700 text-sm">
+                  <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>Token do bot: <strong>incluído</strong> (oculto por segurança)</span>
+                </div>
+                {familyBotConfig.bot_username && (
+                  <div className="flex items-center gap-2 text-green-700 text-sm pl-6">
+                    Bot: {familyBotConfig.bot_username}
+                  </div>
+                )}
+              </div>
+            )}
+            {!familyBotConfig?.configured && (
+              <p className="text-xs text-gray-500 mb-1">O token nunca é exibido após salvar (segurança). Após salvar, aparecerá aqui que foi incluído.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <input
+                type="password"
+                placeholder={familyBotConfig?.configured ? 'Novo token (só para alterar)' : 'Token do bot (ex: 123456:ABC...)'}
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+                className="flex-1 min-w-[180px] px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <Button
+                onClick={handleSaveFamilyBot}
+                disabled={savingBot || !botToken.trim()}
+                className="inline-flex items-center gap-2"
+              >
+                {savingBot ? <Loader2 className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
+                Salvar token
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              API de IA da família
+            </h3>
+            <p className="text-xs text-gray-600 mb-3">
+              Para o bot responder em linguagem natural (OpenAI ou Azure). Cada família usa sua própria chave.
+            </p>
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={aiEnabled}
+                  onChange={(e) => setAiEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-purple-500 focus:ring-purple-500"
+                />
+                <span className="text-sm font-medium text-gray-700">IA ativada para esta família</span>
+              </label>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Provedor</label>
+                <select
+                  value={aiProvider}
+                  onChange={(e) => setAiProvider(e.target.value as 'openai' | 'azure' | 'none')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="openai">OpenAI (GPT)</option>
+                  <option value="azure">Azure OpenAI</option>
+                  <option value="none">Desligado</option>
+                </select>
+              </div>
+              {aiProvider === 'openai' && (
+                <>
+                  {familyAIConfig?.has_openai_key && (
+                    <div className="flex items-center gap-2 text-green-700 text-sm mb-2">
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                      <span>Chave OpenAI/GPT: <strong>já incluída</strong> (oculta por segurança)</span>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Chave da API OpenAI (GPT)</label>
+                    <input
+                      type="password"
+                      placeholder={familyAIConfig?.has_openai_key ? '•••••••• (deixe em branco para manter)' : 'sk-...'}
+                      value={openaiKey}
+                      onChange={(e) => setOpenaiKey(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Modelo</label>
+                    <input
+                      type="text"
+                      value={openaiModel}
+                      onChange={(e) => setOpenaiModel(e.target.value)}
+                      placeholder="gpt-4o-mini"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </>
+              )}
+              {aiProvider === 'azure' && (
+                <>
+                  {familyAIConfig?.has_azure_config && (
+                    <div className="flex items-center gap-2 text-green-700 text-xs mb-1">
+                      <CheckCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span>Configuração Azure <strong>incluída</strong> (oculta)</span>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">URL do recurso Azure</label>
+                    <input
+                      type="url"
+                      placeholder="https://seu-recurso.openai.azure.com"
+                      value={azureEndpoint}
+                      onChange={(e) => setAzureEndpoint(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Chave da API Azure</label>
+                    <input
+                      type="password"
+                      placeholder={familyAIConfig?.has_azure_config ? '•••••••• (deixe em branco para manter)' : ''}
+                      value={azureKey}
+                      onChange={(e) => setAzureKey(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Deployment (ex: gpt-4o)</label>
+                    <input
+                      type="text"
+                      value={azureDeployment}
+                      onChange={(e) => setAzureDeployment(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </>
+              )}
+              <Button
+                onClick={handleSaveFamilyAI}
+                disabled={savingAi}
+                className="inline-flex items-center gap-2"
+              >
+                {savingAi ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Salvar configuração de IA
+              </Button>
+            </div>
+          </div>
+
+          {telegramSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <p className="text-sm text-green-800">{telegramSuccess}</p>
+            </div>
+          )}
+          {aiSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <p className="text-sm text-green-800">{aiSuccess}</p>
+            </div>
+          )}
+          {telegramError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">{telegramError}</p>
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">

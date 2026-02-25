@@ -23,6 +23,7 @@ export const authService = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 15000, // 15s para evitar ficar "Entrando..." para sempre
     })
     return response.data
   },
@@ -33,7 +34,7 @@ export const authService = {
   },
 
   async getMe() {
-    const response = await api.get('/users/me')
+    const response = await api.get('/users/me', { timeout: 10000 })
     return response.data
   },
 }

@@ -32,6 +32,7 @@ class User(Base):
     equipments_owned = relationship("Equipment", back_populates="owner")
     maintenance_orders = relationship("MaintenanceOrder", back_populates="created_by")
     uploaded_attachments = relationship("EquipmentAttachment", back_populates="uploaded_by")
+    telegram_link = relationship("TelegramUserLink", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 class Profile(Base):
     """

@@ -1,7 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.api.v1.api import api_router
+from app.db.base import Base, engine
+
+# Registrar todos os modelos para create_all criar as tabelas (inclui family_telegram_config, family_ai_config)
+from app.models import *  # noqa: F401, F403
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -41,6 +46,29 @@ async def log_requests(request, call_next):
 
 # Incluir rotas da API
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+@app.on_event("startup")
+def startup_create_tables():
+    """Cria tabelas que não existem (ex.: family_telegram_config, family_ai_config)."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Tabelas do banco verificadas/criadas.")
+    except Exception as e:
+        logger.exception("Erro ao criar tabelas: %s", e)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    """Loga o traceback completo e devolve 500 com detalhe em desenvolvimento."""
+    logger.exception("Erro não tratado: %s", exc)
+    is_dev = getattr(settings, "ENVIRONMENT", "") == "development"
+    detail = str(exc) if is_dev else "Erro interno do servidor."
+    return JSONResponse(
+        status_code=500,
+        content={"detail": detail, "type": type(exc).__name__},
+    )
+
 
 @app.get("/")
 async def root():
