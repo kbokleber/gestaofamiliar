@@ -5,6 +5,7 @@ import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import Loading from '../../components/Loading'
+import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateBR, toDateInputValue } from '../../utils/dateUtils'
 
 interface Equipment {
@@ -63,6 +64,8 @@ export default function Equipment() {
     notes: ''
   })
   const [documents, setDocuments] = useState<Document[]>([])
+  const [equipmentToDelete, setEquipmentToDelete] = useState<Equipment | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Carregar dados do localStorage como placeholder
   const getPlaceholderEquipment = (): Equipment[] | undefined => {
@@ -188,13 +191,17 @@ export default function Equipment() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Deseja realmente excluir este equipamento?')) return
+  const handleConfirmDelete = async () => {
+    if (!equipmentToDelete) return
+    setIsDeleting(true)
     try {
-      await api.delete(`/maintenance/equipment/${id}`)
+      await api.delete(`/maintenance/equipment/${equipmentToDelete.id}`)
       fetchEquipment()
+      setEquipmentToDelete(null)
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao excluir')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -305,6 +312,16 @@ export default function Equipment() {
 
   return (
     <div>
+      <ConfirmDeleteModal
+        isOpen={!!equipmentToDelete}
+        onClose={() => setEquipmentToDelete(null)}
+        title="Excluir equipamento"
+        message={equipmentToDelete ? <>Deseja realmente excluir o equipamento <strong>{equipmentToDelete.name}</strong>? Esta ação não pode ser desfeita.</> : ''}
+        confirmLabel="Excluir equipamento"
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        warningText="Esta ação não pode ser desfeita."
+      />
       {viewMode === 'create' ? (
         // Tela completa de cadastro
         <div className="min-h-screen bg-gray-50">
@@ -606,7 +623,7 @@ export default function Equipment() {
                     Editar
                   </button>
                   <button 
-                    onClick={() => handleDelete(item.id)}
+                    onClick={() => setEquipmentToDelete(item)}
                     className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -677,7 +694,7 @@ export default function Equipment() {
                         <Edit2 className="h-5 w-5" />
                       </button>
                       <button 
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => setEquipmentToDelete(item)}
                         className="text-red-600 hover:text-red-900"
                         title="Excluir"
                       >

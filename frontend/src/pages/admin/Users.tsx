@@ -6,6 +6,7 @@ import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus, Edit, Trash2 } 
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import Loading from '../../components/Loading'
+import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 
 interface User {
   id: number
@@ -57,6 +58,7 @@ export default function AdminUsers() {
     family_id: 0
   })
   const [createUserError, setCreateUserError] = useState('')
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
 
   // Verificar se é admin (apenas superuser, não staff)
   const isAdmin = currentUser?.is_superuser
@@ -132,6 +134,7 @@ export default function AdminUsers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      setUserToDelete(null)
       alert('Usuário excluído com sucesso!')
     },
     onError: (error: any) => {
@@ -504,11 +507,7 @@ export default function AdminUsers() {
                   </button>
                   {user.id !== currentUser?.id && (
                     <button
-                      onClick={() => {
-                        if (confirm(`Tem certeza que deseja EXCLUIR o usuário "${user.username}"? Esta ação não pode ser desfeita!`)) {
-                          deleteUserMutation.mutate(user.id)
-                        }
-                      }}
+                      onClick={() => setUserToDelete(user)}
                       className="w-full flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700"
                     >
                       <Trash2 className="h-4 w-4 mr-1" />
@@ -661,11 +660,7 @@ export default function AdminUsers() {
                               {user.is_active ? 'Desativar' : 'Ativar'}
                             </button>
                             <button
-                              onClick={() => {
-                                if (confirm(`Tem certeza que deseja EXCLUIR o usuário "${user.username}"? Esta ação não pode ser desfeita!`)) {
-                                  deleteUserMutation.mutate(user.id)
-                                }
-                              }}
+                              onClick={() => setUserToDelete(user)}
                               className="text-red-600 hover:text-red-900 flex items-center gap-1"
                               title="Excluir usuário"
                             >
@@ -683,6 +678,17 @@ export default function AdminUsers() {
           </div>
         </>
       )}
+
+      <ConfirmDeleteModal
+        isOpen={!!userToDelete}
+        onClose={() => setUserToDelete(null)}
+        title="Excluir usuário"
+        message={userToDelete ? <>Tem certeza que deseja excluir o usuário <strong>{userToDelete.username}</strong>? Todos os dados deste usuário serão removidos permanentemente.</> : ''}
+        confirmLabel="Excluir usuário"
+        onConfirm={() => userToDelete && deleteUserMutation.mutate(userToDelete.id)}
+        isLoading={deleteUserMutation.isPending}
+        warningText="Esta ação não pode ser desfeita."
+      />
 
       {/* Modal de alteração de senha */}
       <Modal

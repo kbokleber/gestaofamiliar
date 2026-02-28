@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, field_serializer, field_validator
+from pydantic import BaseModel, field_serializer, field_validator
 from typing import Optional, List, Any
 from datetime import date, datetime
 import base64
@@ -34,11 +34,47 @@ class FamilyMemberUpdate(BaseModel):
     order: Optional[int] = None
     photo: Optional[str] = None
 
+def _parse_datetime(v: Any) -> datetime:
+    """Aceita datetime ou string ISO do banco."""
+    if isinstance(v, datetime):
+        return v
+    if isinstance(v, str):
+        try:
+            return datetime.fromisoformat(v.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    raise ValueError(f"datetime inválido: {type(v)}")
+
+
+def _parse_date(v: Any) -> date:
+    """Aceita date ou string ISO do banco."""
+    if isinstance(v, date) and not isinstance(v, datetime):
+        return v
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, str):
+        try:
+            return date.fromisoformat(v[:10])
+        except ValueError:
+            pass
+    raise ValueError(f"date inválido: {type(v)}")
+
+
 class FamilyMember(FamilyMemberBase):
     id: int
     photo: Optional[Any] = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("birth_date", mode="before")
+    @classmethod
+    def coerce_birth_date(cls, v: Any) -> date:
+        return _parse_date(v)
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def coerce_datetime(cls, v: Any) -> datetime:
+        return _parse_datetime(v)
     
     @field_serializer('photo')
     def serialize_photo(self, photo: Any, _info) -> Optional[str]:

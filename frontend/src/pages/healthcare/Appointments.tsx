@@ -6,6 +6,7 @@ import DateTimeInput from '../../components/DateTimeInput'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import Loading from '../../components/Loading'
+import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateTimeBR, toDateTimeInputValue, isFutureDateTime } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
 
@@ -60,6 +61,8 @@ export default function Appointments() {
     notes: ''
   })
   const [documents, setDocuments] = useState<Document[]>([])
+  const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // React Query com defaults estáveis para evitar loop de re-render (Maximum update depth)
   const { data: appointments = EMPTY_APPOINTMENTS, isLoading: loadingAppointments, error: appointmentsError } = useQuery<Appointment[]>({
@@ -71,9 +74,9 @@ export default function Appointments() {
   })
 
   const { data: members = EMPTY_MEMBERS } = useQuery<FamilyMember[]>({
-    queryKey: ['healthcare-members'],
+    queryKey: ['healthcare-members-basic'],
     queryFn: async () => {
-      const response = await api.get('/healthcare/members')
+      const response = await api.get('/healthcare/members', { params: { include_photos: false } })
       return response.data
     }
   })
@@ -229,13 +232,17 @@ export default function Appointments() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Deseja realmente excluir esta consulta?')) return
+  const handleConfirmDelete = async () => {
+    if (!appointmentToDelete) return
+    setIsDeleting(true)
     try {
-      await api.delete(`/healthcare/appointments/${id}`)
+      await api.delete(`/healthcare/appointments/${appointmentToDelete.id}`)
       fetchAppointments()
+      setAppointmentToDelete(null)
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao excluir')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -334,6 +341,16 @@ export default function Appointments() {
 
   return (
     <div>
+      <ConfirmDeleteModal
+        isOpen={!!appointmentToDelete}
+        onClose={() => setAppointmentToDelete(null)}
+        title="Excluir consulta"
+        message={appointmentToDelete ? <>Deseja realmente excluir esta consulta com <strong>{appointmentToDelete.doctor_name}</strong> ({appointmentToDelete.specialty})? Esta ação não pode ser desfeita.</> : ''}
+        confirmLabel="Excluir consulta"
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        warningText="Esta ação não pode ser desfeita."
+      />
       {viewMode === 'create' ? (
         // Tela completa de cadastro
         <div className="min-h-screen bg-gray-50">
@@ -651,7 +668,7 @@ export default function Appointments() {
                     Editar
                   </button>
                   <button 
-                    onClick={() => handleDelete(appointment.id)}
+                    onClick={() => setAppointmentToDelete(appointment)}
                     className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -726,7 +743,7 @@ export default function Appointments() {
                       <Edit2 className="h-5 w-5" />
                     </button>
                     <button 
-                      onClick={() => handleDelete(appointment.id)}
+                      onClick={() => setAppointmentToDelete(appointment)}
                       className="text-red-600 hover:text-red-900"
                       title="Excluir"
                     >

@@ -5,6 +5,7 @@ import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import Loading from '../../components/Loading'
+import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateBR, toDateInputValue } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
 
@@ -75,6 +76,8 @@ export default function Medications() {
     notes: ''
   })
   const [documents, setDocuments] = useState<Document[]>([])
+  const [medicationToDelete, setMedicationToDelete] = useState<Medication | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // React Query com defaults estáveis para evitar loop de re-render
   const { data: medications = EMPTY_MEDICATIONS, isLoading: loading, error: medicationsError } = useQuery<Medication[]>({
@@ -88,9 +91,9 @@ export default function Medications() {
   })
 
   const { data: members = EMPTY_MEMBERS } = useQuery<FamilyMember[]>({
-    queryKey: ['healthcare-members'],
+    queryKey: ['healthcare-members-basic'],
     queryFn: async () => {
-      const response = await api.get('/healthcare/members')
+      const response = await api.get('/healthcare/members', { params: { include_photos: false } })
       return response.data
     }
   })
@@ -192,13 +195,17 @@ export default function Medications() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Deseja realmente excluir este medicamento?')) return
+  const handleConfirmDelete = async () => {
+    if (!medicationToDelete) return
+    setIsDeleting(true)
     try {
-      await api.delete(`/healthcare/medications/${id}`)
+      await api.delete(`/healthcare/medications/${medicationToDelete.id}`)
       fetchMedications()
+      setMedicationToDelete(null)
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao excluir')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -411,6 +418,16 @@ export default function Medications() {
 
   return (
     <div>
+      <ConfirmDeleteModal
+        isOpen={!!medicationToDelete}
+        onClose={() => setMedicationToDelete(null)}
+        title="Excluir medicamento"
+        message={medicationToDelete ? <>Deseja realmente excluir o medicamento <strong>{medicationToDelete.name}</strong> ({medicationToDelete.dosage})? Esta ação não pode ser desfeita.</> : ''}
+        confirmLabel="Excluir medicamento"
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        warningText="Esta ação não pode ser desfeita."
+      />
       {viewMode === 'create' ? (
         // Tela completa de cadastro
         <div className="min-h-screen bg-gray-50">
@@ -765,7 +782,7 @@ export default function Medications() {
                     Editar
                   </button>
                   <button 
-                    onClick={() => handleDelete(medication.id)}
+                    onClick={() => setMedicationToDelete(medication)}
                     className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -863,7 +880,7 @@ export default function Medications() {
                       <Edit2 className="h-5 w-5" />
                     </button>
                     <button 
-                      onClick={() => handleDelete(medication.id)}
+                      onClick={() => setMedicationToDelete(medication)}
                       className="text-red-600 hover:text-red-900"
                       title="Excluir"
                     >

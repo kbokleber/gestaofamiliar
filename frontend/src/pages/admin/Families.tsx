@@ -6,6 +6,7 @@ import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, Ch
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import Loading from '../../components/Loading'
+import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 
 interface Family {
   id: number
@@ -53,6 +54,7 @@ export default function AdminFamilies() {
   const [error, setError] = useState('')
   const [expandedFamily, setExpandedFamily] = useState<number | null>(null)
   const [showAddUserModal, setShowAddUserModal] = useState(false)
+  const [removeUserFromFamilyConfirm, setRemoveUserFromFamilyConfirm] = useState<{ user: FamilyUser; family: Family } | null>(null)
   const [selectedUserToAdd, setSelectedUserToAdd] = useState<number | null>(null)
 
   // Telegram e IA (no modal de edição)
@@ -423,9 +425,16 @@ export default function AdminFamilies() {
     }
   })
 
-  const handleRemoveUserFromFamily = (userId: number, familyId: number) => {
-    if (!confirm('Tem certeza que deseja remover este usuário da família?')) return
-    removeUserFromFamilyMutation.mutate({ userId, familyId })
+  const handleRemoveUserFromFamily = (user: FamilyUser, family: Family) => {
+    setRemoveUserFromFamilyConfirm({ user, family })
+  }
+
+  const handleConfirmRemoveUserFromFamily = () => {
+    if (!removeUserFromFamilyConfirm) return
+    removeUserFromFamilyMutation.mutate(
+      { userId: removeUserFromFamilyConfirm.user.id, familyId: removeUserFromFamilyConfirm.family.id },
+      { onSettled: () => setRemoveUserFromFamilyConfirm(null) }
+    )
   }
 
   const formatDate = (dateString: string | null) => {
@@ -577,7 +586,7 @@ export default function AdminFamilies() {
                                   )}
                                 </div>
                                 <button
-                                  onClick={() => handleRemoveUserFromFamily(user.id, family.id)}
+                                  onClick={() => handleRemoveUserFromFamily(user, family)}
                                   className="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-900 p-1"
                                   title="Remover usuário da família"
                                   disabled={removeUserFromFamilyMutation.isPending}
@@ -729,7 +738,7 @@ export default function AdminFamilies() {
                                           )}
                                         </div>
                                         <button
-                                          onClick={() => handleRemoveUserFromFamily(user.id, family.id)}
+                                          onClick={() => handleRemoveUserFromFamily(user, family)}
                                           className="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-900 p-1"
                                           title="Remover usuário da família"
                                           disabled={removeUserFromFamilyMutation.isPending}
@@ -752,6 +761,16 @@ export default function AdminFamilies() {
           </div>
         </>
       )}
+
+      <ConfirmDeleteModal
+        isOpen={!!removeUserFromFamilyConfirm}
+        onClose={() => setRemoveUserFromFamilyConfirm(null)}
+        title="Remover usuário da família"
+        message={removeUserFromFamilyConfirm ? <>Tem certeza que deseja remover <strong>{removeUserFromFamilyConfirm.user.username}</strong> da família <strong>{removeUserFromFamilyConfirm.family.name}</strong>?</> : ''}
+        confirmLabel="Remover"
+        onConfirm={handleConfirmRemoveUserFromFamily}
+        isLoading={removeUserFromFamilyMutation.isPending}
+      />
 
       {/* Modal de criação */}
       <Modal

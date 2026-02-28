@@ -1,9 +1,13 @@
+import base64
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone
 from app.db.base import get_db
+
+logger = logging.getLogger(__name__)
 from app.models.user import User
 from app.models.healthcare import FamilyMember, MedicalAppointment, MedicalProcedure, Medication
 from app.schemas.healthcare import (
@@ -61,53 +65,88 @@ async def create_family_member(
     db.refresh(member)
     return member
 
+def _member_photo_for_list(photo_raw) -> Optional[str]:
+    """Normaliza photo do model para string base64 (para redimensionar)."""
+    if photo_raw is None:
+        return None
+    if isinstance(photo_raw, bytes):
+        return base64.b64encode(photo_raw).decode("utf-8")
+    if isinstance(photo_raw, memoryview):
+        return base64.b64encode(bytes(photo_raw)).decode("utf-8")
+    return str(photo_raw) if photo_raw else None
+
+
 @router.get("/members", response_model=List[FamilyMemberSchema])
 async def list_family_members(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family),
-    include_photos: bool = True
+    include_photos: bool = True,
+    photo_thumb: bool = True,
 ):
     """Listar todos os membros da família (compartilhados entre usuários da mesma família) ordenados por 'order' e depois nome.
-    Use include_photos=false para carregamento mais rápido (sem fotos)."""
+    Use include_photos=false para carregamento mais rápido (sem fotos).
+    Com include_photos=true, photo_thumb=true (padrão) retorna fotos redimensionadas para listagem (melhor em mobile)."""
     from app.api.deps import get_user_family_ids
-    
-    # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
-    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
-        family_ids = get_user_family_ids(current_user, db)
-        if not family_ids:
-            return []
-        members = db.query(FamilyMember).filter(FamilyMember.family_id.in_(family_ids)).order_by(FamilyMember.order, FamilyMember.name).all()
-    else:
-        # Usuário normal ou admin com family_id específico
-        if family_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
-        members = db.query(FamilyMember).filter(FamilyMember.family_id == family_id).order_by(FamilyMember.order, FamilyMember.name).all()
-    
-    # Se não incluir fotos, retornar sem o campo photo para economizar banda
-    if not include_photos:
-        return [
-            {
-                "id": m.id,
-                "family_id": m.family_id,
-                "name": m.name,
-                "photo": None,  # Não incluir foto
-                "birth_date": m.birth_date,
-                "gender": m.gender,
-                "relationship_type": m.relationship_type,
-                "blood_type": m.blood_type,
-                "allergies": m.allergies,
-                "chronic_conditions": m.chronic_conditions,
-                "emergency_contact": m.emergency_contact,
-                "emergency_phone": m.emergency_phone,
-                "notes": m.notes,
-                "order": m.order,
-                "created_at": m.created_at,
-                "updated_at": m.updated_at
-            }
-            for m in members
-        ]
-    return members
+    from app.utils.image import resize_photo_base64
+
+    try:
+        if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+            family_ids = get_user_family_ids(current_user, db)
+            if not family_ids:
+                return []
+            members = db.query(FamilyMember).filter(FamilyMember.family_id.in_(family_ids)).order_by(FamilyMember.order, FamilyMember.name).all()
+        else:
+            if family_id is None:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+            members = db.query(FamilyMember).filter(FamilyMember.family_id == family_id).order_by(FamilyMember.order, FamilyMember.name).all()
+
+        result: List[FamilyMemberSchema] = []
+        member_index_in_result: List[int] = []
+        for i, m in enumerate(members):
+            try:
+                result.append(FamilyMemberSchema.model_validate(m))
+                member_index_in_result.append(i)
+            except Exception as e:
+                logger.warning("list_family_members: skip member id=%s: %s", getattr(m, "id", "?"), e)
+
+        if not include_photos:
+            result = [r.model_copy(update={"photo": None}) for r in result]
+            return result
+
+        if photo_thumb:
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+
+            def build_thumbnails_sync() -> list:
+                """Gera todos os thumbnails em thread para não bloquear o event loop."""
+                def make_one(args):
+                    j, raw = args
+                    if not raw:
+                        return (j, None)
+                    try:
+                        return (j, resize_photo_base64(raw))
+                    except Exception as e:
+                        logger.warning("list_family_members: thumbnail index %s failed: %s", j, e)
+                        return (j, None)
+                tasks = [(j, _member_photo_for_list(members[member_index_in_result[j]].photo)) for j in range(len(member_index_in_result)) if j < len(result)]
+                out = [None] * len(member_index_in_result)
+                with ThreadPoolExecutor(max_workers=4) as ex:
+                    for j, thumb in ex.map(make_one, tasks):
+                        if j < len(out):
+                            out[j] = thumb
+                return out
+
+            thumbs = await asyncio.to_thread(build_thumbnails_sync)
+            for j, thumb in enumerate(thumbs):
+                if thumb and j < len(result):
+                    result[j] = result[j].model_copy(update={"photo": thumb})
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("list_family_members failed: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 @router.get("/members/{member_id}", response_model=FamilyMemberDetail)
 async def get_family_member(

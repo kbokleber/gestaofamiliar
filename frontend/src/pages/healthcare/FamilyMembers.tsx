@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical, Camera, Image } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import DateInput from '../../components/DateInput'
 import Loading from '../../components/Loading'
+import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateBR, calculateAge, toDateInputValue } from '../../utils/dateUtils'
 import {
   DndContext,
@@ -46,6 +47,10 @@ export default function FamilyMembers() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [showPhotoMenu, setShowPhotoMenu] = useState(false)
+  const [photoLoadTime, setPhotoLoadTime] = useState<number | null>(null)
+  const photoTimingRef = useRef<{ start: number; end?: number } | null>(null)
+  const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     birth_date: '',
@@ -91,20 +96,30 @@ export default function FamilyMembers() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // Segunda query: carregar membros COM fotos (mais lento, carrega em background)
+  // Segunda query: carregar membros COM fotos em paralelo (não espera a primeira acabar)
+  const hasToken = !!useAuthStore.getState().token
   const { data: membersWithPhotos = [] } = useQuery<FamilyMember[]>({
     queryKey: ['healthcare-members'],
     queryFn: async () => {
       const token = useAuthStore.getState().token
-      if (!token) {
-        throw new Error('Você precisa fazer login para acessar esta página')
-      }
-      const response = await api.get('/healthcare/members')
+      if (!token) throw new Error('Você precisa fazer login para acessar esta página')
+      photoTimingRef.current = { start: performance.now() }
+      const response = await api.get('/healthcare/members', { params: { photo_thumb: true } })
+      if (photoTimingRef.current) photoTimingRef.current.end = performance.now()
       return [...response.data].sort((a: FamilyMember, b: FamilyMember) => (a.order || 0) - (b.order || 0))
     },
     staleTime: 5 * 60 * 1000,
-    enabled: membersWithoutPhotos.length > 0, // Só carrega depois que os dados básicos estiverem prontos
+    enabled: hasToken, // Dispara junto com a query sem fotos; fotos aparecem quando esta terminar
   })
+
+  // Medir tempo até as fotos aparecerem (para teste)
+  useEffect(() => {
+    if (membersWithPhotos.length > 0 && photoTimingRef.current?.end != null && photoLoadTime === null) {
+      const elapsed = (photoTimingRef.current.end - photoTimingRef.current.start) / 1000
+      setPhotoLoadTime(elapsed)
+      console.log(`[Membros] Fotos carregadas em ${elapsed.toFixed(2)}s`)
+    }
+  }, [membersWithPhotos.length, photoLoadTime])
 
   // Usar membros com fotos se disponíveis, senão usar sem fotos
   const membersData = membersWithPhotos.length > 0 ? membersWithPhotos : membersWithoutPhotos
@@ -116,7 +131,10 @@ export default function FamilyMembers() {
 
   // Função para invalidar o cache e refetch
   const fetchMembers = () => {
+    setPhotoLoadTime(null)
+    photoTimingRef.current = null
     queryClient.invalidateQueries({ queryKey: ['healthcare-members'] })
+    queryClient.invalidateQueries({ queryKey: ['healthcare-members-basic'] })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -156,13 +174,17 @@ export default function FamilyMembers() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Deseja realmente excluir este membro?')) return
+  const handleConfirmDelete = async () => {
+    if (!memberToDelete) return
+    setIsDeleting(true)
     try {
-      await api.delete(`/healthcare/members/${id}`)
+      await api.delete(`/healthcare/members/${memberToDelete.id}`)
       fetchMembers()
+      setMemberToDelete(null)
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao excluir')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -380,6 +402,7 @@ export default function FamilyMembers() {
       // Reordenar localmente (atualiza o cache do React Query)
       const newMembers = arrayMove(members, oldIndex, newIndex)
       queryClient.setQueryData(['healthcare-members'], newMembers)
+      queryClient.setQueryData(['healthcare-members-basic'], newMembers)
 
       // Atualizar ordem no backend
       try {
@@ -438,7 +461,7 @@ export default function FamilyMembers() {
           <div className="flex justify-center mb-4">
             <div className={`w-32 h-32 rounded-full ${getAvatarColor(member.name)} flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden`}>
               {getPhotoUrl(member.photo) ? (
-                <img src={getPhotoUrl(member.photo)!} alt={member.name} className="w-full h-full object-cover" />
+                <img src={getPhotoUrl(member.photo)!} alt={member.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
               ) : (
                 getInitials(member.name)
               )}
@@ -479,7 +502,7 @@ export default function FamilyMembers() {
               Editar
             </button>
             <button
-              onClick={() => handleDelete(member.id)}
+              onClick={() => setMemberToDelete(member)}
               className="flex-1 flex items-center justify-center px-4 py-2 border border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition-colors"
             >
               <Trash2 className="h-4 w-4 mr-1" />
@@ -509,6 +532,16 @@ export default function FamilyMembers() {
 
   return (
     <div>
+      <ConfirmDeleteModal
+        isOpen={!!memberToDelete}
+        onClose={() => setMemberToDelete(null)}
+        title="Excluir membro"
+        message={memberToDelete ? <>Deseja realmente excluir <strong>{memberToDelete.name}</strong>? Os dados deste membro serão removidos permanentemente.</> : ''}
+        confirmLabel="Excluir membro"
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        warningText="Esta ação não pode ser desfeita."
+      />
       {viewMode === 'create' ? (
         // Tela completa de cadastro
         <div className="min-h-screen bg-gray-50">
@@ -534,7 +567,7 @@ export default function FamilyMembers() {
                 <div className="relative">
                   <div className={`w-32 h-32 rounded-full bg-gray-300 flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden`}>
                     {photoPreview ? (
-                      <img src={photoPreview} alt="Foto" className="w-full h-full object-cover" />
+                      <img src={photoPreview} alt="Foto" className="w-full h-full object-cover" decoding="async" />
                     ) : (
                       <Users className="h-16 w-16" />
                     )}
@@ -773,6 +806,12 @@ export default function FamilyMembers() {
             </button>
           </div>
 
+          {photoLoadTime != null && (
+            <p className="text-sm text-gray-500 mb-2" data-testid="photo-load-time">
+              Fotos carregadas em <strong>{photoLoadTime.toFixed(2)}s</strong>
+            </p>
+          )}
+
           {members.length === 0 ? (
             <div className="bg-white shadow rounded-lg p-12 text-center">
               <Users className="mx-auto h-16 w-16 text-gray-400 mb-4" />
@@ -817,7 +856,7 @@ export default function FamilyMembers() {
               <div className="relative">
                 <div className={`w-32 h-32 rounded-full ${editingMember ? getAvatarColor(editingMember.name) : 'bg-gray-300'} flex items-center justify-center text-white text-3xl font-bold shadow-lg overflow-hidden`}>
                   {photoPreview ? (
-                    <img src={photoPreview} alt="Foto" className="w-full h-full object-cover" />
+                    <img src={photoPreview} alt="Foto" className="w-full h-full object-cover" decoding="async" />
                   ) : editingMember ? (
                     getInitials(editingMember.name)
                   ) : (

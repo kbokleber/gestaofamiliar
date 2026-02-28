@@ -5,6 +5,7 @@ import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
 import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import Loading from '../../components/Loading'
+import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { toDateInputValue, formatDateFullBR } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
 
@@ -70,6 +71,8 @@ export default function MaintenanceOrders() {
     notes: ''
   })
   const [documents, setDocuments] = useState<Document[]>([])
+  const [orderToDelete, setOrderToDelete] = useState<MaintenanceOrder | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Carregar dados do localStorage como placeholder
   const getPlaceholderOrders = (): MaintenanceOrder[] | undefined => {
@@ -322,13 +325,17 @@ export default function MaintenanceOrders() {
     }
   }
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Deseja realmente excluir esta ordem de manutenção?')) return
+  const handleConfirmDelete = async () => {
+    if (!orderToDelete) return
+    setIsDeleting(true)
     try {
-      await api.delete(`/maintenance/orders/${id}`)
+      await api.delete(`/maintenance/orders/${orderToDelete.id}`)
       fetchOrders()
+      setOrderToDelete(null)
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao excluir')
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -507,6 +514,16 @@ export default function MaintenanceOrders() {
 
   return (
     <div>
+      <ConfirmDeleteModal
+        isOpen={!!orderToDelete}
+        onClose={() => setOrderToDelete(null)}
+        title="Excluir ordem de manutenção"
+        message={orderToDelete ? <>Deseja realmente excluir a ordem <strong>{orderToDelete.title}</strong>? Esta ação não pode ser desfeita.</> : ''}
+        confirmLabel="Excluir ordem"
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        warningText="Esta ação não pode ser desfeita."
+      />
       {viewMode === 'create' ? (
         // Tela completa de cadastro
         <div className="min-h-screen bg-gray-50">
@@ -881,7 +898,7 @@ export default function MaintenanceOrders() {
                         Editar
                       </button>
                       <button
-                        onClick={() => handleDelete(order.id)}
+                        onClick={() => setOrderToDelete(order)}
                         className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
@@ -962,7 +979,7 @@ export default function MaintenanceOrders() {
                               <Edit2 className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => handleDelete(order.id)}
+                              onClick={() => setOrderToDelete(order)}
                               className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200"
                               title="Excluir"
                             >

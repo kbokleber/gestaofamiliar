@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Upload, X, FileText, Image, Download, Eye } from 'lucide-react'
+import ConfirmDeleteModal from './ConfirmDeleteModal'
 
 export interface Document {
   name: string
@@ -22,6 +23,7 @@ export default function DocumentUpload({
   maxSizeMB = 10
 }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false)
+  const [docToDelete, setDocToDelete] = useState<{ doc: Document; index: number } | null>(null)
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -87,12 +89,14 @@ export default function DocumentUpload({
   }
 
   const removeDocument = (index: number) => {
-    const doc = documents[index]
-    if (!confirm(`Deseja realmente excluir o arquivo "${doc.name}"?`)) {
-      return
-    }
-    const newDocuments = documents.filter((_, i) => i !== index)
+    setDocToDelete({ doc: documents[index], index })
+  }
+
+  const handleConfirmRemove = () => {
+    if (!docToDelete) return
+    const newDocuments = documents.filter((_, i) => i !== docToDelete.index)
     onChange(newDocuments)
+    setDocToDelete(null)
   }
 
   const downloadDocument = (doc: Document) => {
@@ -191,6 +195,14 @@ export default function DocumentUpload({
 
   return (
     <div className="space-y-4">
+      <ConfirmDeleteModal
+        isOpen={!!docToDelete}
+        onClose={() => setDocToDelete(null)}
+        title="Excluir arquivo"
+        message={docToDelete ? <>Deseja realmente excluir o arquivo <strong>{docToDelete.doc.name}</strong>?</> : ''}
+        confirmLabel="Excluir arquivo"
+        onConfirm={handleConfirmRemove}
+      />
       {/* Botão de Upload */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">

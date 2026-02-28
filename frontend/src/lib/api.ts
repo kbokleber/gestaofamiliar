@@ -93,7 +93,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Debug em desenvolvimento
+    const detail = error.response?.data?.detail
+    if (detail !== undefined && detail !== null) {
+      error.message = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map((d: { msg?: string }) => d?.msg ?? String(d)).join('; ') : String(detail))
+    }
     if (import.meta.env.DEV) {
       console.error('API Error:', error.response?.status, error.response?.data || error.message)
       console.error('Request URL:', error.config?.url)
