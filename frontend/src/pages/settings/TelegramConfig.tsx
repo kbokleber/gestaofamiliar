@@ -33,7 +33,7 @@ export default function TelegramConfig() {
   const { user: currentUser } = useAuthStore()
   const [status, setStatus] = useState<TelegramStatus | null>(null)
   const [familyBot, setFamilyBot] = useState<FamilyBotConfig | null>(null)
-  const [familyAi, setFamilyAi] = useState<FamilyAIConfig | null>(null)
+  const [, setFamilyAi] = useState<FamilyAIConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [linkCode, setLinkCode] = useState<LinkCodeResponse | null>(null)
