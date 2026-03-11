@@ -134,10 +134,6 @@ async def list_equipment(
             for e in equipments
         ]
     
-    # Se incluir documentos, também marcar has_documents
-    for e in equipments:
-        e.has_documents = bool(e.documents and len(e.documents) > 2)
-        
     return equipments
 
 @router.get("/equipment/{equipment_id}", response_model=EquipmentDetail)
@@ -435,9 +431,8 @@ async def list_maintenance_orders(
             for o in orders
         ]
     
-    # Se incluir documentos, preencher equipment_name para o schema e has_documents
+    # Se incluir documentos, preencher equipment_name para o schema
     for o in orders:
-        o.has_documents = bool(o.documents and len(o.documents) > 2)
         setattr(o, "equipment_name", equipment_name(o))
     return orders
 
