@@ -359,9 +359,9 @@ export default function MaintenanceOrders() {
         status: fullOrder.status || order.status || 'PENDENTE',
         priority: fullOrder.priority || order.priority || 'MEDIA',
         service_provider: fullOrder.service_provider || order.service_provider || '',
-        completion_date: toDateInputValue(fullOrder.completion_date || order.completion_date),
+        completion_date: toDateInputValue(fullOrder.completion_date || order.completion_date) || '',
         cost: (fullOrder.cost || order.cost) ? (fullOrder.cost || order.cost).toString().replace('.', ',') : '',
-        warranty_expiration: toDateInputValue(fullOrder.warranty_expiration || order.warranty_expiration),
+        warranty_expiration: toDateInputValue(fullOrder.warranty_expiration || order.warranty_expiration) || '',
         warranty_terms: fullOrder.warranty_terms || order.warranty_terms || '',
         invoice_number: fullOrder.invoice_number || order.invoice_number || '',
         notes: fullOrder.notes || order.notes || ''

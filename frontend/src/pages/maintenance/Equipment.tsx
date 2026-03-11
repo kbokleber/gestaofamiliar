@@ -213,8 +213,8 @@ export default function Equipment() {
       brand: equipmentItem.brand || '',
       model: equipmentItem.model || '',
       serial_number: equipmentItem.serial_number || '',
-      purchase_date: toDateInputValue(equipmentItem.purchase_date),
-      warranty_expiry: toDateInputValue(equipmentItem.warranty_expiry),
+      purchase_date: toDateInputValue(equipmentItem.purchase_date) || '',
+      warranty_expiry: toDateInputValue(equipmentItem.warranty_expiry) || '',
       status: equipmentItem.status || 'OPERACIONAL',
       notes: equipmentItem.notes || ''
     })

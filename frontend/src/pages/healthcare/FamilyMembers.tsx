@@ -197,7 +197,7 @@ export default function FamilyMembers() {
     setPhotoFile(null)
     setFormData({
       name: member.name,
-      birth_date: toDateInputValue(member.birth_date),
+      birth_date: toDateInputValue(member.birth_date) || '',
       gender: member.gender || 'M',
       relationship_type: member.relationship_type || '',
       blood_type: member.blood_type || '',
