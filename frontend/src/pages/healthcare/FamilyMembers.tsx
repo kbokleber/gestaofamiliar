@@ -302,9 +302,12 @@ export default function FamilyMembers() {
     }
 
     // Validar tipo (apenas imagens)
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
-    if (!validTypes.includes(file.type)) {
-      alert('A foto deve ser JPG, PNG ou GIF')
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/heic', 'image/heif']
+    const fileExtension = file.name.split('.').pop()?.toLowerCase() || ''
+    const isHeic = fileExtension === 'heic' || fileExtension === 'heif'
+
+    if (!validTypes.includes(file.type) && !isHeic) {
+      alert('A foto deve ser JPG, PNG, GIF ou HEIC')
       e.target.value = '' // Limpar input
       setShowPhotoMenu(false)
       return
@@ -612,7 +615,7 @@ export default function FamilyMembers() {
                     <input 
                       id="photo-camera-create"
                       type="file" 
-                      accept="image/jpeg,image/jpg,image/png,image/gif" 
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/heic,image/heif,.heic,.heif" 
                       capture="environment"
                       className="hidden" 
                       onChange={handlePhotoChange}
@@ -620,7 +623,7 @@ export default function FamilyMembers() {
                     <input 
                       id="photo-gallery-create"
                       type="file" 
-                      accept="image/jpeg,image/jpg,image/png,image/gif" 
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/heic,image/heif,.heic,.heif" 
                       className="hidden" 
                       onChange={handlePhotoChange}
                     />
@@ -903,7 +906,7 @@ export default function FamilyMembers() {
                   <input 
                     id="photo-camera-edit"
                     type="file" 
-                    accept="image/jpeg,image/jpg,image/png,image/gif" 
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/heic,image/heif,.heic,.heif" 
                     capture="environment"
                     className="hidden" 
                     onChange={handlePhotoChange}
@@ -911,7 +914,7 @@ export default function FamilyMembers() {
                   <input 
                     id="photo-gallery-edit"
                     type="file" 
-                    accept="image/jpeg,image/jpg,image/png,image/gif" 
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/heic,image/heif,.heic,.heif" 
                     className="hidden" 
                     onChange={handlePhotoChange}
                   />

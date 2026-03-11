@@ -49,9 +49,12 @@ export default function DocumentUpload({
         }
 
         // Validar tipo
-        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf']
-        if (!validTypes.includes(file.type)) {
-          alert(`O arquivo "${file.name}" não é um tipo válido (JPG, PNG, GIF ou PDF)`)
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf', 'image/heic', 'image/heif']
+        const fileExtension = file.name.split('.').pop()?.toLowerCase() || ''
+        const isHeic = fileExtension === 'heic' || fileExtension === 'heif'
+        
+        if (!validTypes.includes(file.type) && !isHeic) {
+          alert(`O arquivo "${file.name}" não é um tipo válido (JPG, PNG, GIF, PDF ou HEIC)`)
           continue
         }
 
@@ -60,7 +63,7 @@ export default function DocumentUpload({
 
         newDocuments.push({
           name: file.name,
-          type: file.type,
+          type: file.type || (isHeic ? `image/${fileExtension}` : ''),
           size: file.size,
           data: base64
         })
@@ -119,20 +122,27 @@ export default function DocumentUpload({
     }
   }
 
-  const getDisplayType = (doc: Document): { isPdf: boolean; mimeType: string } => {
+  const getDisplayType = (doc: Document): { isPdf: boolean; mimeType: string; isHeic: boolean } => {
     const ext = (doc.name || '').split('.').pop()?.toLowerCase()
     const storedType = (doc.type || '').toLowerCase()
+    
+    const isHeic = ext === 'heic' || ext === 'heif' || storedType.includes('heic') || storedType.includes('heif')
+    
+    if (isHeic) {
+      return { isPdf: false, mimeType: storedType || 'image/heic', isHeic: true }
+    }
+
     const imageTypes: Record<string, string> = {
       jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif'
     }
     if (ext && imageTypes[ext]) {
-      return { isPdf: false, mimeType: imageTypes[ext] }
+      return { isPdf: false, mimeType: imageTypes[ext], isHeic: false }
     }
     if (ext === 'pdf' || storedType === 'application/pdf') {
-      return { isPdf: true, mimeType: 'application/pdf' }
+      return { isPdf: true, mimeType: 'application/pdf', isHeic: false }
     }
-    if (storedType.startsWith('image/')) return { isPdf: false, mimeType: storedType }
-    return { isPdf: false, mimeType: storedType || 'image/jpeg' }
+    if (storedType.startsWith('image/')) return { isPdf: false, mimeType: storedType, isHeic: false }
+    return { isPdf: false, mimeType: storedType || 'image/jpeg', isHeic: false }
   }
 
   const base64ToBlob = (base64: string, mimeType: string): Blob => {
@@ -149,7 +159,13 @@ export default function DocumentUpload({
       return
     }
     const safeName = String(doc.name).replace(/</g, '&lt;').replace(/"/g, '&quot;')
-    const { isPdf, mimeType } = getDisplayType(doc)
+    const { isPdf, mimeType, isHeic } = getDisplayType(doc)
+    
+    if (isHeic) {
+      alert('Arquivos HEIC (fotos de iPhone) não podem ser visualizados diretamente no navegador. Por favor, use o botão de Download para baixar e ver no seu aparelho.')
+      return
+    }
+
     const newWindow = window.open('', '_blank')
     if (newWindow) {
       try {
@@ -216,14 +232,14 @@ export default function DocumentUpload({
                 <span className="font-semibold">Clique para selecionar</span> ou arraste arquivos
               </p>
               <p className="text-xs text-gray-500">
-                JPG, PNG, GIF ou PDF (max. {maxSizeMB}MB cada)
+                JPG, PNG, PDF ou HEIC (max. {maxSizeMB}MB cada)
               </p>
             </div>
             <input
               type="file"
               className="hidden"
               multiple
-              accept="image/jpeg,image/jpg,image/png,image/gif,application/pdf"
+              accept="image/jpeg,image/jpg,image/png,image/gif,application/pdf,image/heic,image/heif,.heic,.heif"
               onChange={handleFileSelect}
               disabled={uploading || documents.length >= maxFiles}
             />
