@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { authService } from '../services/authService'
@@ -14,6 +14,17 @@ export default function Login() {
     username: '',
     password: '',
   })
+  const [rememberMe, setRememberMe] = useState(false)
+
+  // Carregar dados salvos ao montar o componente
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('remembered_username')
+    const savedPassword = localStorage.getItem('remembered_password')
+    if (savedUsername && savedPassword) {
+      setFormData({ username: savedUsername, password: savedPassword })
+      setRememberMe(true)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,6 +35,15 @@ export default function Login() {
       console.log('Tentando fazer login com:', formData.username)
       const { access_token } = await authService.login(formData)
       console.log('Login bem-sucedido! Token:', access_token.substring(0, 20) + '...')
+      
+      // Salvar ou remover dados do "Lembrar de mim"
+      if (rememberMe) {
+        localStorage.setItem('remembered_username', formData.username)
+        localStorage.setItem('remembered_password', formData.password)
+      } else {
+        localStorage.removeItem('remembered_username')
+        localStorage.removeItem('remembered_password')
+      }
       
       // IMPORTANTE: Salvar o token ANTES de buscar os dados do usuário
       // para que o interceptor possa usá-lo
@@ -109,6 +129,19 @@ export default function Login() {
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               />
+            </div>
+
+            <div className="flex items-center">
+              <input
+                id="remember-me"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+              />
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 cursor-pointer select-none">
+                Lembrar de mim
+              </label>
             </div>
           </div>
 
