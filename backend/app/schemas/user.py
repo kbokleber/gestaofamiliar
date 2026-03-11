@@ -61,9 +61,14 @@ class User(UserBase):
     family_id: Optional[int] = None
     profile: Optional[Profile] = None
     family_ids: Optional[list[int]] = None  # Para admins (múltiplas famílias)
+    api_token: Optional[str] = None  # Token de API estático
     
     class Config:
         from_attributes = True
 
 class UserWithProfile(User):
     profile: Profile
+
+class ApiTokenResponse(BaseModel):
+    api_token: str
+    message: str = "Token gerado com sucesso. Use no header X-API-Token para autenticar."

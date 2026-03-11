@@ -23,6 +23,7 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     date_joined = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=True, index=True)  # Mantido para compatibilidade (família principal para staff)
+    api_token = Column(String(100), unique=True, nullable=True, index=True)  # Token de API estático para acesso programático
     
     # Relacionamentos
     family = relationship("Family", back_populates="users", foreign_keys=[family_id])  # Família principal (para staff)

@@ -2,7 +2,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield, Building2
+  Heart, Menu, X, Activity, Shield, Building2, User
 } from 'lucide-react'
 import { useState } from 'react'
 import { APP_VERSION } from '../config/version'
@@ -83,7 +83,11 @@ export default function Layout() {
         <div className="p-6">
           <h1 className="text-xl font-bold text-gray-900">Gestão Familiar</h1>
           <p className="text-xs text-gray-500 mt-0.5">v{APP_VERSION}</p>
-          <p className="text-sm text-gray-600 mt-1">Olá, {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}`.trim() : user?.first_name || user?.last_name || user?.username}!</p>
+          <p className="mt-1 text-sm text-gray-600">
+            {user?.first_name && user?.last_name
+              ? `${user.first_name} ${user.last_name}`.trim()
+              : user?.first_name || user?.last_name || user?.username}
+          </p>
         </div>
 
         <nav className="px-3 mt-6 space-y-1">
@@ -123,7 +127,14 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t space-y-1">
+          <Link
+            to="/profile"
+            className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors"
+          >
+            <User className="mr-3 h-5 w-5" />
+            Meu Perfil
+          </Link>
           <button
             type="button"
             onClick={handleLogout}

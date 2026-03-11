@@ -44,6 +44,7 @@ async def create_equipment(
         equipment_dict.pop('created_at', None)
         equipment_dict.pop('updated_at', None)
         equipment_dict.pop('id', None)
+        equipment_dict.pop('has_documents', None)
         
         # Garantir que campos obrigatórios tenham valores padrão
         if 'service_provider' not in equipment_dict or equipment_dict['service_provider'] is None:
@@ -87,7 +88,8 @@ async def list_equipment(
     Use include_documents=false para carregamento mais rápido."""
     from app.api.deps import get_user_family_ids
     
-    # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
+    from sqlalchemy.orm import defer
+    
     if (current_user.is_superuser or current_user.is_staff) and family_id is None:
         family_ids = get_user_family_ids(current_user, db)
         if not family_ids:
@@ -101,6 +103,9 @@ async def list_equipment(
     
     if equipment_type:
         query = query.filter(Equipment.type == equipment_type)
+        
+    if not include_documents:
+        query = query.options(defer(Equipment.documents))
     
     equipments = query.order_by(Equipment.created_at.desc()).all()
     
@@ -122,7 +127,7 @@ async def list_equipment(
                 "owner_id": e.owner_id,
                 "notes": e.notes,
                 "documents": None,
-                "has_documents": bool(e.documents and len(e.documents) > 2), # > 2 por causa de "[]"
+                "has_documents": None, # Will be handled by next query optimization if required
                 "created_at": e.created_at,
                 "updated_at": e.updated_at
             }
@@ -222,6 +227,8 @@ async def update_equipment(
     # Garantir que documents seja processado explicitamente
     if 'documents' in equipment_data.model_dump(exclude_unset=False):
         update_data['documents'] = equipment_data.documents
+    
+    update_data.pop('has_documents', None)
     
     for field, value in update_data.items():
         setattr(equipment, field, value)
@@ -328,6 +335,7 @@ async def create_maintenance_order(
     data_dict.pop('created_at', None)
     data_dict.pop('updated_at', None)
     data_dict.pop('id', None)
+    data_dict.pop('has_documents', None)
     
     # Normalizar status para maiúsculas
     if 'status' in data_dict and data_dict['status']:
@@ -367,6 +375,8 @@ async def list_maintenance_orders(
     Use include_documents=false para carregamento mais rápido."""
     from app.api.deps import get_user_family_ids
     
+    from sqlalchemy.orm import defer
+    
     # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
     if (current_user.is_superuser or current_user.is_staff) and family_id is None:
         family_ids = get_user_family_ids(current_user, db)
@@ -388,6 +398,9 @@ async def list_maintenance_orders(
     
     if status:
         query = query.filter(MaintenanceOrder.status == status)
+        
+    if not include_documents:
+        query = query.options(defer(MaintenanceOrder.documents))
     
     orders = query.order_by(MaintenanceOrder.completion_date.desc()).all()
     
@@ -414,7 +427,7 @@ async def list_maintenance_orders(
                 "invoice_file": o.invoice_file,
                 "notes": o.notes,
                 "documents": None,
-                "has_documents": bool(o.documents and len(o.documents) > 2),
+                "has_documents": None,
                 "created_by_id": o.created_by_id,
                 "created_at": o.created_at,
                 "updated_at": o.updated_at
@@ -555,6 +568,8 @@ async def update_maintenance_order(
             logging.info(f"[DEBUG] UPDATE ORDER {order_id} - documents presente: {all_data['documents'] is not None}")
             if all_data['documents']:
                 logging.info(f"[DEBUG] UPDATE ORDER {order_id} - documents tamanho: {len(str(all_data['documents']))} caracteres")
+        
+        update_dict.pop('has_documents', None)
         
         # Atualizar campos (incluindo documents agora)
         for field, value in update_dict.items():

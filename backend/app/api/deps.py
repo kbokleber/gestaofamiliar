@@ -1,5 +1,5 @@
-from fastapi import Depends, HTTPException, status, Query
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, Query, Security
+from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 from app.core.config import settings
@@ -8,18 +8,42 @@ from app.db.base import get_db
 from app.models.user import User
 from app.models.family import Family
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
+api_key_header = APIKeyHeader(name="X-API-Token", auto_error=False)
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token: Optional[str] = Depends(oauth2_scheme),
+    api_key: Optional[str] = Security(api_key_header),
     db: Session = Depends(get_db)
 ) -> User:
-    """Obtém o usuário atual a partir do token JWT - OTIMIZADO com eager loading"""
+    """Obtém o usuário atual a partir do token JWT ou X-API-Token header"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Não foi possível validar as credenciais",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # --- Autenticação por API Token estático (X-API-Token header) ---
+    if api_key:
+        user = db.query(User).options(
+            joinedload(User.families)
+        ).filter(User.api_token == api_key, User.is_active == True).first()
+        if user is None:
+            raise credentials_exception
+        # Cachear family_ids
+        if not hasattr(user, '_cached_family_ids'):
+            if user.is_superuser:
+                family_ids = [f.id for f in user.families] if user.families else []
+                if not family_ids and user.family_id:
+                    family_ids = [user.family_id]
+            else:
+                family_ids = [user.family_id] if user.family_id else []
+            user._cached_family_ids = family_ids
+        return user
+
+    # --- Autenticação por JWT Bearer token ---
+    if not token:
+        raise credentials_exception
     
     payload = decode_access_token(token)
     if payload is None:
@@ -48,6 +72,7 @@ async def get_current_user(
         user._cached_family_ids = family_ids
     
     return user
+
 
 async def get_current_admin(
     current_user: User = Depends(get_current_user)

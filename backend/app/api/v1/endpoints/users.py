@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from app.db.base import get_db
 from app.models.user import User, Profile
 from app.models.family import Family
-from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate, UserUpdate
+from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate, UserUpdate, ApiTokenResponse
 from app.api.deps import get_current_user, get_current_admin
 from app.core.security import get_password_hash
 
@@ -50,6 +50,28 @@ async def update_my_profile(
     db.refresh(current_user)
     
     return current_user
+
+@router.post("/me/api-token", response_model=ApiTokenResponse)
+async def generate_api_token(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Gera ou regenera o token de API estático do usuário atual.
+    Use o token retornado no header 'X-API-Token' para autenticar requisições sem JWT."""
+    import secrets
+    new_token = secrets.token_urlsafe(48)
+    current_user.api_token = new_token
+    db.commit()
+    return {"api_token": new_token}
+
+@router.delete("/me/api-token", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_api_token(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Revoga o token de API do usuário atual."""
+    current_user.api_token = None
+    db.commit()
 
 @router.get("/", response_model=List[UserSchema])
 async def list_users(
