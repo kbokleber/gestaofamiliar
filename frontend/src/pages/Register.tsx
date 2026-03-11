@@ -15,6 +15,7 @@ export default function Register() {
     password: '',
     first_name: '',
     last_name: '',
+    family_code: '',
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,6 +61,24 @@ export default function Register() {
           )}
 
           <div className="space-y-4">
+            <div>
+              <label htmlFor="family_code" className="block text-sm font-medium text-gray-700">
+                Código da Família
+              </label>
+              <input
+                id="family_code"
+                type="text"
+                required
+                placeholder="Ex: ABC12345"
+                value={formData.family_code}
+                onChange={(e) => setFormData({ ...formData, family_code: e.target.value.toUpperCase() })}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 uppercase"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Solicite o código ao administrador da sua família.
+              </p>
+            </div>
+
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700">
                 Usuário

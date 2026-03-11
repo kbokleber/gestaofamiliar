@@ -11,6 +11,7 @@ export interface RegisterData {
   password: string
   first_name: string
   last_name: string
+  family_code: string
 }
 
 export const authService = {

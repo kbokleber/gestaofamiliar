@@ -164,33 +164,10 @@ async def get_current_family(
     
     # Para usuários normais, usar a família do usuário
     if current_user.family_id is None:
-        # Em desenvolvimento: criar família automaticamente
-        import secrets
-        import string
-        
-        # Gerar código único
-        alphabet = string.ascii_uppercase + string.digits
-        codigo_unico = ''.join(secrets.choice(alphabet) for _ in range(8))
-        
-        # Garantir que o código seja único
-        while db.query(Family).filter(Family.codigo_unico == codigo_unico).first():
-            codigo_unico = ''.join(secrets.choice(alphabet) for _ in range(8))
-        
-        # Criar nova família
-        new_family = Family(
-            name=f"Família de {current_user.first_name or current_user.username}",
-            codigo_unico=codigo_unico
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuário não possui uma família associada. Entre em contato com o administrador."
         )
-        db.add(new_family)
-        db.commit()
-        db.refresh(new_family)
-        
-        # Associar usuário à família
-        current_user.family_id = new_family.id
-        db.commit()
-        db.refresh(current_user)
-        
-        return new_family.id
     
     return current_user.family_id
 
