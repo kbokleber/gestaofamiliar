@@ -10,6 +10,7 @@ interface User {
   is_superuser?: boolean
   is_staff?: boolean
   is_active?: boolean
+  api_token?: string | null
 }
 
 interface AuthState {
