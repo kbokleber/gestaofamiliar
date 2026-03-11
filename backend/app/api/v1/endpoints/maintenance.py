@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import json
@@ -435,6 +436,23 @@ async def list_maintenance_orders(
     for o in orders:
         setattr(o, "equipment_name", equipment_name(o))
     return orders
+
+@router.get("/orders/{order_id}/documents/{doc_index}/download")
+async def download_maintenance_order_document(
+    order_id: int,
+    doc_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Baixar um anexo de uma ordem de manutenção"""
+    from app.utils.file_response import get_document_response
+    
+    order = db.query(MaintenanceOrder).filter(MaintenanceOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ordem de manutenção não encontrada")
+    
+    return get_document_response(order.documents, doc_index, "Ordem de manutenção")
 
 @router.get("/orders/{order_id}", response_model=MaintenanceOrderDetail)
 async def get_maintenance_order(

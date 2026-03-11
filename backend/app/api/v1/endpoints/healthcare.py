@@ -1,7 +1,7 @@
 import base64
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -506,6 +506,23 @@ async def delete_appointment(
     db.commit()
 
 # ===== MEDICATIONS =====
+@router.get("/procedures/{procedure_id}/documents/{doc_index}/download")
+async def download_procedure_document(
+    procedure_id: int,
+    doc_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Baixar um anexo de um procedimento médico"""
+    from app.utils.file_response import get_document_response
+    
+    procedure = db.query(MedicalProcedure).filter(MedicalProcedure.id == procedure_id).first()
+    if not procedure:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Procedimento não encontrado")
+    
+    return get_document_response(procedure.documents, doc_index, "Procedimento")
+
 @router.post("/medications", response_model=MedicationSchema, status_code=status.HTTP_201_CREATED)
 async def create_medication(
     medication_data: MedicationCreate,
@@ -739,6 +756,23 @@ async def delete_medication(
     db.commit()
 
 # ===== PROCEDURES =====
+@router.get("/appointments/{appointment_id}/documents/{doc_index}/download")
+async def download_appointment_document(
+    appointment_id: int,
+    doc_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Baixar um anexo de uma consulta médica"""
+    from app.utils.file_response import get_document_response
+    
+    appointment = db.query(MedicalAppointment).filter(MedicalAppointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Consulta não encontrada")
+    
+    return get_document_response(appointment.documents, doc_index, "Consulta")
+
 @router.post("/procedures", response_model=MedicalProcedureSchema, status_code=status.HTTP_201_CREATED)
 async def create_procedure(
     procedure_data: MedicalProcedureCreate,
