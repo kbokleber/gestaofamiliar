@@ -147,7 +147,8 @@ export default function Medications() {
       // Preparar dados para envio - usar o mesmo padrão de Appointments
       const dataToSend = {
         ...formData,
-        end_date: formData.end_date || null,
+        start_date: toDateInputValue(formData.start_date),
+        end_date: toDateInputValue(formData.end_date),
         // Serializar documentos como JSON - mesmo padrão de Appointments
         documents: documents.length > 0 ? JSON.stringify(documents) : null
       }
@@ -216,8 +217,8 @@ export default function Medications() {
       name: medication.name,
       dosage: medication.dosage,
       frequency: medication.frequency,
-      start_date: toDateInputValue(medication.start_date),
-      end_date: toDateInputValue(medication.end_date),
+      start_date: toDateInputValue(medication.start_date) || '',
+      end_date: toDateInputValue(medication.end_date) || '',
       prescribed_by: medication.prescribed_by || '',
       prescription_number: medication.prescription_number || '',
       instructions: medication.instructions || '',

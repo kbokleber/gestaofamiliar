@@ -63,8 +63,8 @@ export const formatDateTimeBR = (dateString: string | null | undefined): string 
  * Converte uma data ISO para o formato usado em inputs date (YYYY-MM-DD)
  * Lida com datas sem considerar timezone
  */
-export const toDateInputValue = (dateString: string | null | undefined): string => {
-  if (!dateString) return ''
+export const toDateInputValue = (dateString: string | null | undefined): string | null => {
+  if (!dateString || dateString.trim() === '') return null
   
   // Se a data vier como YYYY-MM-DD (sem hora), retornar diretamente
   const dateOnly = dateString.split('T')[0]
@@ -76,7 +76,7 @@ export const toDateInputValue = (dateString: string | null | undefined): string 
   
   // Fallback para datas com formato diferente
   const date = new Date(dateString)
-  if (isNaN(date.getTime())) return ''
+  if (isNaN(date.getTime())) return null
   
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
@@ -89,8 +89,8 @@ export const toDateInputValue = (dateString: string | null | undefined): string 
  * Converte uma data ISO para o formato usado em inputs datetime-local (YYYY-MM-DDTHH:mm)
  * Extrai diretamente da string para evitar problemas de timezone
  */
-export const toDateTimeInputValue = (dateString: string | null | undefined): string => {
-  if (!dateString) return ''
+export const toDateTimeInputValue = (dateString: string | null | undefined): string | null => {
+  if (!dateString || dateString.trim() === '') return null
   
   // Remover timezone se presente (ex: -03:00 ou +00:00 ou Z)
   const cleaned = dateString.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '')
@@ -104,7 +104,7 @@ export const toDateTimeInputValue = (dateString: string | null | undefined): str
   
   // Fallback: usar Date (pode ter problemas de timezone, mas é melhor que nada)
   const date = new Date(dateString)
-  if (isNaN(date.getTime())) return ''
+  if (isNaN(date.getTime())) return null
   
   const year = date.getFullYear()
   const month = (date.getMonth() + 1).toString().padStart(2, '0')

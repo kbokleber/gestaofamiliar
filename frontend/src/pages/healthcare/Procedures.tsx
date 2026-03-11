@@ -193,7 +193,8 @@ export default function Procedures() {
       // Preparar dados para envio
       const dataToSend = {
         ...formData,
-        next_procedure_date: formData.next_procedure_date || null,
+        procedure_date: toDateTimeInputValue(formData.procedure_date),
+        next_procedure_date: toDateTimeInputValue(formData.next_procedure_date),
         // Serializar documentos como JSON
         documents: documents.length > 0 ? JSON.stringify(documents) : null
       }
@@ -246,13 +247,13 @@ export default function Procedures() {
     setFormData({
       family_member_id: procedure.family_member_id,
       procedure_name: procedure.procedure_name,
-      procedure_date: toDateTimeInputValue(procedure.procedure_date),
+      procedure_date: toDateTimeInputValue(procedure.procedure_date) || '',
       doctor_name: procedure.doctor_name,
       location: procedure.location,
       description: procedure.description,
       results: procedure.results || '',
       follow_up_notes: procedure.follow_up_notes || '',
-      next_procedure_date: toDateTimeInputValue(procedure.next_procedure_date)
+      next_procedure_date: toDateTimeInputValue(procedure.next_procedure_date) || ''
     })
     // Carregar documentos
     if (procedure.documents) {

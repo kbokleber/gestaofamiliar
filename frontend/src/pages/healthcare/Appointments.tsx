@@ -197,8 +197,9 @@ export default function Appointments() {
       // Preparar dados para envio
       const dataToSend = {
         ...formData,
+        appointment_date: toDateTimeInputValue(formData.appointment_date),
         // Se next_appointment estiver vazio, enviar null
-        next_appointment: formData.next_appointment || null,
+        next_appointment: toDateTimeInputValue(formData.next_appointment),
         // Serializar documentos como JSON
         documents: documents.length > 0 ? JSON.stringify(documents) : null
       }
@@ -252,12 +253,12 @@ export default function Appointments() {
       family_member_id: appointment.family_member_id,
       doctor_name: appointment.doctor_name,
       specialty: appointment.specialty,
-      appointment_date: toDateTimeInputValue(appointment.appointment_date),
+      appointment_date: toDateTimeInputValue(appointment.appointment_date) || '',
       location: appointment.location || '',
       reason: appointment.reason,
       diagnosis: appointment.diagnosis || '',
       prescription: appointment.prescription || '',
-      next_appointment: toDateTimeInputValue(appointment.next_appointment),
+      next_appointment: toDateTimeInputValue(appointment.next_appointment) || '',
       notes: appointment.notes || ''
     })
     // Carregar documentos
