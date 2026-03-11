@@ -152,8 +152,8 @@ export default function Equipment() {
     try {
       const dataToSend = {
         ...formData,
-        purchase_date: formData.purchase_date || null,
-        warranty_expiry: formData.warranty_expiry || null,
+        purchase_date: toDateInputValue(formData.purchase_date),
+        warranty_expiry: toDateInputValue(formData.warranty_expiry),
         type: formData.type || null,
         brand: formData.brand || null,
         model: formData.model || null,

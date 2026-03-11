@@ -279,8 +279,8 @@ export default function MaintenanceOrders() {
         ...formData,
         title: formData.title || formData.description.substring(0, 100) || 'Manutenção', // Usar descrição como título se não fornecido
         equipment_id: formData.equipment_id,
-        completion_date: formData.completion_date || null,
-        warranty_expiration: formData.warranty_expiration || null,
+        completion_date: toDateInputValue(formData.completion_date),
+        warranty_expiration: toDateInputValue(formData.warranty_expiration),
         cost: formData.cost ? parseFloat(formData.cost.replace(',', '.')) : null,
         documents: documentsJson  // Sempre incluir, mesmo que seja null
       }

@@ -140,7 +140,10 @@ export default function FamilyMembers() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const dataToSend: any = { ...formData }
+      const dataToSend: any = { 
+        ...formData,
+        birth_date: toDateInputValue(formData.birth_date)
+      }
 
       // Se há uma nova foto, converter para base64 (igual ao DocumentUpload)
       if (photoFile) {
