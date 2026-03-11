@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, healthcare, maintenance, dashboard, families, telegram
+from app.api.v1.endpoints import auth, users, healthcare, maintenance, dashboard, families, telegram, finance
 
 api_router = APIRouter()
 
@@ -10,3 +10,4 @@ api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboar
 api_router.include_router(healthcare.router, prefix="/healthcare", tags=["healthcare"])
 api_router.include_router(maintenance.router, prefix="/maintenance", tags=["maintenance"])
 api_router.include_router(telegram.router, prefix="/telegram", tags=["telegram"])
+api_router.include_router(finance.router, prefix="/finance", tags=["finance"])

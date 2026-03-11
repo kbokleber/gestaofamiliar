@@ -2,7 +2,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield, Building2, User
+  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp
 } from 'lucide-react'
 import { useState } from 'react'
 import { APP_VERSION } from '../config/version'
@@ -35,6 +35,15 @@ export default function Layout() {
       children: [
         { name: 'Equipamentos', href: '/maintenance/equipment', icon: Settings },
         { name: 'Ordens de Manutenção', href: '/maintenance/orders', icon: Wrench },
+      ]
+    },
+    {
+      name: 'Finanças',
+      icon: Wallet,
+      children: [
+        { name: 'Painel Geral', href: '/finance', icon: TrendingUp },
+        { name: 'Lançamentos', href: '/finance/entries', icon: Wallet },
+        { name: 'Recorrências', href: '/finance/recurrences', icon: Calendar },
       ]
     },
   ]

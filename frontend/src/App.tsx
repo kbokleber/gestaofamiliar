@@ -14,6 +14,9 @@ import MaintenanceOrders from './pages/maintenance/MaintenanceOrders'
 import AdminUsers from './pages/admin/Users'
 import AdminFamilies from './pages/admin/Families'
 import UserProfile from './pages/profile/UserProfile'
+import FinanceDashboard from './pages/finance/FinanceDashboard'
+import FinanceEntries from './pages/finance/FinanceEntries'
+import FinanceRecurrences from './pages/finance/FinanceRecurrences'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -42,6 +45,11 @@ function App() {
         
         {/* Profile / Settings */}
         <Route path="/profile" element={<UserProfile />} />
+        
+        {/* Finance Routes */}
+        <Route path="/finance" element={<FinanceDashboard />} />
+        <Route path="/finance/entries" element={<FinanceEntries />} />
+        <Route path="/finance/recurrences" element={<FinanceRecurrences />} />
         
         {/* Admin Routes */}
         <Route path="/admin/users" element={<AdminUsers />} />
