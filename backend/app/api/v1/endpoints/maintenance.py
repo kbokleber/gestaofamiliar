@@ -137,6 +137,23 @@ async def list_equipment(
     
     return equipments
 
+@router.get("/equipment/{equipment_id}/documents/{doc_index}/download")
+async def download_equipment_document(
+    equipment_id: int,
+    doc_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Baixar um anexo de um equipamento"""
+    from app.utils.file_response import get_document_response
+    
+    equipment = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Equipamento não encontrado")
+    
+    return get_document_response(equipment.documents, doc_index, "Equipamento")
+
 @router.get("/equipment/{equipment_id}", response_model=EquipmentDetail)
 async def get_equipment(
     equipment_id: int,

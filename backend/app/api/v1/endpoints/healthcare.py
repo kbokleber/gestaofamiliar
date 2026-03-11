@@ -955,3 +955,19 @@ async def delete_procedure(
 
 
 
+@router.get("/medications/{medication_id}/documents/{doc_index}/download")
+async def download_medication_document(
+    medication_id: int,
+    doc_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Baixar um anexo de um medicamento"""
+    from app.utils.file_response import get_document_response
+    
+    medication = db.query(Medication).filter(Medication.id == medication_id).first()
+    if not medication:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Medicamento não encontrado")
+    
+    return get_document_response(medication.documents, doc_index, "Medicamento")
