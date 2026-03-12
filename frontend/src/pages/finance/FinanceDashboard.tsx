@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { TrendingUp, TrendingDown, Wallet, Calendar, PieChart, Plus, RefreshCw } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, Calendar, PieChart, Plus } from 'lucide-react'
 import { financeService, FinanceSummary } from '../../services/financeService'
 import Loading from '../../components/Loading'
 
 export default function FinanceDashboard() {
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState<FinanceSummary | null>(null)
-  const [month, setMonth] = useState(new Date().getMonth() + 1)
+  const [month, setMonth] = useState<number | null>(new Date().getMonth() + 1)
   const [year, setYear] = useState(new Date().getFullYear())
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export default function FinanceDashboard() {
   const loadSummary = async () => {
     setLoading(true)
     try {
-      const data = await financeService.getSummary(month, year)
+      const data = await financeService.getSummary(month === null ? undefined : month, year)
       setSummary(data)
     } catch (error) {
       console.error('Erro ao carregar resumo financeiro:', error)
@@ -25,14 +25,6 @@ export default function FinanceDashboard() {
     }
   }
 
-  const handleGenerateRecurrences = async () => {
-    try {
-      await financeService.generateRecurrences()
-      loadSummary()
-    } catch (error) {
-      console.error('Erro ao gerar recorrências:', error)
-    }
-  }
 
   if (loading && !summary) return <Loading />
 
@@ -46,10 +38,11 @@ export default function FinanceDashboard() {
         
         <div className="flex items-center gap-2">
           <select 
-            value={month} 
-            onChange={(e) => setMonth(parseInt(e.target.value))}
+            value={month === null ? 'all' : month} 
+            onChange={(e) => setMonth(e.target.value === 'all' ? null : parseInt(e.target.value))}
             className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
           >
+            <option value="all">O ano todo</option>
             {[...Array(12)].map((_, i) => (
               <option key={i+1} value={i+1}>
                 {new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date(2000, i))}
@@ -65,13 +58,6 @@ export default function FinanceDashboard() {
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
-          <button
-            onClick={handleGenerateRecurrences}
-            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
-            title="Gerar recorrências do mês"
-          >
-            <RefreshCw className="h-5 w-5" />
-          </button>
         </div>
       </div>
 
@@ -106,13 +92,70 @@ export default function FinanceDashboard() {
             <div className={`p-2 rounded-lg ${(summary?.month_balance || 0) >= 0 ? 'bg-indigo-100 text-indigo-600' : 'bg-orange-100 text-orange-600'}`}>
               <Wallet className="h-6 w-6" />
             </div>
-            <span className="text-xs font-medium text-gray-400 uppercase">Saldo Mensal</span>
+            <span className="text-xs font-medium text-gray-400 uppercase">{month === null ? 'Saldo Anual' : 'Saldo Mensal'}</span>
           </div>
           <div className="text-2xl font-bold text-gray-900">
             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(summary?.month_balance || 0)}
           </div>
+          <div className={`text-xs mt-2 ${ (summary?.month_balance || 0) >= (summary?.previous_month_balance || 0) ? 'text-green-500' : 'text-red-500'}`}>
+            {(summary?.month_balance || 0) >= (summary?.previous_month_balance || 0) ? '↑' : '↓'} 
+            {Math.abs(((summary?.month_balance || 0) - (summary?.previous_month_balance || 0)) / (Math.abs(summary?.previous_month_balance || 1) || 1) * 100).toFixed(1)}% vs {month === null ? 'ano anterior' : 'mês ant.'}
+          </div>
         </div>
       </div>
+
+      {summary?.monthly_data && (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-6">
+            <Calendar className="h-5 w-5 text-gray-400" />
+            <h2 className="text-lg font-semibold text-gray-900">Evolução Mensal ({year})</h2>
+          </div>
+          
+          <div className="h-64 w-full flex items-end gap-1 sm:gap-4 px-2">
+            {summary.monthly_data.map((m, i) => {
+              const maxVal = Math.max(...summary.monthly_data!.map(d => Math.max(Number(d.income), Number(d.expense))), 1)
+              const incomeHeight = (Number(m.income) / maxVal) * 100
+              const expenseHeight = (Number(m.expense) / maxVal) * 100
+              
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center gap-2 group relative">
+                  <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-48">
+                    <div 
+                      className="w-2 sm:w-4 bg-green-400 rounded-t-sm transition-all duration-500 group-hover:bg-green-500"
+                      style={{ height: `${incomeHeight}%` }}
+                      title={`Receita: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(m.income))}`}
+                    />
+                    <div 
+                      className="w-2 sm:w-4 bg-red-400 rounded-t-sm transition-all duration-500 group-hover:bg-red-500"
+                      style={{ height: `${expenseHeight}%` }}
+                      title={`Despesa: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(m.expense))}`}
+                    />
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-gray-400 font-medium">
+                    {new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(new Date(2000, m.month - 1)).replace('.', '')}
+                  </span>
+                  
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full mb-2 bg-gray-900 text-white text-[10px] p-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-10 whitespace-nowrap shadow-xl">
+                    <div className="text-green-400">R: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(m.income))}</div>
+                    <div className="text-red-400">D: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(m.expense))}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex justify-center gap-6 mt-6 border-t pt-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-400 rounded-sm" />
+              <span className="text-xs text-gray-500 font-medium">Receitas</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-red-400 rounded-sm" />
+              <span className="text-xs text-gray-500 font-medium">Despesas</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Despesas por Categoria */}

@@ -44,6 +44,7 @@ export default function Layout() {
         { name: 'Painel Geral', href: '/finance', icon: TrendingUp },
         { name: 'Lançamentos', href: '/finance/entries', icon: Wallet },
         { name: 'Recorrências', href: '/finance/recurrences', icon: Calendar },
+        { name: 'Categorias', href: '/finance/categories', icon: Settings },
       ]
     },
   ]

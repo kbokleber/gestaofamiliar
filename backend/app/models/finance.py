@@ -17,10 +17,13 @@ class FinanceCategory(Base):
     color = Column(String(20), nullable=True) # Hex color
     type = Column(String(10), nullable=False) # 'INCOME' ou 'EXPENSE'
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
     
     # Relacionamentos
     family = relationship("Family", back_populates="finance_categories")
+    created_by = relationship("User")
     entries = relationship("FinanceEntry", back_populates="category")
     recurrences = relationship("FinanceRecurrence", back_populates="category")
 
@@ -47,8 +50,8 @@ class FinanceEntry(Base):
     recurrence_id = Column(Integer, ForeignKey("finance_recurrence.id"), nullable=True)
     
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relacionamentos
     family = relationship("Family", back_populates="finance_entries")
@@ -68,15 +71,17 @@ class FinanceRecurrence(Base):
     category_id = Column(Integer, ForeignKey("finance_category.id"), nullable=True)
     description = Column(String(200), nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)
-    type = Column(String(10), nullable=False) # 'INCOME' ou 'EXPENSE'
-    day_of_month = Column(Integer, nullable=False) # 1 a 31
+    type = Column(String(20), nullable=False) # 'INCOME' or 'EXPENSE'
+    day_of_month = Column(Integer, nullable=False)
+    start_date = Column(Date, nullable=True) # Data para começar a gerar
+    end_date = Column(Date, nullable=True) # Data para parar de gerar
     is_active = Column(Boolean, default=True)
     
     # Controle de geração
     last_generated_date = Column(Date, nullable=True) 
     
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
     
     # Relacionamentos
     family = relationship("Family", back_populates="finance_recurrences")

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Edit2, CheckCircle, XCircle } from 'lucide-react'
+import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2 } from 'lucide-react'
 import { financeService, Entry, Category } from '../../services/financeService'
 import Loading from '../../components/Loading'
 import Modal from '../../components/Modal'
@@ -17,13 +17,14 @@ export default function FinanceEntries() {
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().substring(0, 10),
     type: 'EXPENSE',
     category_id: '',
     payment_method: '',
     is_paid: true,
     notes: ''
   })
+  const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -49,21 +50,47 @@ export default function FinanceEntries() {
     e.preventDefault()
     try {
       const payload = {
-        ...formData,
+        description: formData.description,
         amount: parseFloat(formData.amount),
-        category_id: formData.category_id ? parseInt(formData.category_id) : undefined
+        date: formData.date,
+        type: formData.type,
+        category_id: formData.category_id ? parseInt(formData.category_id) : undefined,
+        payment_method: formData.payment_method || undefined,
+        is_paid: formData.is_paid,
+        notes: formData.notes || undefined
       }
       
+      console.log('Salvando lançamento:', payload)
       if (selectedEntry) {
         await financeService.updateEntry(selectedEntry.id, payload as any)
       } else {
-        await financeService.createEntry(payload as any)
+        const result = await financeService.createEntry(payload as any)
+        console.log('Lançamento criado:', result)
       }
       
       setIsModalOpen(false)
       loadData()
     } catch (error) {
       console.error('Erro ao salvar lançamento:', error)
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploading(true)
+    try {
+      await financeService.uploadReceipt(file)
+      alert('Comprovante processado e cadastrado com sucesso!')
+      loadData()
+    } catch (error: any) {
+      console.error('Erro ao processar comprovante:', error)
+      alert('Erro ao processar comprovante. Verifique se a IA está configurada ou tente novamente.')
+    } finally {
+      setIsUploading(false)
+      // Limpar o input
+      e.target.value = ''
     }
   }
 
@@ -88,26 +115,44 @@ export default function FinanceEntries() {
           <p className="text-gray-500">Gerencie suas receitas e despesas</p>
         </div>
         
-        <button
-          onClick={() => {
-            setSelectedEntry(null)
-            setFormData({
-              description: '',
-              amount: '',
-              date: new Date().toISOString().split('T')[0],
-              type: 'EXPENSE',
-              category_id: '',
-              payment_method: '',
-              is_paid: true,
-              notes: ''
-            })
-            setIsModalOpen(true)
-          }}
-          className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Novo Lançamento
-        </button>
+        <div className="flex gap-2">
+          <label className={`inline-flex items-center px-4 py-2 rounded-lg cursor-pointer transition-colors shadow-sm ${isUploading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
+            {isUploading ? (
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+            ) : (
+              <Camera className="h-5 w-5 mr-2" />
+            )}
+            {isUploading ? 'Processando...' : 'Escanear Recibo'}
+            <input 
+              type="file" 
+              className="hidden" 
+              accept="image/*" 
+              onChange={handleFileUpload}
+              disabled={isUploading}
+            />
+          </label>
+
+          <button
+            onClick={() => {
+              setSelectedEntry(null)
+              setFormData({
+                description: '',
+                amount: '',
+                date: new Date().toISOString().substring(0, 10),
+                type: 'EXPENSE',
+                category_id: '',
+                payment_method: '',
+                is_paid: true,
+                notes: ''
+              })
+              setIsModalOpen(true)
+            }}
+            className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Novo Lançamento
+          </button>
+        </div>
       </div>
 
       {/* Tabela de Lançamentos */}

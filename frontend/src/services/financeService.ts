@@ -31,6 +31,8 @@ export interface Recurrence {
   category_id?: number
   category?: Category
   day_of_month: number
+  start_date?: string
+  end_date?: string
   is_active: boolean
 }
 
@@ -44,6 +46,11 @@ export interface FinanceSummary {
     amount: number
     color: string
   }[]
+  monthly_data?: {
+    month: number
+    income: number
+    expense: number
+  }[]
 }
 
 export const financeService = {
@@ -55,6 +62,13 @@ export const financeService = {
   async createCategory(data: Partial<Category>) {
     const response = await api.post<Category>('/finance/categories', data)
     return response.data
+  },
+  async updateCategory(id: number, data: Partial<Category>) {
+    const response = await api.put<Category>(`/finance/categories/${id}`, data)
+    return response.data
+  },
+  async deleteCategory(id: number) {
+    await api.delete(`/finance/categories/${id}`)
   },
 
   // Lançamentos
@@ -73,6 +87,16 @@ export const financeService = {
   async deleteEntry(id: number) {
     await api.delete(`/finance/entries/${id}`)
   },
+  async uploadReceipt(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post<Entry>('/finance/upload-receipt', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return response.data
+  },
 
   // Recorrências
   async getRecurrences() {
@@ -83,13 +107,20 @@ export const financeService = {
     const response = await api.post<Recurrence>('/finance/recurrences', data)
     return response.data
   },
-  async generateRecurrences() {
-    const response = await api.post<{message: string}>('/finance/generate-recurrences')
+  async updateRecurrence(id: number, data: Partial<Recurrence>) {
+    const response = await api.put<Recurrence>(`/finance/recurrences/${id}`, data)
+    return response.data
+  },
+  async deleteRecurrence(id: number) {
+    await api.delete(`/finance/recurrences/${id}`)
+  },
+  async generateRecurrences(month?: number, year?: number) {
+    const response = await api.post<{message: string}>('/finance/generate-recurrences', null, { params: { month, year } })
     return response.data
   },
 
   // Resumo
-  async getSummary(month: number, year: number) {
+  async getSummary(month?: number, year?: number) {
     const response = await api.get<FinanceSummary>('/finance/summary', { params: { month, year } })
     return response.data
   }
