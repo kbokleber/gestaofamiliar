@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2, Paperclip, Image } from 'lucide-react'
+import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2, Paperclip, Image, HelpCircle } from 'lucide-react'
 import { financeService, Entry, Category } from '../../services/financeService'
 import Loading from '../../components/Loading'
 import Modal from '../../components/Modal'
@@ -62,6 +62,7 @@ export default function FinanceEntries() {
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null)
   const [familyAiConfig, setFamilyAiConfig] = useState<FamilyAIConfig | null>(null)
   const [showScanMenu, setShowScanMenu] = useState(false)
+  const [isScanHelpOpen, setIsScanHelpOpen] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -317,73 +318,85 @@ export default function FinanceEntries() {
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
-          <div className="relative">
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isUploading || !isFamilyAiConfigured) return
+                  setShowScanMenu((prev) => !prev)
+                }}
+                className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors shadow-sm ${
+                  isUploading || !isFamilyAiConfigured
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer'
+                }`}
+                title={!isFamilyAiConfigured ? 'Configure a IA da família para habilitar o escaneamento de recibos.' : undefined}
+                disabled={isUploading || !isFamilyAiConfigured}
+              >
+                {isUploading ? (
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                ) : (
+                  <Camera className="h-5 w-5 mr-2" />
+                )}
+                {isUploading ? 'Processando...' : 'Escanear Recibo'}
+              </button>
+
+              {showScanMenu && isFamilyAiConfigured && !isUploading && (
+                <div className="absolute right-0 top-full z-20 mt-2 min-w-[190px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScanMenu(false)
+                      triggerFileInput('receipt-camera-input')
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-100"
+                  >
+                    <Camera className="h-5 w-5 text-indigo-600" />
+                    <span>Câmera</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScanMenu(false)
+                      triggerFileInput('receipt-gallery-input')
+                    }}
+                    className="flex w-full items-center gap-3 border-t border-gray-200 px-4 py-3 text-left text-gray-700 hover:bg-gray-100"
+                  >
+                    <Image className="h-5 w-5 text-green-600" />
+                    <span>Galeria</span>
+                  </button>
+                </div>
+              )}
+
+              <input
+                id="receipt-camera-input"
+                type="file"
+                className="hidden"
+                accept="image/*,application/pdf"
+                capture="environment"
+                onChange={handleFileUpload}
+                disabled={isUploading || !isFamilyAiConfigured}
+              />
+              <input
+                id="receipt-gallery-input"
+                type="file"
+                className="hidden"
+                accept="image/*,application/pdf"
+                onChange={handleFileUpload}
+                disabled={isUploading || !isFamilyAiConfigured}
+              />
+            </div>
+
             <button
               type="button"
-              onClick={() => {
-                if (isUploading || !isFamilyAiConfigured) return
-                setShowScanMenu((prev) => !prev)
-              }}
-              className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors shadow-sm ${
-                isUploading || !isFamilyAiConfigured
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer'
-              }`}
-              title={!isFamilyAiConfigured ? 'Configure a IA da família para habilitar o escaneamento de recibos.' : undefined}
-              disabled={isUploading || !isFamilyAiConfigured}
+              onClick={() => setIsScanHelpOpen(true)}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-2.5 text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-indigo-600"
+              title="Como funciona a captura do recibo"
+              aria-label="Como funciona a captura do recibo"
             >
-              {isUploading ? (
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              ) : (
-                <Camera className="h-5 w-5 mr-2" />
-              )}
-              {isUploading ? 'Processando...' : 'Escanear Recibo'}
+              <HelpCircle className="h-5 w-5" />
             </button>
-
-            {showScanMenu && isFamilyAiConfigured && !isUploading && (
-              <div className="absolute right-0 top-full z-20 mt-2 min-w-[190px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowScanMenu(false)
-                    triggerFileInput('receipt-camera-input')
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-100"
-                >
-                  <Camera className="h-5 w-5 text-indigo-600" />
-                  <span>Câmera</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowScanMenu(false)
-                    triggerFileInput('receipt-gallery-input')
-                  }}
-                  className="flex w-full items-center gap-3 border-t border-gray-200 px-4 py-3 text-left text-gray-700 hover:bg-gray-100"
-                >
-                  <Image className="h-5 w-5 text-green-600" />
-                  <span>Galeria</span>
-                </button>
-              </div>
-            )}
-
-            <input
-              id="receipt-camera-input"
-              type="file"
-              className="hidden"
-              accept="image/*,application/pdf"
-              capture="environment"
-              onChange={handleFileUpload}
-              disabled={isUploading || !isFamilyAiConfigured}
-            />
-            <input
-              id="receipt-gallery-input"
-              type="file"
-              className="hidden"
-              accept="image/*,application/pdf"
-              onChange={handleFileUpload}
-              disabled={isUploading || !isFamilyAiConfigured}
-            />
           </div>
 
           <button
@@ -788,6 +801,62 @@ export default function FinanceEntries() {
             <Button type="submit">Salvar</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={isScanHelpOpen}
+        onClose={() => setIsScanHelpOpen(false)}
+        title="Como funciona a captura do recibo"
+      >
+        <div className="space-y-4 text-sm text-gray-600">
+          <p>
+            Quando você envia uma imagem ou PDF, o sistema tenta interpretar o documento e criar a despesa automaticamente.
+          </p>
+
+          <div className="space-y-3 rounded-lg bg-gray-50 p-4">
+            <div>
+              <p className="font-medium text-gray-900">Data do lançamento</p>
+              <p>
+                A IA prioriza a data da compra, transação ou emissão do comprovante. Se não existir uma data válida no documento, o sistema usa a data do upload.
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-gray-900">Categoria</p>
+              <p>
+                O sistema tenta encontrar uma categoria já existente que seja igual ou relacionada ao recibo. Só cria uma categoria nova quando não encontra nada suficientemente próximo.
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-gray-900">Compras parceladas</p>
+              <p>
+                Se o documento indicar parcelamento, a parcela atual é criada como paga e as próximas são lançadas nos meses seguintes como pendentes.
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-gray-900">Valor das parcelas</p>
+              <p>
+                O valor total do comprovante é dividido entre as parcelas mensais, mantendo a soma exata mesmo quando os centavos não dividem igualmente.
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-gray-900">Datas futuras das parcelas</p>
+              <p>
+                As parcelas futuras mantêm o mesmo dia sempre que possível. Quando o mês não tem esse dia, o sistema usa o último dia disponível.
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-gray-900">Evitar duplicidade</p>
+              <p>
+                Se já existir um lançamento com a mesma data e o mesmo valor para a família, o comprovante é tratado como duplicado e não é lançado novamente.
+              </p>
+            </div>
+          </div>
+        </div>
       </Modal>
 
       <ConfirmDeleteModal

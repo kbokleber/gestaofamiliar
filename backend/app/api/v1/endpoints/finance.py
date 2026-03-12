@@ -16,7 +16,9 @@ from app.schemas.finance import (
 )
 from app.api.deps import get_current_user, get_current_family
 from app.utils.ai_vision import analyze_receipt
+from app.utils.category_matching import find_best_matching_category
 from app.utils.installments import build_installment_entries, parse_installment_info
+from app.utils.receipt_dates import resolve_receipt_date
 
 router = APIRouter()
 
@@ -300,11 +302,7 @@ async def upload_receipt(
             amount_raw = amount_raw.replace('R$', '').replace('$', '').replace(',', '.').replace(' ', '').strip()
         amount = Decimal(str(amount_raw))
         
-        date_raw = ai_data.get("date")
-        if date_raw:
-            entry_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
-        else:
-            entry_date = date.today()
+        entry_date = resolve_receipt_date(ai_data, fallback_date=date.today())
     except Exception:
         amount = Decimal('0.00')
         entry_date = date.today()
@@ -325,10 +323,17 @@ async def upload_receipt(
     
     # 2. Resolver Categoria
     cat_name = ai_data.get("category_name", "Geral")
-    category = db.query(FinanceCategory).filter(
+    description = ai_data.get("description", "Lançamento via IA")
+    available_categories = db.query(FinanceCategory).filter(
         FinanceCategory.family_id == family_id,
-        func.lower(FinanceCategory.name) == cat_name.lower()
-    ).first()
+        FinanceCategory.type == 'EXPENSE',
+        FinanceCategory.is_active == True,
+    ).all()
+    category = find_best_matching_category(
+        available_categories,
+        category_name=cat_name,
+        description=description,
+    )
     
     if not category:
         # Criar categoria automaticamente se não existir
@@ -356,7 +361,6 @@ async def upload_receipt(
     }
     documents_json = json.dumps([doc_obj])
         
-    description = ai_data.get("description", "Lançamento via IA")
     current_installment, total_installments = parse_installment_info(ai_data)
     installment_entries = build_installment_entries(
         description=description,

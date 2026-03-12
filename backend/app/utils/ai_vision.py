@@ -84,10 +84,16 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
     Analise este comprovante ou recibo financeiro e extraia as seguintes informações em formato JSON:
     - description: Uma descrição curta do que foi comprado ou pago.
     - amount: O valor total da compra/recibo (apenas números, use ponto para decimais).
-    - date: A data do comprovante no formato YYYY-MM-DD.
+    - date: A data da compra/transação/emissão do comprovante no formato YYYY-MM-DD.
     - category_name: Uma sugestão de categoria (ex: Alimentação, Saúde, Transporte, Lazer, Moradia, etc).
     - current_installment: Número da parcela atual, se estiver parcelado. Se não estiver parcelado, retorne 1.
     - total_installments: Total de parcelas, se estiver parcelado. Se não estiver parcelado, retorne 1.
+
+    Regras para a data:
+    - Priorize a data em que a compra/transação aconteceu.
+    - Se houver mais de uma data, escolha a data da compra/emissão do comprovante.
+    - Não use data de vencimento, data de fechamento de fatura, data prevista de pagamento ou data de upload.
+    - Se não existir data de compra/transação legível, retorne null.
 
     Retorne APENAS o JSON puro, sem markdown ou explicações.
     """
