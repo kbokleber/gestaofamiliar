@@ -119,17 +119,31 @@ export default function FinanceDashboard() {
               
               return (
                 <div key={i} className="flex-1 flex flex-col items-center gap-2 group relative">
-                  <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-48">
-                    <div 
-                      className="w-2 sm:w-4 bg-green-400 rounded-t-sm transition-all duration-500 group-hover:bg-green-500"
-                      style={{ height: `${incomeHeight}%` }}
-                      title={`Receita: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(m.income))}`}
-                    />
-                    <div 
-                      className="w-2 sm:w-4 bg-red-400 rounded-t-sm transition-all duration-500 group-hover:bg-red-500"
-                      style={{ height: `${expenseHeight}%` }}
-                      title={`Despesa: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(m.expense))}`}
-                    />
+                  <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-48 relative pt-6">
+                    <div className="flex flex-col items-center flex-1 h-full justify-end">
+                      {Number(m.income) > 0 && (
+                        <span className="text-[8px] sm:text-[10px] text-green-600 font-bold mb-0.5 whitespace-nowrap">
+                          {Number(m.income) >= 1000 ? `${(Number(m.income)/1000).toFixed(1)}k` : Math.round(Number(m.income))}
+                        </span>
+                      )}
+                      <div 
+                        className="w-2 sm:w-4 bg-green-400 rounded-t-sm transition-all duration-500 group-hover:bg-green-500"
+                        style={{ height: `${incomeHeight}%` }}
+                        title={`Receita: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(m.income))}`}
+                      />
+                    </div>
+                    <div className="flex flex-col items-center flex-1 h-full justify-end">
+                      {Number(m.expense) > 0 && (
+                        <span className="text-[8px] sm:text-[10px] text-red-600 font-bold mb-0.5 whitespace-nowrap">
+                          {Number(m.expense) >= 1000 ? `${(Number(m.expense)/1000).toFixed(1)}k` : Math.round(Number(m.expense))}
+                        </span>
+                      )}
+                      <div 
+                        className="w-2 sm:w-4 bg-red-400 rounded-t-sm transition-all duration-500 group-hover:bg-red-500"
+                        style={{ height: `${expenseHeight}%` }}
+                        title={`Despesa: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(m.expense))}`}
+                      />
+                    </div>
                   </div>
                   <span className="text-[10px] sm:text-xs text-gray-400 font-medium">
                     {new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(new Date(2000, m.month - 1)).replace('.', '')}
