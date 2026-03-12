@@ -68,7 +68,7 @@ def _prepare_visual_input(file_bytes: bytes, mime_type: Optional[str]) -> tuple[
 def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Usa a API de Visão para extrair dados de um comprovante.
-    Retorna um dicionário com: description, amount, date, category_name.
+    Retorna um dicionário com: description, amount, date, category_name e dados de parcelamento.
     """
     client_and_model = get_ai_client(family_id, db)
     if not client_and_model:
@@ -86,6 +86,8 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
     - amount: O valor total (apenas números, use ponto para decimais).
     - date: A data do comprovante no formato YYYY-MM-DD.
     - category_name: Uma sugestão de categoria (ex: Alimentação, Saúde, Transporte, Lazer, Moradia, etc).
+    - current_installment: Número da parcela atual, se estiver parcelado. Se não estiver parcelado, retorne 1.
+    - total_installments: Total de parcelas, se estiver parcelado. Se não estiver parcelado, retorne 1.
 
     Retorne APENAS o JSON puro, sem markdown ou explicações.
     """

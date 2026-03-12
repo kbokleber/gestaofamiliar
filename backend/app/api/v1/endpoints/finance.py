@@ -16,6 +16,7 @@ from app.schemas.finance import (
 )
 from app.api.deps import get_current_user, get_current_family
 from app.utils.ai_vision import analyze_receipt
+from app.utils.installments import build_installment_entries, parse_installment_info
 
 router = APIRouter()
 
@@ -355,24 +356,45 @@ async def upload_receipt(
     }
     documents_json = json.dumps([doc_obj])
         
-    # 4. Criar Lançamento
-    entry = FinanceEntry(
-        description=ai_data.get("description", "Lançamento via IA"),
+    description = ai_data.get("description", "Lançamento via IA")
+    current_installment, total_installments = parse_installment_info(ai_data)
+    installment_entries = build_installment_entries(
+        description=description,
         amount=amount,
-        date=entry_date,
-        type='EXPENSE',
-        category_id=category.id,
-        family_id=family_id,
-        created_by_id=current_user.id,
-        is_paid=True, # Geralmente comprovante já está pago
-        documents=documents_json
+        entry_date=entry_date,
+        total_installments=total_installments,
+        current_installment=current_installment,
+        is_paid=True,
     )
-    
-    db.add(entry)
+
+    created_entries: list[FinanceEntry] = []
+    now = datetime.now()
+    for index, installment_entry in enumerate(installment_entries):
+        notes = None
+        if total_installments > 1 and index > 0:
+            notes = f"Gerado automaticamente a partir de comprovante parcelado ({current_installment}/{total_installments})."
+
+        entry = FinanceEntry(
+            description=installment_entry["description"],
+            amount=installment_entry["amount"],
+            date=installment_entry["date"],
+            type='EXPENSE',
+            category_id=category.id,
+            family_id=family_id,
+            created_by_id=current_user.id,
+            created_at=now,
+            updated_at=now,
+            is_paid=installment_entry["is_paid"],
+            notes=notes,
+            documents=documents_json if index == 0 else None
+        )
+        db.add(entry)
+        created_entries.append(entry)
+
     db.commit()
-    db.refresh(entry)
-    
-    return entry
+    db.refresh(created_entries[0])
+
+    return created_entries[0]
 
 # ----- RECURRENCES -----
 
