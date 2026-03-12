@@ -6,6 +6,23 @@ import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 
+const formatDateForInput = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+const getCurrentMonthFilter = () => {
+  const now = new Date()
+
+  return {
+    start_date: formatDateForInput(new Date(now.getFullYear(), now.getMonth(), 1)),
+    end_date: formatDateForInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+  }
+}
+
 export default function FinanceEntries() {
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<Entry[]>([])
@@ -13,6 +30,11 @@ export default function FinanceEntries() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null)
+  const [filters, setFilters] = useState(() => ({
+    ...getCurrentMonthFilter(),
+    category_id: '',
+    status: 'ALL'
+  }))
   
   const [formData, setFormData] = useState({
     description: '',
@@ -23,19 +45,26 @@ export default function FinanceEntries() {
     payment_method: '',
     is_paid: true,
     notes: '',
-    documents: undefined as string | undefined
+    documents: undefined as string | null | undefined
   })
   const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [filters])
 
   const loadData = async () => {
     setLoading(true)
     try {
+      const params = {
+        start_date: filters.start_date || undefined,
+        end_date: filters.end_date || undefined,
+        category_id: filters.category_id ? parseInt(filters.category_id) : undefined,
+        is_paid: filters.status === 'PAID' ? true : filters.status === 'PENDING' ? false : undefined
+      }
+
       const [entriesData, categoriesData] = await Promise.all([
-        financeService.getEntries(),
+        financeService.getEntries(params),
         financeService.getCategories()
       ])
       setEntries(entriesData)
@@ -59,7 +88,7 @@ export default function FinanceEntries() {
         payment_method: formData.payment_method || undefined,
         is_paid: formData.is_paid,
         notes: formData.notes || undefined,
-        documents: formData.documents || undefined
+        documents: formData.documents === undefined ? undefined : formData.documents
       }
       
       console.log('Salvando lançamento:', payload)
@@ -206,6 +235,85 @@ export default function FinanceEntries() {
         </div>
       </div>
 
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="flex flex-col lg:flex-row gap-4 lg:items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 flex-1">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Data inicial</label>
+              <input
+                type="date"
+                value={filters.start_date}
+                onChange={(e) => setFilters((prev) => ({ ...prev, start_date: e.target.value }))}
+                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Data final</label>
+              <input
+                type="date"
+                value={filters.end_date}
+                onChange={(e) => setFilters((prev) => ({ ...prev, end_date: e.target.value }))}
+                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+              <select
+                value={filters.category_id}
+                onChange={(e) => setFilters((prev) => ({ ...prev, category_id: e.target.value }))}
+                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              >
+                <option value="">Todas</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              >
+                <option value="ALL">Todos</option>
+                <option value="PAID">Pago</option>
+                <option value="PENDING">Pendente</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setFilters({
+                ...getCurrentMonthFilter(),
+                category_id: '',
+                status: 'ALL'
+              })}
+            >
+              Mês atual
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setFilters({
+                start_date: '',
+                end_date: '',
+                category_id: '',
+                status: 'ALL'
+              })}
+            >
+              Limpar
+            </Button>
+          </div>
+        </div>
+      </div>
+
       {/* Tabela de Lançamentos */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -274,7 +382,7 @@ export default function FinanceEntries() {
                           payment_method: entry.payment_method || '',
                           is_paid: entry.is_paid,
                           notes: entry.notes || '',
-                          documents: entry.documents || undefined
+                          documents: entry.documents ?? undefined
                         })
                         setIsModalOpen(true)
                       }}
@@ -406,7 +514,7 @@ export default function FinanceEntries() {
             </label>
           </div>
 
-          {selectedEntry?.documents || formData.documents ? (
+          {formData.documents ? (
             <div className="pt-4 border-t border-gray-100 bg-gray-50 p-3 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -416,14 +524,14 @@ export default function FinanceEntries() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => handleViewReceipt(formData.documents || selectedEntry?.documents!)}
+                    onClick={() => handleViewReceipt(formData.documents!)}
                     className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
                   >
                     Visualizar
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, documents: undefined })}
+                    onClick={() => setFormData({ ...formData, documents: null })}
                     className="text-xs font-semibold text-red-600 hover:text-red-800 border-l pl-2 border-gray-300"
                   >
                     Remover

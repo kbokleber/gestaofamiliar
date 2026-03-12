@@ -63,7 +63,7 @@ export default function Layout() {
   const allNavigation = [...navigation, ...adminNavigation]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen overflow-x-hidden bg-gray-50">
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-3 flex items-center justify-between">
         <div>
@@ -85,14 +85,17 @@ export default function Layout() {
       <aside
         aria-label="Navegação principal" 
         className={`
-          fixed top-0 left-0 h-full w-64 bg-white shadow-lg transform transition-transform duration-200 ease-in-out z-40
+          fixed left-0 z-40 flex bg-white shadow-lg transition-transform duration-200 ease-in-out
+          top-16 h-[calc(100dvh-4rem)] w-[min(20rem,calc(100vw-1.5rem))]
+          rounded-r-2xl border-r border-gray-200
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0
+          lg:top-0 lg:h-screen lg:w-64 lg:translate-x-0 lg:rounded-none lg:border-r
+          flex-col
         `}
       >
-        <div className="p-6">
+        <div className="hidden border-b border-gray-100 p-6 lg:block">
           <h1 className="text-xl font-bold text-gray-900">Gestão Familiar</h1>
-          <p className="text-xs text-gray-500 mt-0.5">v{APP_VERSION}</p>
+          <p className="mt-0.5 text-xs text-gray-500">v{APP_VERSION}</p>
           <p className="mt-1 text-sm text-gray-600">
             {user?.first_name && user?.last_name
               ? `${user.first_name} ${user.last_name}`.trim()
@@ -100,7 +103,16 @@ export default function Layout() {
           </p>
         </div>
 
-        <nav className="px-3 mt-6 space-y-1">
+        <div className="border-b border-gray-100 px-4 py-4 lg:hidden">
+          <p className="text-sm font-semibold text-gray-900">
+            {user?.first_name && user?.last_name
+              ? `${user.first_name} ${user.last_name}`.trim()
+              : user?.first_name || user?.last_name || user?.username}
+          </p>
+          <p className="mt-0.5 text-xs text-gray-500">Menu principal</p>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {allNavigation.map((item) => (
             <div key={item.name}>
               {item.children ? (
@@ -137,9 +149,10 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t space-y-1">
+        <div className="shrink-0 border-t border-gray-100 bg-white p-4 space-y-1">
           <Link
             to="/profile"
+            onClick={() => setSidebarOpen(false)}
             className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors"
           >
             <User className="mr-3 h-5 w-5" />
@@ -166,8 +179,8 @@ export default function Layout() {
       )}
 
       {/* Main content */}
-      <main className="lg:ml-64 pt-16 lg:pt-0 min-h-screen">
-        <div className="p-6">
+      <main className="min-h-screen pt-16 lg:ml-64 lg:pt-0">
+        <div className="p-4 sm:p-6">
           <Outlet />
         </div>
       </main>

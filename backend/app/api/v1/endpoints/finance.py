@@ -139,6 +139,7 @@ async def list_entries(
     end_date: Optional[date] = None,
     category_id: Optional[int] = None,
     type: Optional[str] = None,
+    is_paid: Optional[bool] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
@@ -164,6 +165,8 @@ async def list_entries(
         query = query.filter(FinanceEntry.category_id == category_id)
     if type:
         query = query.filter(FinanceEntry.type == type)
+    if is_paid is not None:
+        query = query.filter(FinanceEntry.is_paid == is_paid)
         
     return query.order_by(FinanceEntry.date.desc(), FinanceEntry.created_at.desc()).all()
 
@@ -562,6 +565,7 @@ async def get_finance_summary(
     income_query = db.query(func.sum(FinanceEntry.amount)).filter(
         FinanceEntry.family_id.in_(f_ids),
         FinanceEntry.type == 'INCOME',
+        FinanceEntry.is_paid == True,
         extract('year', FinanceEntry.date) == year
     )
     if month:
@@ -572,6 +576,7 @@ async def get_finance_summary(
     expense_query = db.query(func.sum(FinanceEntry.amount)).filter(
         FinanceEntry.family_id.in_(f_ids),
         FinanceEntry.type == 'EXPENSE',
+        FinanceEntry.is_paid == True,
         extract('year', FinanceEntry.date) == year
     )
     if month:
@@ -586,6 +591,7 @@ async def get_finance_summary(
         prev_income = db.query(func.sum(FinanceEntry.amount)).filter(
             FinanceEntry.family_id.in_(f_ids),
             FinanceEntry.type == 'INCOME',
+            FinanceEntry.is_paid == True,
             extract('month', FinanceEntry.date) == prev_month,
             extract('year', FinanceEntry.date) == prev_year
         ).scalar() or Decimal('0.00')
@@ -593,6 +599,7 @@ async def get_finance_summary(
         prev_expense = db.query(func.sum(FinanceEntry.amount)).filter(
             FinanceEntry.family_id.in_(f_ids),
             FinanceEntry.type == 'EXPENSE',
+            FinanceEntry.is_paid == True,
             extract('month', FinanceEntry.date) == prev_month,
             extract('year', FinanceEntry.date) == prev_year
         ).scalar() or Decimal('0.00')
@@ -602,11 +609,13 @@ async def get_finance_summary(
         prev_income = db.query(func.sum(FinanceEntry.amount)).filter(
             FinanceEntry.family_id.in_(f_ids),
             FinanceEntry.type == 'INCOME',
+            FinanceEntry.is_paid == True,
             extract('year', FinanceEntry.date) == prev_year
         ).scalar() or Decimal('0.00')
         prev_expense = db.query(func.sum(FinanceEntry.amount)).filter(
             FinanceEntry.family_id.in_(f_ids),
             FinanceEntry.type == 'EXPENSE',
+            FinanceEntry.is_paid == True,
             extract('year', FinanceEntry.date) == prev_year
         ).scalar() or Decimal('0.00')
     
@@ -618,6 +627,7 @@ async def get_finance_summary(
     ).join(FinanceEntry, FinanceEntry.category_id == FinanceCategory.id).filter(
         FinanceEntry.family_id.in_(f_ids),
         FinanceEntry.type == 'EXPENSE',
+        FinanceEntry.is_paid == True,
         extract('year', FinanceEntry.date) == year
     )
     if month:
@@ -634,6 +644,7 @@ async def get_finance_summary(
         ).filter(
             FinanceEntry.family_id.in_(f_ids),
             FinanceEntry.type == 'INCOME',
+            FinanceEntry.is_paid == True,
             extract('year', FinanceEntry.date) == year
         ).group_by(extract('month', FinanceEntry.date)).all()
 
@@ -643,6 +654,7 @@ async def get_finance_summary(
         ).filter(
             FinanceEntry.family_id.in_(f_ids),
             FinanceEntry.type == 'EXPENSE',
+            FinanceEntry.is_paid == True,
             extract('year', FinanceEntry.date) == year
         ).group_by(extract('month', FinanceEntry.date)).all()
 

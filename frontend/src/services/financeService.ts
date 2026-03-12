@@ -72,7 +72,13 @@ export const financeService = {
   },
 
   // Lançamentos
-  async getEntries(params?: { start_date?: string, end_date?: string, category_id?: number, type?: string }) {
+  async getEntries(params?: {
+    start_date?: string
+    end_date?: string
+    category_id?: number
+    type?: string
+    is_paid?: boolean
+  }) {
     const response = await api.get<Entry[]>('/finance/entries', { params })
     return response.data
   },
