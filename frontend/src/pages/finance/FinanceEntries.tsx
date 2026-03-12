@@ -22,7 +22,8 @@ export default function FinanceEntries() {
     category_id: '',
     payment_method: '',
     is_paid: true,
-    notes: ''
+    notes: '',
+    documents: undefined as string | undefined
   })
   const [isUploading, setIsUploading] = useState(false)
 
@@ -57,7 +58,8 @@ export default function FinanceEntries() {
         category_id: formData.category_id ? parseInt(formData.category_id) : undefined,
         payment_method: formData.payment_method || undefined,
         is_paid: formData.is_paid,
-        notes: formData.notes || undefined
+        notes: formData.notes || undefined,
+        documents: formData.documents || undefined
       }
       
       console.log('Salvando lançamento:', payload)
@@ -127,6 +129,32 @@ export default function FinanceEntries() {
     }
   }
 
+  const handleManualFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Limitar tamanho (ex: 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Arquivo muito grande. O limite é 5MB.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const b64 = (reader.result as string).split(',')[1]
+      const docObj = [{
+        name: file.name,
+        type: file.type,
+        content: b64
+      }]
+      setFormData({ ...formData, documents: JSON.stringify(docObj) })
+    }
+    reader.onerror = () => {
+      alert('Erro ao ler arquivo.')
+    }
+    reader.readAsDataURL(file)
+  }
+
   if (loading && entries.length === 0) return <Loading />
 
   return (
@@ -165,7 +193,8 @@ export default function FinanceEntries() {
                 category_id: '',
                 payment_method: '',
                 is_paid: true,
-                notes: ''
+                notes: '',
+                documents: undefined
               })
               setIsModalOpen(true)
             }}
@@ -244,7 +273,8 @@ export default function FinanceEntries() {
                           category_id: entry.category_id?.toString() || '',
                           payment_method: entry.payment_method || '',
                           is_paid: entry.is_paid,
-                          notes: entry.notes || ''
+                          notes: entry.notes || '',
+                          documents: entry.documents || undefined
                         })
                         setIsModalOpen(true)
                       }}
@@ -376,21 +406,47 @@ export default function FinanceEntries() {
             </label>
           </div>
 
-          {selectedEntry?.documents && (
-            <div className="pt-4 border-t border-gray-100 italic">
+          {selectedEntry?.documents || formData.documents ? (
+            <div className="pt-4 border-t border-gray-100 bg-gray-50 p-3 rounded-lg">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Paperclip className="h-4 w-4" />
-                  <span>Este lançamento possui um comprovante anexo.</span>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Paperclip className="h-4 w-4 text-indigo-500" />
+                  <span className="font-medium">Comprovante anexado</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleViewReceipt(selectedEntry.documents!)}
-                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-md transition-colors"
-                >
-                  Visualizar Comprovante
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleViewReceipt(formData.documents || selectedEntry?.documents!)}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                  >
+                    Visualizar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, documents: undefined })}
+                    className="text-xs font-semibold text-red-600 hover:text-red-800 border-l pl-2 border-gray-300"
+                  >
+                    Remover
+                  </button>
+                </div>
               </div>
+            </div>
+          ) : (
+            <div className="pt-4 border-t border-gray-100 border-dashed">
+               <input
+                type="file"
+                id="manual-receipt-upload"
+                className="hidden"
+                accept="image/*,application/pdf"
+                onChange={handleManualFileUpload}
+              />
+              <label 
+                htmlFor="manual-receipt-upload"
+                className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition-all group"
+              >
+                <Camera className="h-5 w-5 text-gray-400 group-hover:text-indigo-500" />
+                <span className="text-sm font-medium text-gray-500 group-hover:text-indigo-600">Anexar Comprovante (sem IA)</span>
+              </label>
             </div>
           )}
 
