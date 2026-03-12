@@ -36,7 +36,11 @@ echo -e "${GREEN}🏷️  Versão da release atual: ${APP_VERSION}${NC}"
 
 # Build das imagens
 echo -e "${GREEN}📦 Construindo imagens Docker...${NC}"
-docker build -t sistema-familiar-backend:latest ./backend
+docker build \
+  --build-arg APP_VERSION="${APP_VERSION}" \
+  --build-arg APP_COMMIT_SHORT="${COMMIT_SHORT}" \
+  --build-arg APP_RELEASE_NAME="${APP_RELEASE_NAME}" \
+  -t sistema-familiar-backend:latest ./backend
 
 # Build do frontend - usar URL relativa por padrão (funciona com DNS e IP)
 # Se precisar de URL específica, defina VITE_API_URL antes de executar o script
@@ -55,7 +59,11 @@ else
 fi
 
 # Se precisar forçar rebuild sem cache (descomente as linhas abaixo):
-# docker build --no-cache -t sistema-familiar-backend:latest ./backend
+# docker build --no-cache \
+#   --build-arg APP_VERSION="${APP_VERSION}" \
+#   --build-arg APP_COMMIT_SHORT="${COMMIT_SHORT}" \
+#   --build-arg APP_RELEASE_NAME="${APP_RELEASE_NAME}" \
+#   -t sistema-familiar-backend:latest ./backend
 # docker build --no-cache -t sistema-familiar-frontend:latest ./frontend
 
 # Verificar se .env existe

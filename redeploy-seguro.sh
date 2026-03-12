@@ -258,7 +258,11 @@ if [ ! -d "./frontend" ]; then
 fi
 
 echo "   Construindo backend..."
-docker build -t sistema-familiar-backend:latest ./backend
+docker build \
+  --build-arg APP_VERSION="${APP_VERSION}" \
+  --build-arg APP_COMMIT_SHORT="${COMMIT_SHORT}" \
+  --build-arg APP_RELEASE_NAME="${APP_RELEASE_NAME}" \
+  -t sistema-familiar-backend:latest ./backend
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Backend construído${NC}"
 else

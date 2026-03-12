@@ -28,7 +28,11 @@ Write-Host "🏷️  Versão da release atual: $appVersion" -ForegroundColor Gre
 
 # Build das imagens
 Write-Host "📦 Construindo imagens Docker..." -ForegroundColor Green
-docker build -t sistema-familiar-backend:latest ./backend
+docker build `
+    --build-arg APP_VERSION=$appVersion `
+    --build-arg APP_COMMIT_SHORT=$commitShort `
+    --build-arg APP_RELEASE_NAME=$appVersion `
+    -t sistema-familiar-backend:latest ./backend
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 docker build --build-arg VITE_APP_VERSION=$appVersion -t sistema-familiar-frontend:latest ./frontend

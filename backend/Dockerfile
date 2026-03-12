@@ -2,6 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+ARG APP_VERSION=dev
+ARG APP_COMMIT_SHORT=local
+ARG APP_RELEASE_NAME=dev
+ENV APP_VERSION=$APP_VERSION
+ENV APP_COMMIT_SHORT=$APP_COMMIT_SHORT
+ENV APP_RELEASE_NAME=$APP_RELEASE_NAME
+
 # Instalar dependências do sistema
 RUN apt-get update && apt-get install -y \
     gcc \

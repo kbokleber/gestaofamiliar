@@ -426,6 +426,27 @@ cd /opt/sistema-familiar
 # 1. Fazer pull das mudanças
 git pull origin master
 
+# 2. Reconstruir apenas backend
+APP_VERSION="$(git show -s --format=%cs HEAD | tr '-' '.')-$(git rev-parse --short HEAD)"
+APP_COMMIT_SHORT="$(git rev-parse --short HEAD)"
+docker build \
+  --build-arg APP_VERSION="${APP_VERSION}" \
+  --build-arg APP_COMMIT_SHORT="${APP_COMMIT_SHORT}" \
+  --build-arg APP_RELEASE_NAME="${APP_VERSION}" \
+  -t sistema-familiar-backend:latest ./backend
+
+# 3. Atualizar serviço backend
+docker service update --force --image sistema-familiar-backend:latest sistema-familiar_backend
+```
+
+#### Atualizar Apenas Frontend (após mudanças no frontend)
+
+```bash
+cd /opt/sistema-familiar
+
+# 1. Fazer pull das mudanças
+git pull origin master
+
 # 2. Reconstruir apenas frontend
 APP_VERSION="$(git show -s --format=%cs HEAD | tr '-' '.')-$(git rev-parse --short HEAD)"
 docker build --build-arg VITE_APP_VERSION="${APP_VERSION}" -t sistema-familiar-frontend:latest ./frontend
@@ -445,7 +466,13 @@ cd /opt/sistema-familiar
 git pull origin master
 
 # 2. Reconstruir apenas backend
-docker build -t sistema-familiar-backend:latest ./backend
+APP_VERSION="$(git show -s --format=%cs HEAD | tr '-' '.')-$(git rev-parse --short HEAD)"
+APP_COMMIT_SHORT="$(git rev-parse --short HEAD)"
+docker build \
+  --build-arg APP_VERSION="${APP_VERSION}" \
+  --build-arg APP_COMMIT_SHORT="${APP_COMMIT_SHORT}" \
+  --build-arg APP_RELEASE_NAME="${APP_VERSION}" \
+  -t sistema-familiar-backend:latest ./backend
 
 # 3. Atualizar serviço backend
 docker service update --force --image sistema-familiar-backend:latest sistema-familiar_backend
