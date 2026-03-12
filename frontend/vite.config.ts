@@ -2,6 +2,35 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+import { execSync } from 'node:child_process'
+
+function resolveAppVersion() {
+  if (process.env.VITE_APP_VERSION) {
+    return process.env.VITE_APP_VERSION
+  }
+
+  try {
+    const commitDate = execSync('git show -s --format=%cs HEAD', {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim()
+      .replace(/-/g, '.')
+    const commitShort = execSync('git rev-parse --short HEAD', {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim()
+
+    return `${commitDate}-${commitShort}`
+  } catch {
+    return 'dev-local'
+  }
+}
+
+process.env.VITE_APP_VERSION = resolveAppVersion()
 
 // https://vitejs.dev/config/
 export default defineConfig({
