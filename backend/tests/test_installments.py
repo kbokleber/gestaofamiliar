@@ -1,7 +1,12 @@
 from datetime import date
 from decimal import Decimal
+from types import SimpleNamespace
 
-from app.utils.installments import build_installment_entries, parse_installment_info
+from app.utils.installments import (
+    build_installment_entries,
+    find_duplicate_installment_entries,
+    parse_installment_info,
+)
 
 
 def test_parse_installment_info_supports_fraction_string():
@@ -58,3 +63,31 @@ def test_build_installment_entries_clamps_shorter_months():
         date(2026, 2, 28),
         date(2026, 3, 31),
     ]
+
+
+def test_find_duplicate_installment_entries_detects_existing_monthly_entry():
+    entries = build_installment_entries(
+        description="Fatura Cartao",
+        amount=Decimal("120.50"),
+        entry_date=date(2026, 3, 12),
+        total_installments=3,
+        current_installment=1,
+        is_paid=True,
+    )
+
+    existing_entries = [
+        SimpleNamespace(
+            description="Fatura Cartao (Parcela 2/3)",
+            amount=Decimal("40.17"),
+            date=date(2026, 4, 12),
+            type="EXPENSE",
+        )
+    ]
+
+    duplicates = find_duplicate_installment_entries(
+        existing_entries,
+        entries,
+        entry_type="EXPENSE",
+    )
+
+    assert duplicates == [entries[1]]

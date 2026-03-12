@@ -17,7 +17,11 @@ from app.schemas.finance import (
 from app.api.deps import get_current_user, get_current_family
 from app.utils.ai_vision import analyze_receipt
 from app.utils.category_matching import find_best_matching_category
-from app.utils.installments import build_installment_entries, parse_installment_info
+from app.utils.installments import (
+    build_installment_entries,
+    find_duplicate_installment_entries,
+    parse_installment_info,
+)
 from app.utils.recurrence_generation import resolve_months_to_process
 from app.utils.receipt_dates import resolve_receipt_date
 
@@ -308,23 +312,39 @@ async def upload_receipt(
         amount = Decimal('0.00')
         entry_date = date.today()
 
-    # 1. VERIFICAR DUPLICIDADE
-    # Se já existir um lançamento na mesma data com o mesmo valor para esta família
-    duplicate = db.query(FinanceEntry).filter(
+    description = ai_data.get("description", "Lançamento via IA")
+    current_installment, total_installments = parse_installment_info(ai_data)
+    installment_entries = build_installment_entries(
+        description=description,
+        amount=amount,
+        entry_date=entry_date,
+        total_installments=total_installments,
+        current_installment=current_installment,
+        is_paid=True,
+    )
+
+    candidate_dates = sorted({entry["date"] for entry in installment_entries})
+    candidate_amounts = sorted({entry["amount"] for entry in installment_entries})
+    existing_entries = db.query(FinanceEntry).filter(
         FinanceEntry.family_id == family_id,
-        FinanceEntry.amount == amount,
-        FinanceEntry.date == entry_date
-    ).first()
-    
-    if duplicate:
+        FinanceEntry.type == 'EXPENSE',
+        FinanceEntry.date.in_(candidate_dates),
+        FinanceEntry.amount.in_(candidate_amounts),
+    ).all()
+    duplicate_entries = find_duplicate_installment_entries(
+        existing_entries,
+        installment_entries,
+        entry_type='EXPENSE',
+    )
+
+    if duplicate_entries:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Comprovante já lançado anteriormente."
         )
-    
+
     # 2. Resolver Categoria
     cat_name = ai_data.get("category_name", "Geral")
-    description = ai_data.get("description", "Lançamento via IA")
     available_categories = db.query(FinanceCategory).filter(
         FinanceCategory.family_id == family_id,
         FinanceCategory.type == 'EXPENSE',
@@ -362,16 +382,6 @@ async def upload_receipt(
     }
     documents_json = json.dumps([doc_obj])
         
-    current_installment, total_installments = parse_installment_info(ai_data)
-    installment_entries = build_installment_entries(
-        description=description,
-        amount=amount,
-        entry_date=entry_date,
-        total_installments=total_installments,
-        current_installment=current_installment,
-        is_paid=True,
-    )
-
     created_entries: list[FinanceEntry] = []
     now = datetime.now()
     for index, installment_entry in enumerate(installment_entries):

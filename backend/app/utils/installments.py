@@ -2,7 +2,7 @@ import calendar
 import re
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Any
+from typing import Any, Iterable
 
 
 def _coerce_positive_int(value: Any) -> int | None:
@@ -111,3 +111,51 @@ def build_installment_entries(
         )
 
     return entries
+
+
+def _normalize_description(value: str) -> str:
+    return " ".join(value.strip().lower().split())
+
+
+def _build_entry_signature(
+    *,
+    description: str,
+    amount: Decimal,
+    entry_date: date,
+    entry_type: str,
+) -> tuple[str, Decimal, date, str]:
+    return (
+        _normalize_description(description),
+        Decimal(str(amount)).quantize(Decimal("0.01")),
+        entry_date,
+        entry_type.strip().upper(),
+    )
+
+
+def find_duplicate_installment_entries(
+    existing_entries: Iterable[Any],
+    installment_entries: list[dict[str, Any]],
+    *,
+    entry_type: str,
+) -> list[dict[str, Any]]:
+    existing_signatures = {
+        _build_entry_signature(
+            description=entry.description,
+            amount=entry.amount,
+            entry_date=entry.date,
+            entry_type=getattr(entry, "type", entry_type),
+        )
+        for entry in existing_entries
+    }
+
+    return [
+        installment_entry
+        for installment_entry in installment_entries
+        if _build_entry_signature(
+            description=installment_entry["description"],
+            amount=installment_entry["amount"],
+            entry_date=installment_entry["date"],
+            entry_type=entry_type,
+        )
+        in existing_signatures
+    ]
