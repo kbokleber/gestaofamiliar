@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2, Paperclip } from 'lucide-react'
+import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2, Paperclip, Image } from 'lucide-react'
 import { financeService, Entry, Category } from '../../services/financeService'
 import Loading from '../../components/Loading'
 import Modal from '../../components/Modal'
@@ -61,6 +61,7 @@ export default function FinanceEntries() {
   const [isUploading, setIsUploading] = useState(false)
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null)
   const [familyAiConfig, setFamilyAiConfig] = useState<FamilyAIConfig | null>(null)
+  const [showScanMenu, setShowScanMenu] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -161,6 +162,11 @@ export default function FinanceEntries() {
       // Limpar o input
       e.target.value = ''
     }
+  }
+
+  const triggerFileInput = (inputId: string) => {
+    const input = document.getElementById(inputId) as HTMLInputElement | null
+    input?.click()
   }
 
   const handleDelete = async () => {
@@ -311,28 +317,74 @@ export default function FinanceEntries() {
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
-          <label
-            className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors shadow-sm ${
-              isUploading || !isFamilyAiConfigured
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer'
-            }`}
-            title={!isFamilyAiConfigured ? 'Configure a IA da família para habilitar o escaneamento de recibos.' : undefined}
-          >
-            {isUploading ? (
-              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-            ) : (
-              <Camera className="h-5 w-5 mr-2" />
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                if (isUploading || !isFamilyAiConfigured) return
+                setShowScanMenu((prev) => !prev)
+              }}
+              className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors shadow-sm ${
+                isUploading || !isFamilyAiConfigured
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer'
+              }`}
+              title={!isFamilyAiConfigured ? 'Configure a IA da família para habilitar o escaneamento de recibos.' : undefined}
+              disabled={isUploading || !isFamilyAiConfigured}
+            >
+              {isUploading ? (
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              ) : (
+                <Camera className="h-5 w-5 mr-2" />
+              )}
+              {isUploading ? 'Processando...' : 'Escanear Recibo'}
+            </button>
+
+            {showScanMenu && isFamilyAiConfigured && !isUploading && (
+              <div className="absolute right-0 top-full z-20 mt-2 min-w-[190px] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowScanMenu(false)
+                    triggerFileInput('receipt-camera-input')
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-gray-700 hover:bg-gray-100"
+                >
+                  <Camera className="h-5 w-5 text-indigo-600" />
+                  <span>Câmera</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowScanMenu(false)
+                    triggerFileInput('receipt-gallery-input')
+                  }}
+                  className="flex w-full items-center gap-3 border-t border-gray-200 px-4 py-3 text-left text-gray-700 hover:bg-gray-100"
+                >
+                  <Image className="h-5 w-5 text-green-600" />
+                  <span>Galeria</span>
+                </button>
+              </div>
             )}
-            {isUploading ? 'Processando...' : 'Escanear Recibo'}
-            <input 
-              type="file" 
-              className="hidden" 
-              accept="image/*,application/pdf" 
+
+            <input
+              id="receipt-camera-input"
+              type="file"
+              className="hidden"
+              accept="image/*,application/pdf"
+              capture="environment"
               onChange={handleFileUpload}
               disabled={isUploading || !isFamilyAiConfigured}
             />
-          </label>
+            <input
+              id="receipt-gallery-input"
+              type="file"
+              className="hidden"
+              accept="image/*,application/pdf"
+              onChange={handleFileUpload}
+              disabled={isUploading || !isFamilyAiConfigured}
+            />
+          </div>
 
           <button
             onClick={() => openEntryModal()}
