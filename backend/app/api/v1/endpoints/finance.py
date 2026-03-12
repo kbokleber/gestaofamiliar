@@ -266,7 +266,15 @@ async def upload_receipt(
     Recebe um comprovante (imagem), usa IA para extrair dados 
     e cadastra a despesa automaticamente.
     """
-    if not family_id:
+    from app.api.deps import get_user_family_ids
+    
+    # Se for admin sem family_id especificado, usar a primeira família do admin
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nenhuma família encontrada")
+        family_id = family_ids[0]
+    elif family_id is None:
         raise HTTPException(status_code=400, detail="Família não identificada.")
         
     # Ler conteúdo do arquivo
