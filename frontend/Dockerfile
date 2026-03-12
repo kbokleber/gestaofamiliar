@@ -6,6 +6,8 @@ WORKDIR /app
 # Aceitar argumento para URL da API
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_APP_VERSION
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
 
 # Copiar arquivos de dependências
 COPY package*.json ./

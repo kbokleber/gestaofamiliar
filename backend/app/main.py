@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import settings
+from app.core.version import get_app_version_info
 from app.api.v1.api import api_router
 from app.db.base import Base, engine
 
@@ -74,13 +75,22 @@ async def global_exception_handler(request, exc):
 
 @app.get("/")
 async def root():
+    version_info = get_app_version_info()
     return {
         "message": "Gestão Familiar API",
-        "version": "1.0.0",
+        "version": version_info["version"],
+        "commit": version_info["commit"],
+        "releaseName": version_info["releaseName"],
         "docs": f"{settings.API_V1_STR}/docs"
     }
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    version_info = get_app_version_info()
+    return {
+        "status": "healthy",
+        "version": version_info["version"],
+        "commit": version_info["commit"],
+        "releaseName": version_info["releaseName"],
+    }
 

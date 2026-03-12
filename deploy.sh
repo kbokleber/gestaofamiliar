@@ -27,6 +27,13 @@ if ! docker info | grep -q "Swarm: active"; then
     docker swarm init
 fi
 
+COMMIT_DATE=$(git show -s --format=%cs HEAD | tr '-' '.')
+COMMIT_SHORT=$(git rev-parse --short HEAD)
+APP_VERSION="${COMMIT_DATE}-${COMMIT_SHORT}"
+APP_RELEASE_NAME="${APP_VERSION}"
+
+echo -e "${GREEN}🏷️  Versão da release atual: ${APP_VERSION}${NC}"
+
 # Build das imagens
 echo -e "${GREEN}📦 Construindo imagens Docker...${NC}"
 docker build -t sistema-familiar-backend:latest ./backend
@@ -36,10 +43,15 @@ docker build -t sistema-familiar-backend:latest ./backend
 # Usar --no-cache apenas se necessário (mais lento, mas garante rebuild completo)
 if [ -n "$VITE_API_URL" ]; then
   echo -e "${GREEN}📦 Construindo frontend com API URL: ${VITE_API_URL}${NC}"
-  docker build --build-arg VITE_API_URL="${VITE_API_URL}" -t sistema-familiar-frontend:latest ./frontend
+  docker build \
+    --build-arg VITE_API_URL="${VITE_API_URL}" \
+    --build-arg VITE_APP_VERSION="${APP_VERSION}" \
+    -t sistema-familiar-frontend:latest ./frontend
 else
   echo -e "${GREEN}📦 Construindo frontend com URL relativa (funciona com DNS e IP)${NC}"
-  docker build -t sistema-familiar-frontend:latest ./frontend
+  docker build \
+    --build-arg VITE_APP_VERSION="${APP_VERSION}" \
+    -t sistema-familiar-frontend:latest ./frontend
 fi
 
 # Se precisar forçar rebuild sem cache (descomente as linhas abaixo):
@@ -107,6 +119,10 @@ set -a
 source "$TMP_ENV" 2>/dev/null || true
 set +a
 rm -f "$TMP_ENV"
+
+export APP_VERSION
+export APP_COMMIT_SHORT="${COMMIT_SHORT}"
+export APP_RELEASE_NAME
 
 # Deploy do stack
 echo -e "${GREEN}🚀 Fazendo deploy do stack...${NC}"

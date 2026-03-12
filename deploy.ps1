@@ -20,12 +20,18 @@ if (-not $swarmStatus) {
     docker swarm init
 }
 
+$commitDate = (git show -s --format=%cs HEAD).Trim() -replace '-', '.'
+$commitShort = (git rev-parse --short HEAD).Trim()
+$appVersion = "$commitDate-$commitShort"
+
+Write-Host "🏷️  Versão da release atual: $appVersion" -ForegroundColor Green
+
 # Build das imagens
 Write-Host "📦 Construindo imagens Docker..." -ForegroundColor Green
 docker build -t sistema-familiar-backend:latest ./backend
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-docker build -t sistema-familiar-frontend:latest ./frontend
+docker build --build-arg VITE_APP_VERSION=$appVersion -t sistema-familiar-frontend:latest ./frontend
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 # Verificar se .env existe
@@ -45,6 +51,10 @@ if (-not $envContent -match "DATABASE_URL=" -or $envContent -match "DATABASE_URL
     Write-Host "Configure a URL de conexão com seu banco de dados PostgreSQL existente."
     exit 1
 }
+
+$env:APP_VERSION = $appVersion
+$env:APP_COMMIT_SHORT = $commitShort
+$env:APP_RELEASE_NAME = $appVersion
 
 Write-Host "ℹ️  Certifique-se de que a rede do banco de dados está acessível." -ForegroundColor Green
 Write-Host "   Se o banco estiver em outra rede Docker, crie uma rede externa ou ajuste o docker-stack.yml" -ForegroundColor Yellow

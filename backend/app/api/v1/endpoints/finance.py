@@ -18,6 +18,7 @@ from app.api.deps import get_current_user, get_current_family
 from app.utils.ai_vision import analyze_receipt
 from app.utils.category_matching import find_best_matching_category
 from app.utils.installments import build_installment_entries, parse_installment_info
+from app.utils.recurrence_generation import resolve_months_to_process
 from app.utils.receipt_dates import resolve_receipt_date
 
 router = APIRouter()
@@ -728,11 +729,15 @@ async def generate_monthly_recurrences(
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Gera lançamentos para um mês específico baseados nas recorrências ativas"""
+    """Gera lançamentos para um mês específico ou para o ano inteiro"""
     today = date.today()
-    if not month: month = today.month
-    if not year: year = today.year
-    current_month_start = today.replace(day=1)
+    if year is None:
+        year = today.year
+
+    try:
+        months_to_process = resolve_months_to_process(month)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     
     query = db.query(FinanceRecurrence).filter(
         FinanceRecurrence.is_active == True
@@ -749,8 +754,6 @@ async def generate_monthly_recurrences(
         
     recurrences = query.all()
     
-    # Se não informar o mês, processar o ano todo
-    months_to_process = [month] if month else list(range(1, 13))
     generated_count = 0
 
     for m in months_to_process:

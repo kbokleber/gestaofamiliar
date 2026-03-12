@@ -15,6 +15,11 @@ NC='\033[0m' # No Color
 STACK_NAME="sistema-familiar"
 BACKEND_SERVICE="${STACK_NAME}_backend"
 FRONTEND_SERVICE="${STACK_NAME}_frontend"
+AUTO_CONFIRM=false
+
+if [[ "${1:-}" == "--yes" ]]; then
+    AUTO_CONFIRM=true
+fi
 
 # 1. Verificar se o stack existe
 echo "1. Verificando stack atual..."
@@ -25,11 +30,15 @@ if docker stack ls | grep -q "$STACK_NAME"; then
     echo "   Serviços ativos:"
     docker stack services "$STACK_NAME" --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}"
     
-    read -p "   Deseja continuar com a remoção? (s/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Ss]$ ]]; then
-        echo -e "${YELLOW}Operação cancelada${NC}"
-        exit 0
+    if [ "$AUTO_CONFIRM" = true ]; then
+        echo -e "${BLUE}   Confirmação automática habilitada (--yes)${NC}"
+    else
+        read -p "   Deseja continuar com a remoção? (s/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+            echo -e "${YELLOW}Operação cancelada${NC}"
+            exit 0
+        fi
     fi
 else
     echo -e "${GREEN}✓ Stack não encontrado (já foi removido ou nunca foi deployado)${NC}"
@@ -155,8 +164,17 @@ echo -e "${GREEN}✓ Arquivo docker-stack.yml encontrado${NC}"
 
 echo ""
 
+COMMIT_DATE=$(git show -s --format=%cs HEAD | tr '-' '.')
+COMMIT_SHORT=$(git rev-parse --short HEAD)
+APP_VERSION="${COMMIT_DATE}-${COMMIT_SHORT}"
+APP_RELEASE_NAME="${APP_VERSION}"
+
+echo "5. Versão calculada para este deploy: ${APP_VERSION}"
+
+echo ""
+
 # 6. Carregar variáveis de ambiente do .env (mesmo método do deploy.sh)
-echo "5. Carregando variáveis de ambiente do .env..."
+echo "6. Carregando variáveis de ambiente do .env..."
 TMP_ENV=$(mktemp)
 while IFS= read -r line || [ -n "$line" ]; do
     # Ignorar linhas vazias e comentários
@@ -199,8 +217,12 @@ echo "   SECRET_KEY: ${#SECRET_KEY} caracteres"
 
 echo ""
 
+export APP_VERSION
+export APP_COMMIT_SHORT="${COMMIT_SHORT}"
+export APP_RELEASE_NAME
+
 # 7. Verificar e limpar redes órfãs antes do deploy
-echo "6. Verificando e limpando redes órfãs..."
+echo "7. Verificando e limpando redes órfãs..."
 ORPHAN_NETWORKS=$(docker network ls --filter "label=com.docker.stack.namespace=$STACK_NAME" -q 2>/dev/null)
 if [ -n "$ORPHAN_NETWORKS" ]; then
     echo "   Removendo redes órfãs encontradas..."
@@ -222,7 +244,7 @@ fi
 echo ""
 
 # 8. Reconstruir imagens Docker
-echo "7. Reconstruindo imagens Docker..."
+echo "8. Reconstruindo imagens Docker..."
 
 # Verificar se os diretórios existem
 if [ ! -d "./backend" ]; then
@@ -245,7 +267,7 @@ else
 fi
 
 echo "   Construindo frontend (sem cache para garantir atualização)..."
-docker build --no-cache -t sistema-familiar-frontend:latest ./frontend
+docker build --no-cache --build-arg VITE_APP_VERSION="${APP_VERSION}" -t sistema-familiar-frontend:latest ./frontend
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Frontend construído${NC}"
 else
@@ -256,7 +278,7 @@ fi
 echo ""
 
 # 9. Fazer deploy do stack (variáveis já estão exportadas)
-echo "8. Fazendo deploy do stack $STACK_NAME..."
+echo "9. Fazendo deploy do stack $STACK_NAME..."
 echo "   (Variáveis de ambiente serão passadas para o Docker Swarm)"
 
 # Verificar novamente se as variáveis estão exportadas antes do deploy
@@ -286,7 +308,7 @@ fi
 echo ""
 
 # 10. Aguardar serviços iniciarem
-echo "9. Aguardando serviços iniciarem..."
+echo "10. Aguardando serviços iniciarem..."
 sleep 5
 
 # Verificar status dos serviços
@@ -296,7 +318,7 @@ docker stack services "$STACK_NAME" --format "table {{.Name}}\t{{.Replicas}}\t{{
 echo ""
 
 # 11. Verificar se backend está na rede nginx_public
-echo "10. Verificando rede nginx_public..."
+echo "11. Verificando rede nginx_public..."
 sleep 3  # Aguardar serviços iniciarem
 
 # Verificar se backend está na rede nginx_public
@@ -331,7 +353,7 @@ fi
 echo ""
 
 # 12. Verificar saúde do backend
-echo "11. Verificando saúde do backend..."
+echo "12. Verificando saúde do backend..."
 MAX_RETRIES=15
 RETRY_COUNT=0
 BACKEND_HEALTHY=false
@@ -373,7 +395,7 @@ fi
 echo ""
 
 # 13. Verificar conexão com banco de dados
-echo "12. Verificando conexão com banco de dados..."
+echo "13. Verificando conexão com banco de dados..."
 if [ -n "$BACKEND_CONTAINER" ]; then
     # Verificar logs do backend por erros de conexão
     DB_ERRORS=$(docker service logs "$BACKEND_SERVICE" 2>&1 | grep -i "database\|connection\|postgres" | tail -5)
@@ -389,7 +411,7 @@ fi
 echo ""
 
 # 14. Reiniciar NPM para limpar cache e garantir conectividade
-echo "13. Reiniciando NPM para limpar cache..."
+echo "14. Reiniciando NPM para limpar cache..."
 
 # Procurar serviço do NPM (pode estar em stack diferente)
 NPM_SERVICE=$(docker service ls | grep -i nginx | grep -i app | awk '{print $1}' | head -n 1)

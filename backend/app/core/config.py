@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     # API Configuration
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Gestão Familiar"
+    APP_VERSION: str = "dev"
+    APP_COMMIT_SHORT: str = "local"
+    APP_RELEASE_NAME: Optional[str] = None
     
     # Database
     DATABASE_URL: str
