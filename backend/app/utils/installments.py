@@ -1,7 +1,7 @@
 import calendar
 import re
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 
@@ -62,6 +62,22 @@ def add_months_preserving_day(base_date: date, months_to_add: int) -> date:
     return date(year, month, day)
 
 
+def split_amount_across_installments(amount: Decimal, total_installments: int) -> list[Decimal]:
+    if total_installments <= 1:
+        return [amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)]
+
+    total_cents = int((amount * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    base_cents = total_cents // total_installments
+    remainder_cents = total_cents % total_installments
+
+    amounts: list[Decimal] = []
+    for installment_index in range(total_installments):
+        cents = base_cents + (1 if installment_index < remainder_cents else 0)
+        amounts.append((Decimal(cents) / Decimal("100")).quantize(Decimal("0.01")))
+
+    return amounts
+
+
 def build_installment_entries(
     *,
     description: str,
@@ -81,13 +97,14 @@ def build_installment_entries(
             }
         ]
 
+    installment_amounts = split_amount_across_installments(amount, total_installments)
     entries: list[dict[str, Any]] = []
     for installment_number in range(current_installment, total_installments + 1):
         month_offset = installment_number - current_installment
         entries.append(
             {
                 "description": f"{description} (Parcela {installment_number}/{total_installments})",
-                "amount": amount,
+                "amount": installment_amounts[installment_number - 1],
                 "date": add_months_preserving_day(entry_date, month_offset),
                 "is_paid": is_paid if installment_number == current_installment else False,
             }

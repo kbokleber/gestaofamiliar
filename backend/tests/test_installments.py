@@ -29,15 +29,17 @@ def test_build_installment_entries_creates_current_and_future_months():
 
     assert entries[0]["description"] == "Fatura Cartao (Parcela 1/3)"
     assert entries[0]["date"] == date(2026, 3, 12)
-    assert entries[0]["amount"] == Decimal("120.50")
+    assert entries[0]["amount"] == Decimal("40.17")
     assert entries[0]["is_paid"] is True
 
     assert entries[1]["description"] == "Fatura Cartao (Parcela 2/3)"
     assert entries[1]["date"] == date(2026, 4, 12)
+    assert entries[1]["amount"] == Decimal("40.17")
     assert entries[1]["is_paid"] is False
 
     assert entries[2]["description"] == "Fatura Cartao (Parcela 3/3)"
     assert entries[2]["date"] == date(2026, 5, 12)
+    assert entries[2]["amount"] == Decimal("40.16")
     assert entries[2]["is_paid"] is False
 
 
