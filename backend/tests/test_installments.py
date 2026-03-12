@@ -77,7 +77,7 @@ def test_find_duplicate_installment_entries_detects_existing_monthly_entry():
 
     existing_entries = [
         SimpleNamespace(
-            description="Fatura Cartao (Parcela 2/3)",
+            description="Compra Mercado (Parcela 2/3)",
             amount=Decimal("40.17"),
             date=date(2026, 4, 12),
             type="EXPENSE",

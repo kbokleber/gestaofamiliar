@@ -94,6 +94,8 @@ def build_installment_entries(
                 "amount": amount,
                 "date": entry_date,
                 "is_paid": is_paid,
+                "installment_number": None,
+                "total_installments": None,
             }
         ]
 
@@ -107,6 +109,8 @@ def build_installment_entries(
                 "amount": installment_amounts[installment_number - 1],
                 "date": add_months_preserving_day(entry_date, month_offset),
                 "is_paid": is_paid if installment_number == current_installment else False,
+                "installment_number": installment_number,
+                "total_installments": total_installments,
             }
         )
 
@@ -117,18 +121,29 @@ def _normalize_description(value: str) -> str:
     return " ".join(value.strip().lower().split())
 
 
+def _extract_installment_metadata(description: str) -> tuple[int | None, int | None]:
+    match = re.search(r"\(\s*parcela\s+(\d+)\s*/\s*(\d+)\s*\)\s*$", description, flags=re.IGNORECASE)
+    if not match:
+        return None, None
+
+    return int(match.group(1)), int(match.group(2))
+
+
 def _build_entry_signature(
     *,
     description: str,
     amount: Decimal,
     entry_date: date,
     entry_type: str,
-) -> tuple[str, Decimal, date, str]:
+) -> tuple[Decimal, date, str, int | None, int | None, str | None]:
+    installment_number, total_installments = _extract_installment_metadata(description)
     return (
-        _normalize_description(description),
         Decimal(str(amount)).quantize(Decimal("0.01")),
         entry_date,
         entry_type.strip().upper(),
+        installment_number,
+        total_installments,
+        None if installment_number is not None else _normalize_description(description),
     )
 
 
