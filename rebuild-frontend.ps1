@@ -6,6 +6,13 @@ $ErrorActionPreference = "Stop"
 Write-Host "🔄 Rebuild do Frontend..." -ForegroundColor Cyan
 Write-Host ""
 
+$commitDate = (git show -s --format=%cs HEAD).Trim() -replace '-', '.'
+$commitShort = (git rev-parse --short HEAD).Trim()
+$appVersion = "$commitDate-$commitShort"
+
+Write-Host "🏷️  Versão calculada para o frontend: $appVersion" -ForegroundColor Green
+Write-Host ""
+
 # Verificar se está no diretório correto
 if (-not (Test-Path "frontend/Dockerfile")) {
     Write-Host "❌ Erro: frontend/Dockerfile não encontrado!" -ForegroundColor Red
@@ -21,7 +28,7 @@ if ($swarmStatus) {
     
     # Build da imagem do frontend
     Write-Host "🔨 Construindo imagem do frontend..." -ForegroundColor Yellow
-    docker build -t sistema-familiar-frontend:latest ./frontend
+    docker build --build-arg VITE_APP_VERSION=$appVersion -t sistema-familiar-frontend:latest ./frontend
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ Erro ao construir imagem!" -ForegroundColor Red
         exit 1
@@ -42,7 +49,7 @@ if ($swarmStatus) {
     
     # Rebuild apenas do frontend
     Write-Host "🔨 Rebuild do frontend..." -ForegroundColor Yellow
-    docker-compose build --no-cache frontend
+    docker-compose build --no-cache --build-arg VITE_APP_VERSION=$appVersion frontend
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ Erro ao fazer rebuild!" -ForegroundColor Red
         exit 1

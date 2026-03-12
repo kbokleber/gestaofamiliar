@@ -427,7 +427,8 @@ cd /opt/sistema-familiar
 git pull origin master
 
 # 2. Reconstruir apenas frontend
-docker build -t sistema-familiar-frontend:latest ./frontend
+APP_VERSION="$(git show -s --format=%cs HEAD | tr '-' '.')-$(git rev-parse --short HEAD)"
+docker build --build-arg VITE_APP_VERSION="${APP_VERSION}" -t sistema-familiar-frontend:latest ./frontend
 
 # 3. Atualizar serviço frontend
 docker service update --force --image sistema-familiar-frontend:latest sistema-familiar_frontend

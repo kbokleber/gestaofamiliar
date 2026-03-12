@@ -11,6 +11,9 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      APP_VERSION: ${APP_VERSION:-dev}
+      APP_COMMIT_SHORT: ${APP_COMMIT_SHORT:-local}
+      APP_RELEASE_NAME: ${APP_RELEASE_NAME:-dev}
     networks:
       - sistema-familiar-network
       # Conectar à rede do banco de dados externo
