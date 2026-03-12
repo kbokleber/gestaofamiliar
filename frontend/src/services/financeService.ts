@@ -46,6 +46,11 @@ export interface FinanceSummary {
     amount: number
     color: string
   }[]
+  incomes_by_category: {
+    category_name: string
+    amount: number
+    color: string
+  }[]
   monthly_data?: {
     month: number
     income: number

@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 from typing import Optional, Dict, Any
+import pymupdf
 from openai import OpenAI, AzureOpenAI
 from sqlalchemy.orm import Session
 from app.models.telegram import FamilyAIConfig
@@ -32,7 +33,20 @@ def get_ai_client(family_id: int, db: Session) -> Optional[tuple]:
         
     return None
 
-def analyze_receipt(image_bytes: bytes, family_id: int, db: Session) -> Optional[Dict[str, Any]]:
+def _prepare_visual_input(file_bytes: bytes, mime_type: Optional[str]) -> tuple[str, bytes]:
+    if mime_type == "application/pdf":
+        pdf = pymupdf.open(stream=file_bytes, filetype="pdf")
+        if pdf.page_count == 0:
+            raise ValueError("PDF sem páginas.")
+
+        page = pdf.load_page(0)
+        pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
+        return "image/png", pix.tobytes("png")
+
+    return mime_type or "image/jpeg", file_bytes
+
+
+def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     Usa a API de Visão para extrair dados de um comprovante.
     Retorna um dicionário com: description, amount, date, category_name.
@@ -44,11 +58,11 @@ def analyze_receipt(image_bytes: bytes, family_id: int, db: Session) -> Optional
     
     client, model = client_and_model
     
-    # Codificar imagem em base64
-    base64_image = base64.b64encode(image_bytes).decode('utf-8')
+    visual_mime_type, visual_bytes = _prepare_visual_input(file_bytes, mime_type)
+    base64_image = base64.b64encode(visual_bytes).decode('utf-8')
     
     prompt = """
-    Analise esta imagem de um comprovante ou recibo financeiro e extraia as seguintes informações em formato JSON:
+    Analise este comprovante ou recibo financeiro e extraia as seguintes informações em formato JSON:
     - description: Uma descrição curta do que foi comprado ou pago.
     - amount: O valor total (apenas números, use ponto para decimais).
     - date: A data do comprovante no formato YYYY-MM-DD.
@@ -68,7 +82,7 @@ def analyze_receipt(image_bytes: bytes, family_id: int, db: Session) -> Optional
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
+                                "url": f"data:{visual_mime_type};base64,{base64_image}"
                             }
                         }
                     ]

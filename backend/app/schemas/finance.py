@@ -128,4 +128,5 @@ class FinanceSummary(BaseModel):
     month_balance: Decimal
     previous_month_balance: Decimal
     expenses_by_category: List[dict] # {category_name: str, amount: Decimal, color: str}
+    incomes_by_category: List[dict] # {category_name: str, amount: Decimal, color: str}
     monthly_data: Optional[List[dict]] = None # [{month: int, income: Decimal, expense: Decimal}]

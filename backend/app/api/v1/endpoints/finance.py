@@ -266,7 +266,7 @@ async def upload_receipt(
     family_id: Optional[int] = Depends(get_current_family)
 ):
     """
-    Recebe um comprovante (imagem), usa IA para extrair dados 
+    Recebe um comprovante (imagem ou PDF), usa IA para extrair dados 
     e cadastra a despesa automaticamente.
     """
     from app.api.deps import get_user_family_ids
@@ -284,12 +284,12 @@ async def upload_receipt(
     contents = await file.read()
     
     # Chamar IA para analisar
-    ai_data = analyze_receipt(contents, family_id, db)
+    ai_data = analyze_receipt(contents, family_id, db, file.content_type)
     
     if not ai_data:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Não foi possível extrair dados deste comprovante. Verifique a configuração de IA da família ou a qualidade da imagem."
+            detail="Não foi possível extrair dados deste comprovante. Verifique a configuração de IA da família ou a qualidade do arquivo enviado."
         )
     
     # Resolver dados básicos
@@ -635,6 +635,21 @@ async def get_finance_summary(
     
     cat_stats = cat_query.group_by(FinanceCategory.name, FinanceCategory.color).all()
 
+    income_cat_query = db.query(
+        FinanceCategory.name,
+        func.sum(FinanceEntry.amount).label('total'),
+        FinanceCategory.color
+    ).join(FinanceEntry, FinanceEntry.category_id == FinanceCategory.id).filter(
+        FinanceEntry.family_id.in_(f_ids),
+        FinanceEntry.type == 'INCOME',
+        FinanceEntry.is_paid == True,
+        extract('year', FinanceEntry.date) == year
+    )
+    if month:
+        income_cat_query = income_cat_query.filter(extract('month', FinanceEntry.date) == month)
+
+    income_cat_stats = income_cat_query.group_by(FinanceCategory.name, FinanceCategory.color).all()
+
     # Dados mensais para gráfico de evolução (ano todo)
     monthly_data = None
     if not month:
@@ -673,6 +688,7 @@ async def get_finance_summary(
         "month_balance": income - expense,
         "previous_month_balance": prev_income - prev_expense,
         "expenses_by_category": [{"category_name": name, "amount": total, "color": color} for name, total, color in cat_stats],
+        "incomes_by_category": [{"category_name": name, "amount": total, "color": color} for name, total, color in income_cat_stats],
         "monthly_data": monthly_data
     }
 

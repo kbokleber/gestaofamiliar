@@ -48,6 +48,7 @@ export default function FinanceEntries() {
     documents: undefined as string | null | undefined
   })
   const [isUploading, setIsUploading] = useState(false)
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null)
 
   useEffect(() => {
     loadData()
@@ -137,6 +138,85 @@ export default function FinanceEntries() {
     }
   }
 
+  const openEntryModal = (entry?: Entry) => {
+    if (entry) {
+      setSelectedEntry(entry)
+      setFormData({
+        description: entry.description,
+        amount: entry.amount.toString(),
+        date: entry.date,
+        type: entry.type,
+        category_id: entry.category_id?.toString() || '',
+        payment_method: entry.payment_method || '',
+        is_paid: entry.is_paid,
+        notes: entry.notes || '',
+        documents: entry.documents ?? undefined
+      })
+    } else {
+      setSelectedEntry(null)
+      setFormData({
+        description: '',
+        amount: '',
+        date: new Date().toISOString().substring(0, 10),
+        type: 'EXPENSE',
+        category_id: '',
+        payment_method: '',
+        is_paid: true,
+        notes: '',
+        documents: undefined
+      })
+    }
+
+    setIsModalOpen(true)
+  }
+
+  const handleTogglePaidStatus = async (entry: Entry) => {
+    setStatusUpdatingId(entry.id)
+    try {
+      await financeService.updateEntry(entry.id, { is_paid: !entry.is_paid })
+      await loadData()
+    } catch (error) {
+      console.error('Erro ao atualizar status do lançamento:', error)
+      alert('Não foi possível atualizar o status do lançamento.')
+    } finally {
+      setStatusUpdatingId(null)
+    }
+  }
+
+  const renderStatusBadge = (entry: Entry, compact = false) => {
+    const isUpdating = statusUpdatingId === entry.id
+
+    return (
+      <button
+        type="button"
+        onClick={() => handleTogglePaidStatus(entry)}
+        disabled={isUpdating}
+        className={`inline-flex items-center justify-center rounded-full transition-colors ${
+          compact ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm'
+        } ${
+          entry.is_paid
+            ? 'bg-green-50 text-green-700 hover:bg-green-100'
+            : 'bg-orange-50 text-orange-600 hover:bg-orange-100'
+        } disabled:opacity-60 disabled:cursor-not-allowed`}
+        title={entry.is_paid ? 'Marcar como pendente' : 'Marcar como pago'}
+      >
+        {isUpdating ? (
+          <Loader2 className={`animate-spin ${compact ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} />
+        ) : entry.is_paid ? (
+          <>
+            <CheckCircle className={`${compact ? 'h-3.5 w-3.5 mr-1' : 'h-4 w-4 mr-1.5'}`} />
+            Pago
+          </>
+        ) : (
+          <>
+            <XCircle className={`${compact ? 'h-3.5 w-3.5 mr-1' : 'h-4 w-4 mr-1.5'}`} />
+            Pendente
+          </>
+        )}
+      </button>
+    )
+  }
+
   const handleViewReceipt = (documentsJson: string) => {
     try {
       const docs = JSON.parse(documentsJson)
@@ -205,28 +285,14 @@ export default function FinanceEntries() {
             <input 
               type="file" 
               className="hidden" 
-              accept="image/*" 
+              accept="image/*,application/pdf" 
               onChange={handleFileUpload}
               disabled={isUploading}
             />
           </label>
 
           <button
-            onClick={() => {
-              setSelectedEntry(null)
-              setFormData({
-                description: '',
-                amount: '',
-                date: new Date().toISOString().substring(0, 10),
-                type: 'EXPENSE',
-                category_id: '',
-                payment_method: '',
-                is_paid: true,
-                notes: '',
-                documents: undefined
-              })
-              setIsModalOpen(true)
-            }}
+            onClick={() => openEntryModal()}
             className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
           >
             <Plus className="h-5 w-5 mr-2" />
@@ -314,8 +380,88 @@ export default function FinanceEntries() {
         </div>
       </div>
 
-      {/* Tabela de Lançamentos */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      {/* Lista mobile */}
+      <div className="space-y-3 md:hidden">
+        {entries.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center text-gray-500">
+            Nenhum lançamento encontrado.
+          </div>
+        ) : (
+          entries.map((entry) => (
+            <div key={entry.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-900 break-words">{entry.description}</p>
+                    {entry.documents && <Paperclip className="h-3.5 w-3.5 text-gray-400 shrink-0" />}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {new Intl.DateTimeFormat('pt-BR').format(new Date(entry.date + 'T00:00:00'))}
+                    {entry.payment_method ? ` • ${entry.payment_method}` : ''}
+                  </p>
+                </div>
+                <div className={`text-sm font-bold whitespace-nowrap ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
+                  {entry.type === 'INCOME' ? '+' : '-'} {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(entry.amount)}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  {entry.category ? (
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: `${entry.category.color}15`, color: entry.category.color }}
+                    >
+                      {entry.category.name}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400">Sem categoria</span>
+                  )}
+                </div>
+                {renderStatusBadge(entry, true)}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={entry.is_paid ? 'outline' : 'primary'}
+                  onClick={() => handleTogglePaidStatus(entry)}
+                  disabled={statusUpdatingId === entry.id}
+                  className={entry.is_paid ? 'text-orange-600 border-orange-200 hover:bg-orange-50' : 'bg-green-600 hover:bg-green-700'}
+                >
+                  {statusUpdatingId === entry.id ? (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Salvando...
+                    </span>
+                  ) : entry.is_paid ? (
+                    'Marcar pendente'
+                  ) : (
+                    'Marcar pago'
+                  )}
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => openEntryModal(entry)} className="flex-1 px-3">
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      setSelectedEntry(entry)
+                      setIsDeleteModalOpen(true)
+                    }}
+                    className="flex-1 px-3"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Tabela desktop */}
+      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -359,33 +505,11 @@ export default function FinanceEntries() {
                     {entry.type === 'INCOME' ? '+' : '-'} {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(entry.amount)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {entry.is_paid ? (
-                      <span className="inline-flex items-center text-green-600 text-xs font-medium">
-                        <CheckCircle className="h-4 w-4 mr-1" /> Pago
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center text-orange-500 text-xs font-medium">
-                        <XCircle className="h-4 w-4 mr-1" /> Pendente
-                      </span>
-                    )}
+                    {renderStatusBadge(entry)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button 
-                      onClick={() => {
-                        setSelectedEntry(entry)
-                        setFormData({
-                          description: entry.description,
-                          amount: entry.amount.toString(),
-                          date: entry.date,
-                          type: entry.type,
-                          category_id: entry.category_id?.toString() || '',
-                          payment_method: entry.payment_method || '',
-                          is_paid: entry.is_paid,
-                          notes: entry.notes || '',
-                          documents: entry.documents ?? undefined
-                        })
-                        setIsModalOpen(true)
-                      }}
+                      onClick={() => openEntryModal(entry)}
                       className="text-indigo-600 hover:text-indigo-900 mx-1 p-1 hover:bg-indigo-50 rounded"
                     >
                       <Edit2 className="h-4 w-4" />
