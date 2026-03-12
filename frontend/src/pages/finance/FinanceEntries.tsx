@@ -106,6 +106,27 @@ export default function FinanceEntries() {
     }
   }
 
+  const handleViewReceipt = (documentsJson: string) => {
+    try {
+      const docs = JSON.parse(documentsJson)
+      if (docs && docs.length > 0) {
+        const doc = docs[0]
+        const byteString = atob(doc.content)
+        const ab = new ArrayBuffer(byteString.length)
+        const ia = new Uint8Array(ab)
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i)
+        }
+        const blob = new Blob([ab], { type: doc.type || 'image/jpeg' })
+        const url = URL.createObjectURL(blob)
+        window.open(url, '_blank')
+      }
+    } catch (error) {
+      console.error('Erro ao visualizar comprovante:', error)
+      alert('Erro ao abrir o comprovante.')
+    }
+  }
+
   if (loading && entries.length === 0) return <Loading />
 
   return (
@@ -354,6 +375,24 @@ export default function FinanceEntries() {
               {formData.type === 'INCOME' ? 'Recebido' : 'Pago'}
             </label>
           </div>
+
+          {selectedEntry?.documents && (
+            <div className="pt-4 border-t border-gray-100 italic">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Paperclip className="h-4 w-4" />
+                  <span>Este lançamento possui um comprovante anexo.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleViewReceipt(selectedEntry.documents!)}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-md transition-colors"
+                >
+                  Visualizar Comprovante
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 mt-6">
             <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
