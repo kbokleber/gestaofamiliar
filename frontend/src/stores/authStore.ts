@@ -7,6 +7,8 @@ interface User {
   email: string
   first_name: string
   last_name: string
+  family_id?: number | null
+  family_ids?: number[]
   is_superuser?: boolean
   is_staff?: boolean
   is_active?: boolean

@@ -19,6 +19,17 @@ from sqlalchemy import func
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
+NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+
+
+def _is_nvidia_nim_config(cfg: FamilyAIConfig) -> bool:
+    model = (cfg.openai_model or "").strip()
+    return cfg.provider == "nvidia-nim" or model.startswith("nvidia-nim/")
+
+
+def _get_nvidia_nim_model(cfg: FamilyAIConfig) -> str:
+    model = (cfg.openai_model or "moonshotai/kimi-k2.5").strip()
+    return model.replace("nvidia-nim/", "", 1)
 
 # --- Definição das ferramentas (tools) para o LLM ---
 TOOLS = [
@@ -218,7 +229,7 @@ def _execute_tool(name: str, arguments: dict, db: Session, user: User) -> str:
         return json.dumps({"error": str(e)})
 
 
-def _get_openai_client(family_id: Optional[int], db: Session) -> Optional[tuple[OpenAI | AzureOpenAI, str]]:
+def _get_llm_client(family_id: Optional[int], db: Session) -> Optional[tuple[OpenAI | AzureOpenAI, str, str]]:
     """
     Retorna (cliente, model) para a família. Usa FamilyAIConfig.
     """
@@ -236,11 +247,18 @@ def _get_openai_client(family_id: Optional[int], db: Session) -> Optional[tuple[
             api_version="2024-02-15-preview",
         )
         model = cfg.azure_deployment or cfg.openai_model or "gpt-4o-mini"
-        return (client, model)
+        return (client, model, "azure")
+    if _is_nvidia_nim_config(cfg) and cfg.openai_api_key:
+        client = OpenAI(
+            api_key=cfg.openai_api_key,
+            base_url=NVIDIA_NIM_BASE_URL,
+        )
+        model = _get_nvidia_nim_model(cfg)
+        return (client, model, "nvidia-nim")
     if cfg.provider == "openai" and cfg.openai_api_key:
         client = OpenAI(api_key=cfg.openai_api_key)
         model = cfg.openai_model or "gpt-4o-mini"
-        return (client, model)
+        return (client, model, "openai")
     return None
 
 
@@ -251,11 +269,11 @@ def process_message_with_ai(message: str, user: User, db: Session) -> str:
     Usa a config de IA da família (FamilyAIConfig).
     """
     family_id = _get_family_id(user, db)
-    client_and_model = _get_openai_client(family_id, db)
+    client_and_model = _get_llm_client(family_id, db)
     if not client_and_model:
         return _fallback_response()
 
-    client, model = client_and_model
+    client, model, provider = client_and_model
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -265,12 +283,16 @@ def process_message_with_ai(message: str, user: User, db: Session) -> str:
     max_rounds = 5
     for _ in range(max_rounds):
         try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                tools=TOOLS,
-                tool_choice="auto",
-            )
+            request_kwargs: dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "tools": TOOLS,
+                "tool_choice": "auto",
+            }
+            if provider == "nvidia-nim":
+                request_kwargs["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
+
+            response = client.chat.completions.create(**request_kwargs)
         except Exception as e:
             logger.exception("Erro ao chamar LLM")
             return f"Erro ao processar com IA: {str(e)[:200]}"
@@ -301,5 +323,5 @@ def process_message_with_ai(message: str, user: User, db: Session) -> str:
 def _fallback_response() -> str:
     return (
         "Use /ajuda para ver os comandos disponíveis. "
-        "Para respostas com IA, um admin pode configurar a API (OpenAI ou Azure) em Administração > Famílias > Editar família."
+        "Para respostas com IA, um admin pode configurar a API (OpenAI, Azure ou NVIDIA NIM) em Administração > Famílias > Editar família."
     )

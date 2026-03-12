@@ -143,7 +143,7 @@ export default function TelegramConfig() {
         </h2>
         {isAdmin ? (
           <p className="text-sm text-purple-800">
-            Para configurar o token do @BotFather e a API de IA (OpenAI ou Azure) de cada família, acesse <strong>Administração → Famílias</strong> e clique em <strong>Editar</strong> na família desejada. As configurações ficam na própria tela de edição da família.
+            Para configurar o token do @BotFather e a API de IA (OpenAI, Azure ou NVIDIA NIM) de cada família, acesse <strong>Administração → Famílias</strong> e clique em <strong>Editar</strong> na família desejada. As configurações ficam na própria tela de edição da família.
           </p>
         ) : (
           <p className="text-sm text-purple-800">

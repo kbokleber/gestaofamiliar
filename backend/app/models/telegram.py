@@ -30,13 +30,13 @@ class FamilyTelegramConfig(Base):
 
 
 class FamilyAIConfig(Base):
-    """Configuração de IA por família (OpenAI ou Azure; cada família cola sua API key)."""
+    """Configuração de IA por família (OpenAI, Azure ou NVIDIA NIM; cada família cola sua API key)."""
     __tablename__ = "family_ai_config"
 
     id = Column(Integer, primary_key=True, index=True)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False, unique=True, index=True)
     enabled = Column(Boolean, default=True, nullable=False)
-    provider = Column(String(20), nullable=False, default="openai")  # openai | azure | none
+    provider = Column(String(20), nullable=False, default="openai")  # openai | azure | nvidia-nim | none
     # OpenAI
     openai_api_key = Column(Text, nullable=True)
     openai_model = Column(String(80), nullable=False, default="gpt-4o-mini")

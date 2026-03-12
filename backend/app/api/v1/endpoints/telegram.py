@@ -38,6 +38,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _is_nvidia_nim_config(cfg: FamilyAIConfig) -> bool:
+    model = (cfg.openai_model or "").strip()
+    return cfg.provider == "nvidia-nim" or model.startswith("nvidia-nim/")
+
+
+def _get_family_ai_provider(cfg: Optional[FamilyAIConfig]) -> str:
+    if not cfg:
+        return "openai"
+    if _is_nvidia_nim_config(cfg):
+        return "nvidia-nim"
+    return cfg.provider or "openai"
+
+
+def _get_family_ai_model(cfg: Optional[FamilyAIConfig]) -> Optional[str]:
+    if not cfg:
+        return None
+    model = cfg.openai_model
+    if not model:
+        return None
+    if _is_nvidia_nim_config(cfg):
+        return model.replace("nvidia-nim/", "", 1)
+    return model
+
+
 def _ai_available_for_family(family_id: Optional[int], db: Session) -> bool:
     """Verifica se a família tem IA configurada e ativa."""
     if not family_id:
@@ -45,7 +69,7 @@ def _ai_available_for_family(family_id: Optional[int], db: Session) -> bool:
     cfg = db.query(FamilyAIConfig).filter(FamilyAIConfig.family_id == family_id).first()
     if not cfg or not cfg.enabled or cfg.provider == "none":
         return False
-    if cfg.provider == "openai" and cfg.openai_api_key:
+    if (cfg.provider == "openai" and cfg.openai_api_key) or (_is_nvidia_nim_config(cfg) and cfg.openai_api_key):
         return True
     if cfg.provider == "azure" and cfg.azure_endpoint and cfg.azure_api_key:
         return True
@@ -157,8 +181,8 @@ async def get_family_ai_config(
         )
     return FamilyAIConfigResponse(
         enabled=cfg.enabled,
-        provider=cfg.provider or "openai",
-        openai_model=cfg.openai_model,
+        provider=_get_family_ai_provider(cfg),
+        openai_model=_get_family_ai_model(cfg),
         has_openai_key=bool(cfg.openai_api_key),
         has_azure_config=bool(cfg.azure_endpoint and cfg.azure_api_key),
     )
@@ -184,6 +208,10 @@ async def update_family_ai_config(
             enabled=data.enabled if data.enabled is not None else True,
             provider=data.provider or "openai",
             openai_model=data.openai_model or "gpt-4o-mini",
+            openai_api_key=(data.openai_api_key or "").strip() or None,
+            azure_endpoint=(data.azure_endpoint or "").strip() or None,
+            azure_api_key=(data.azure_api_key or "").strip() or None,
+            azure_deployment=(data.azure_deployment or "").strip() or None,
         )
         db.add(cfg)
     else:
@@ -206,8 +234,8 @@ async def update_family_ai_config(
     db.refresh(cfg)
     return FamilyAIConfigResponse(
         enabled=cfg.enabled,
-        provider=cfg.provider or "openai",
-        openai_model=cfg.openai_model,
+        provider=_get_family_ai_provider(cfg),
+        openai_model=_get_family_ai_model(cfg),
         has_openai_key=bool(cfg.openai_api_key),
         has_azure_config=bool(cfg.azure_endpoint and cfg.azure_api_key),
     )
@@ -422,7 +450,7 @@ async def telegram_webhook(
             "Você pode perguntar em texto livre sobre: resumo da família, equipamentos, consultas, medicações, ordens de manutenção."
         )
         if not ai_on:
-            help_text += "\n\nPara respostas com IA, ative e configure a API (OpenAI ou Azure) em Administração > Famílias > Editar família."
+            help_text += "\n\nPara respostas com IA, ative e configure a API (OpenAI, Azure ou NVIDIA NIM) em Administração > Famílias > Editar família."
         reply(help_text)
         return {"ok": True}
 

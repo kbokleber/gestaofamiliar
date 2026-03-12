@@ -61,7 +61,7 @@ export default function AdminFamilies() {
   const [botToken, setBotToken] = useState('')
   const [savingBot, setSavingBot] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(true)
-  const [aiProvider, setAiProvider] = useState<'openai' | 'azure' | 'none'>('openai')
+  const [aiProvider, setAiProvider] = useState<'openai' | 'azure' | 'nvidia-nim' | 'none'>('openai')
   const [openaiKey, setOpenaiKey] = useState('')
   const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini')
   const [azureEndpoint, setAzureEndpoint] = useState('')
@@ -162,11 +162,23 @@ export default function AdminFamilies() {
     }
   }
 
+  const handleChangeAiProvider = (provider: 'openai' | 'azure' | 'nvidia-nim' | 'none') => {
+    setAiProvider(provider)
+
+    if (provider === 'nvidia-nim' && (!openaiModel || openaiModel === 'gpt-4o-mini')) {
+      setOpenaiModel('moonshotai/kimi-k2.5')
+    }
+
+    if (provider === 'openai' && (!openaiModel || openaiModel === 'moonshotai/kimi-k2.5')) {
+      setOpenaiModel('gpt-4o-mini')
+    }
+  }
+
   // Sincronizar formulário de IA quando carregar config da família
   useEffect(() => {
     if (!familyAIConfig) return
     setAiEnabled(familyAIConfig.enabled)
-    setAiProvider((familyAIConfig.provider as 'openai' | 'azure' | 'none') || 'openai')
+    setAiProvider((familyAIConfig.provider as 'openai' | 'azure' | 'nvidia-nim' | 'none') || 'openai')
     setOpenaiModel(familyAIConfig.openai_model || 'gpt-4o-mini')
   }, [familyAIConfig])
 
@@ -912,7 +924,7 @@ export default function AdminFamilies() {
               API de IA da família
             </h3>
             <p className="text-xs text-gray-600 mb-3">
-              Para o bot responder em linguagem natural (OpenAI ou Azure). Cada família usa sua própria chave.
+              Para o bot responder em linguagem natural (OpenAI, Azure ou NVIDIA NIM). Cada família usa sua própria chave.
             </p>
             <div className="space-y-3">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -928,31 +940,39 @@ export default function AdminFamilies() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">Provedor</label>
                 <select
                   value={aiProvider}
-                  onChange={(e) => setAiProvider(e.target.value as 'openai' | 'azure' | 'none')}
+                  onChange={(e) => handleChangeAiProvider(e.target.value as 'openai' | 'azure' | 'nvidia-nim' | 'none')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 >
                   <option value="openai">OpenAI (GPT)</option>
+                  <option value="nvidia-nim">NVIDIA NIM</option>
                   <option value="azure">Azure OpenAI</option>
                   <option value="none">Desligado</option>
                 </select>
               </div>
-              {aiProvider === 'openai' && (
+              {(aiProvider === 'openai' || aiProvider === 'nvidia-nim') && (
                 <>
                   {familyAIConfig?.has_openai_key && (
                     <div className="flex items-center gap-2 text-green-700 text-sm mb-2">
                       <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                      <span>Chave OpenAI/GPT: <strong>já incluída</strong> (oculta por segurança)</span>
+                      <span>Chave do provedor: <strong>já incluída</strong> (oculta por segurança)</span>
                     </div>
                   )}
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Chave da API OpenAI (GPT)</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      {aiProvider === 'nvidia-nim' ? 'Chave da API NVIDIA NIM' : 'Chave da API OpenAI (GPT)'}
+                    </label>
                     <input
                       type="password"
-                      placeholder={familyAIConfig?.has_openai_key ? '•••••••• (deixe em branco para manter)' : 'sk-...'}
+                      placeholder={familyAIConfig?.has_openai_key ? '•••••••• (deixe em branco para manter)' : aiProvider === 'nvidia-nim' ? 'nvapi-...' : 'sk-...'}
                       value={openaiKey}
                       onChange={(e) => setOpenaiKey(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
+                    {aiProvider === 'nvidia-nim' && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Endpoint usado automaticamente: <code>https://integrate.api.nvidia.com/v1</code>
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Modelo</label>
@@ -960,7 +980,7 @@ export default function AdminFamilies() {
                       type="text"
                       value={openaiModel}
                       onChange={(e) => setOpenaiModel(e.target.value)}
-                      placeholder="gpt-4o-mini"
+                      placeholder={aiProvider === 'nvidia-nim' ? 'moonshotai/kimi-k2.5' : 'gpt-4o-mini'}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
                   </div>

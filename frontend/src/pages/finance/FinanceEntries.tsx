@@ -5,6 +5,8 @@ import Loading from '../../components/Loading'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
+import api from '../../lib/api'
+import { useAuthStore } from '../../stores/authStore'
 
 const formatDateForInput = (date: Date) => {
   const year = date.getFullYear()
@@ -23,7 +25,16 @@ const getCurrentMonthFilter = () => {
   }
 }
 
+interface FamilyAIConfig {
+  enabled: boolean
+  provider: string
+  openai_model: string | null
+  has_openai_key: boolean
+  has_azure_config: boolean
+}
+
 export default function FinanceEntries() {
+  const { user: currentUser } = useAuthStore()
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<Entry[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -49,6 +60,7 @@ export default function FinanceEntries() {
   })
   const [isUploading, setIsUploading] = useState(false)
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null)
+  const [familyAiConfig, setFamilyAiConfig] = useState<FamilyAIConfig | null>(null)
 
   useEffect(() => {
     loadData()
@@ -70,12 +82,36 @@ export default function FinanceEntries() {
       ])
       setEntries(entriesData)
       setCategories(categoriesData)
+
+      try {
+        const familyIdParam =
+          currentUser?.family_id ??
+          currentUser?.family_ids?.[0] ??
+          undefined
+
+        const { data } = await api.get<FamilyAIConfig>('/telegram/family/ai', {
+          params: familyIdParam ? { family_id: familyIdParam } : undefined
+        })
+        setFamilyAiConfig(data)
+      } catch (error) {
+        console.error('Erro ao carregar configuração de IA da família:', error)
+        setFamilyAiConfig(null)
+      }
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
     } finally {
       setLoading(false)
     }
   }
+
+  const isFamilyAiConfigured =
+    !!familyAiConfig &&
+    familyAiConfig.enabled &&
+    familyAiConfig.provider !== 'none' &&
+    (
+      ((familyAiConfig.provider === 'openai' || familyAiConfig.provider === 'nvidia-nim') && familyAiConfig.has_openai_key) ||
+      (familyAiConfig.provider === 'azure' && familyAiConfig.has_azure_config)
+    )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -274,8 +310,15 @@ export default function FinanceEntries() {
           <p className="text-gray-500">Gerencie suas receitas e despesas</p>
         </div>
         
-        <div className="flex gap-2">
-          <label className={`inline-flex items-center px-4 py-2 rounded-lg cursor-pointer transition-colors shadow-sm ${isUploading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
+          <label
+            className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors shadow-sm ${
+              isUploading || !isFamilyAiConfigured
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer'
+            }`}
+            title={!isFamilyAiConfigured ? 'Configure a IA da família para habilitar o escaneamento de recibos.' : undefined}
+          >
             {isUploading ? (
               <Loader2 className="h-5 w-5 mr-2 animate-spin" />
             ) : (
@@ -287,7 +330,7 @@ export default function FinanceEntries() {
               className="hidden" 
               accept="image/*,application/pdf" 
               onChange={handleFileUpload}
-              disabled={isUploading}
+              disabled={isUploading || !isFamilyAiConfigured}
             />
           </label>
 
@@ -300,6 +343,12 @@ export default function FinanceEntries() {
           </button>
         </div>
       </div>
+
+      {!isFamilyAiConfigured && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          O escaneamento de recibos fica disponível somente quando a IA da família estiver configurada.
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col lg:flex-row gap-4 lg:items-end">

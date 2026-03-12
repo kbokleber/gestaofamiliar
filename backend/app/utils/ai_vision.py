@@ -8,9 +8,20 @@ from sqlalchemy.orm import Session
 from app.models.telegram import FamilyAIConfig
 
 logger = logging.getLogger(__name__)
+NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+
+
+def _is_nvidia_nim_config(cfg: FamilyAIConfig) -> bool:
+    model = (cfg.openai_model or "").strip()
+    return cfg.provider == "nvidia-nim" or model.startswith("nvidia-nim/")
+
+
+def _get_nvidia_nim_model(cfg: FamilyAIConfig) -> str:
+    model = (cfg.openai_model or "moonshotai/kimi-k2.5").strip()
+    return model.replace("nvidia-nim/", "", 1)
 
 def get_ai_client(family_id: int, db: Session) -> Optional[tuple]:
-    """Retorna (cliente, model) para a família usando FamilyAIConfig."""
+    """Retorna (cliente, model, provider) para a família usando FamilyAIConfig."""
     cfg = db.query(FamilyAIConfig).filter(FamilyAIConfig.family_id == family_id).first()
     if not cfg or not cfg.enabled or cfg.provider == "none":
         return None
@@ -24,12 +35,20 @@ def get_ai_client(family_id: int, db: Session) -> Optional[tuple]:
             api_version="2024-02-15-preview",
         )
         model = cfg.azure_deployment or cfg.openai_model or "gpt-4o-mini"
-        return (client, model)
+        return (client, model, "azure")
     
+    if _is_nvidia_nim_config(cfg) and cfg.openai_api_key:
+        client = OpenAI(
+            api_key=cfg.openai_api_key,
+            base_url=NVIDIA_NIM_BASE_URL,
+        )
+        model = _get_nvidia_nim_model(cfg)
+        return (client, model, "nvidia-nim")
+
     if cfg.provider == "openai" and cfg.openai_api_key:
         client = OpenAI(api_key=cfg.openai_api_key)
         model = cfg.openai_model or "gpt-4o-mini"
-        return (client, model)
+        return (client, model, "openai")
         
     return None
 
@@ -56,7 +75,7 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
         logger.warning(f"Família {family_id} não possui configuração de IA ativa para visão.")
         return None
     
-    client, model = client_and_model
+    client, model, provider = client_and_model
     
     visual_mime_type, visual_bytes = _prepare_visual_input(file_bytes, mime_type)
     base64_image = base64.b64encode(visual_bytes).decode('utf-8')
@@ -72,9 +91,9 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
     """
     
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
+        request_kwargs = {
+            "model": model,
+            "messages": [
                 {
                     "role": "user",
                     "content": [
@@ -88,10 +107,19 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
                     ]
                 }
             ],
-            max_tokens=300
+            "max_tokens": 300,
+        }
+        if provider == "nvidia-nim":
+            request_kwargs["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
+
+        response = client.chat.completions.create(
+            **request_kwargs
         )
         
-        content = response.choices[0].message.content.strip()
+        content = (response.choices[0].message.content or "").strip()
+        if not content:
+            logger.warning("Resposta vazia ao analisar comprovante com provider=%s e model=%s", provider, model)
+            return None
         # Limpar possível markdown
         if content.startswith("```json"):
             content = content.replace("```json", "").replace("```", "").strip()
