@@ -5,12 +5,13 @@ import {
   Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp
 } from 'lucide-react'
 import { useState } from 'react'
-import { APP_VERSION } from '../config/version'
+import { useAppVersion } from '../hooks/useAppVersion'
 
 export default function Layout() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const appVersion = useAppVersion()
 
   const handleLogout = () => {
     logout()
@@ -68,7 +69,7 @@ export default function Layout() {
       <div className="lg:hidden fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Gestão Familiar</h1>
-          <p className="text-xs text-gray-500">v{APP_VERSION}</p>
+          <p className="text-xs text-gray-500">v{appVersion}</p>
         </div>
         <button
           type="button"
@@ -95,7 +96,7 @@ export default function Layout() {
       >
         <div className="hidden border-b border-gray-100 p-6 lg:block">
           <h1 className="text-xl font-bold text-gray-900">Gestão Familiar</h1>
-          <p className="mt-0.5 text-xs text-gray-500">v{APP_VERSION}</p>
+          <p className="mt-0.5 text-xs text-gray-500">v{appVersion}</p>
           <p className="mt-1 text-sm text-gray-600">
             {user?.first_name && user?.last_name
               ? `${user.first_name} ${user.last_name}`.trim()
