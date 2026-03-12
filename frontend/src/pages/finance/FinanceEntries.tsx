@@ -86,7 +86,8 @@ export default function FinanceEntries() {
       loadData()
     } catch (error: any) {
       console.error('Erro ao processar comprovante:', error)
-      alert('Erro ao processar comprovante. Verifique se a IA está configurada ou tente novamente.')
+      const message = error.response?.data?.detail || 'Erro ao processar comprovante. Verifique se a IA está configurada ou tente novamente.'
+      alert(message)
     } finally {
       setIsUploading(false)
       // Limpar o input

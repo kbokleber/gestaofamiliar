@@ -316,7 +316,7 @@ async def upload_receipt(
     if duplicate:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Este comprovante parece já ter sido lançado (Valor: {amount}, Data: {entry_date})."
+            detail="Comprovante já lançado anteriormente."
         )
     
     # 2. Resolver Categoria
