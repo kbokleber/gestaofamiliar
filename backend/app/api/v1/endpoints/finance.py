@@ -289,7 +289,37 @@ async def upload_receipt(
             detail="Não foi possível extrair dados deste comprovante. Verifique a configuração de IA da família ou a qualidade da imagem."
         )
     
-    # 1. Resolver Categoria
+    # Resolver dados básicos
+    try:
+        amount_raw = ai_data.get("amount", 0)
+        if isinstance(amount_raw, str):
+            amount_raw = amount_raw.replace('R$', '').replace('$', '').replace(',', '.').replace(' ', '').strip()
+        amount = Decimal(str(amount_raw))
+        
+        date_raw = ai_data.get("date")
+        if date_raw:
+            entry_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
+        else:
+            entry_date = date.today()
+    except Exception:
+        amount = Decimal('0.00')
+        entry_date = date.today()
+
+    # 1. VERIFICAR DUPLICIDADE
+    # Se já existir um lançamento na mesma data com o mesmo valor para esta família
+    duplicate = db.query(FinanceEntry).filter(
+        FinanceEntry.family_id == family_id,
+        FinanceEntry.amount == amount,
+        FinanceEntry.date == entry_date
+    ).first()
+    
+    if duplicate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Este comprovante parece já ter sido lançado (Valor: {amount}, Data: {entry_date})."
+        )
+    
+    # 2. Resolver Categoria
     cat_name = ai_data.get("category_name", "Geral")
     category = db.query(FinanceCategory).filter(
         FinanceCategory.family_id == family_id,
@@ -302,28 +332,27 @@ async def upload_receipt(
             name=cat_name,
             type='EXPENSE',
             family_id=family_id,
-            color='#6366f1' # Indigo default
+            color='#6366f1', # Indigo default
+            created_by_id=current_user.id
         )
         db.add(category)
         db.flush()
         
-    # 2. Criar Lançamento
-    try:
-        amount_raw = ai_data.get("amount", 0)
-        # Limpar string de valor se necessário
-        if isinstance(amount_raw, str):
-            amount_raw = amount_raw.replace('R$', '').replace('$', '').replace(',', '.').strip()
-        amount = Decimal(str(amount_raw))
+    # 3. Preparar Documento (Comprovante) em Base64
+    import base64
+    import json
+    b64_str = base64.b64encode(contents).decode('utf-8')
+    # O sistema usa um array de docs [ { "name": "...", "content": "base64..." } ]
+    # mas o modelo diz "JSON com array de documentos base64". 
+    # Vou seguir o padrão de outras telas que salvam um JSON array.
+    doc_obj = {
+        "name": file.filename or "comprovante.jpg",
+        "type": file.content_type or "image/jpeg",
+        "content": b64_str
+    }
+    documents_json = json.dumps([doc_obj])
         
-        date_raw = ai_data.get("date")
-        if date_raw:
-            entry_date = datetime.strptime(date_raw, "%Y-%m-%d").date()
-        else:
-            entry_date = date.today()
-    except Exception:
-        amount = Decimal('0.00')
-        entry_date = date.today()
-        
+    # 4. Criar Lançamento
     entry = FinanceEntry(
         description=ai_data.get("description", "Lançamento via IA"),
         amount=amount,
@@ -332,7 +361,8 @@ async def upload_receipt(
         category_id=category.id,
         family_id=family_id,
         created_by_id=current_user.id,
-        is_paid=True # Geralmente comprovante já está pago
+        is_paid=True, # Geralmente comprovante já está pago
+        documents=documents_json
     )
     
     db.add(entry)

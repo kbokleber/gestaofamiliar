@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2, Paperclip } from 'lucide-react'
 import { financeService, Entry, Category } from '../../services/financeService'
 import Loading from '../../components/Loading'
 import Modal from '../../components/Modal'
@@ -176,7 +176,12 @@ export default function FinanceEntries() {
                     {new Intl.DateTimeFormat('pt-BR').format(new Date(entry.date + 'T00:00:00'))}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm font-medium text-gray-900">{entry.description}</div>
+                    <div className="flex items-center gap-2">
+                       <div className="text-sm font-medium text-gray-900">{entry.description}</div>
+                       {entry.documents && (
+                         <Paperclip className="h-3.5 w-3.5 text-gray-400" />
+                       )}
+                    </div>
                     {entry.payment_method && <div className="text-xs text-gray-400">{entry.payment_method}</div>}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
