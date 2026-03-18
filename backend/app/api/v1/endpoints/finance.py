@@ -176,7 +176,23 @@ async def list_entries(
     if is_paid is not None:
         query = query.filter(FinanceEntry.is_paid == is_paid)
         
-    return query.order_by(FinanceEntry.date.desc(), FinanceEntry.created_at.desc()).all()
+    entries = query.order_by(FinanceEntry.date.desc(), FinanceEntry.created_at.desc()).all()
+    
+    # Strip base64 content to save drastic bandwidth on massive lists
+    import json
+    for entry in entries:
+        if entry.documents:
+            try:
+                db.expunge(entry)
+                docs = json.loads(entry.documents)
+                for d in docs:
+                    if 'content' in d:
+                        d['content'] = "" 
+                entry.documents = json.dumps(docs)
+            except Exception:
+                pass
+                
+    return entries
 
 @router.post("/entries", response_model=EntrySchema, status_code=status.HTTP_201_CREATED)
 async def create_entry(
@@ -265,6 +281,38 @@ async def delete_entry(
     db.delete(entry)
     db.commit()
     return None
+
+@router.get("/entries/{entry_id}/receipt")
+async def get_receipt(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Retorna o arquivo do comprovante em formato original"""
+    query = db.query(FinanceEntry).filter(FinanceEntry.id == entry_id)
+    if family_id:
+        query = query.filter(FinanceEntry.family_id == family_id)
+    entry = query.first()
+    
+    if not entry or not entry.documents:
+        raise HTTPException(status_code=404, detail="Comprovante não encontrado")
+        
+    import json, base64
+    from fastapi.responses import Response
+    
+    try:
+        docs = json.loads(entry.documents)
+        if not docs:
+            raise HTTPException(status_code=404)
+        doc = docs[0]
+        content = base64.b64decode(doc['content'])
+        media_type = doc.get('type', 'application/octet-stream')
+        return Response(content=content, media_type=media_type)
+    except Exception as e:
+        import logging
+        logging.error(f"Erro ao ler comprovante: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao ler comprovante")
 
 @router.post("/upload-receipt", response_model=EntrySchema)
 async def upload_receipt(

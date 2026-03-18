@@ -181,7 +181,7 @@ export default function FinanceEntries() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const payload = {
+      const payload: any = {
         description: formData.description,
         amount: parseFloat(formData.amount),
         date: formData.date,
@@ -190,7 +190,10 @@ export default function FinanceEntries() {
         payment_method: formData.payment_method || undefined,
         is_paid: formData.is_paid,
         notes: formData.notes || undefined,
-        documents: formData.documents === undefined ? undefined : formData.documents
+      }
+      
+      if (!selectedEntry || formData.documents !== selectedEntry.documents) {
+        payload.documents = formData.documents === undefined ? undefined : formData.documents
       }
       
       console.log('Salvando lançamento:', payload)
@@ -323,11 +326,26 @@ export default function FinanceEntries() {
     )
   }
 
-  const handleViewReceipt = (documentsJson: string) => {
+  const handleViewReceipt = async (documentsJson: string) => {
     try {
+      if (selectedEntry && formData.documents === selectedEntry.documents) {
+        const tokenStr = localStorage.getItem('auth-storage');
+        const token = tokenStr ? JSON.parse(tokenStr).state?.token : '';
+        if (token) {
+          const response = await api.get(`/finance/entries/${selectedEntry.id}/receipt`, { responseType: 'blob' });
+          const url = URL.createObjectURL(response.data);
+          window.open(url, '_blank');
+          return;
+        }
+      }
+
       const docs = JSON.parse(documentsJson)
       if (docs && docs.length > 0) {
         const doc = docs[0]
+        if (!doc.content) {
+          alert('Este comprovante está vazio ou corrompido.');
+          return;
+        }
         const byteString = atob(doc.content)
         const ab = new ArrayBuffer(byteString.length)
         const ia = new Uint8Array(ab)
@@ -340,7 +358,7 @@ export default function FinanceEntries() {
       }
     } catch (error) {
       console.error('Erro ao visualizar comprovante:', error)
-      alert('Erro ao abrir o comprovante.')
+      alert('Erro ao abrir o comprovante. Pode estar indisponível.')
     }
   }
 
