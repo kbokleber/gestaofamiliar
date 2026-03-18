@@ -81,21 +81,21 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
     base64_image = base64.b64encode(visual_bytes).decode('utf-8')
     
     prompt = """
-    Analise este comprovante ou recibo financeiro e extraia as seguintes informações em formato JSON:
-    - description: Uma descrição curta do que foi comprado ou pago.
+    Analise este comprovante ou recibo financeiro e extraia as seguintes informações no formato JSON:
+    - description: O nome do estabelecimento comercial (ex: "Supermercado Zaffari", "Posto Ipiranga", "Farmácia São João"). Use nomes genéricos (ex: "Alimentação", "Compras") apenas se for totalmente impossível identificar o nome do local.
     - amount: O valor total da compra/recibo (apenas números, use ponto para decimais).
-    - date: A data da compra/transação/emissão do comprovante no formato YYYY-MM-DD.
+    - date: A data EXATA da compra/transação/emissão no formato YYYY-MM-DD.
     - category_name: Uma sugestão de categoria (ex: Alimentação, Saúde, Transporte, Lazer, Moradia, etc).
     - current_installment: Número da parcela atual, se estiver parcelado. Se não estiver parcelado, retorne 1.
     - total_installments: Total de parcelas, se estiver parcelado. Se não estiver parcelado, retorne 1.
 
     Regras para a data:
-    - Priorize a data em que a compra/transação aconteceu.
-    - Se houver mais de uma data, escolha a data da compra/emissão do comprovante.
-    - Não use data de vencimento, data de fechamento de fatura, data prevista de pagamento ou data de upload.
+    - Priorize a data verdadeira em que a compra/transação aconteceu. Cuidado com datas antigas (como de fundação da empresa ou CNPJ).
+    - Se houver mais de uma data, escolha a data de emissão do cupom fiscal.
+    - Não use data de vencimento, fechamento de fatura, data prevista ou data de upload.
     - Se não existir data de compra/transação legível, retorne null.
 
-    Retorne APENAS o JSON puro, sem markdown ou explicações.
+    Retorne APENAS o JSON puro, sem blocos markdown (```) e sem explicações no texto.
     """
     
     try:
@@ -115,7 +115,7 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
                     ]
                 }
             ],
-            "max_tokens": 300,
+            "max_tokens": 800,
         }
         if provider == "nvidia-nim":
             request_kwargs["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
