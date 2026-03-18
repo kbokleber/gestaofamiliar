@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2, Paperclip, Image, HelpCircle } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2, Paperclip, Image, HelpCircle, ChevronDown } from 'lucide-react'
 import { financeService, Entry, Category } from '../../services/financeService'
 import Loading from '../../components/Loading'
 import Modal from '../../components/Modal'
@@ -33,6 +33,66 @@ interface FamilyAIConfig {
   has_azure_config: boolean
 }
 
+interface CustomSelectProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}
+
+function CustomSelect({ value, onChange, options, placeholder = 'Selecione...' }: CustomSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt) => opt.value === value);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 h-[38px] transition-colors"
+      >
+        <span className={selectedOption && value !== '' ? 'text-gray-900' : 'text-gray-500'}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+          {options.map((option) => (
+            <div
+              key={option.value}
+              className={`relative cursor-pointer select-none py-2 px-3 ${
+                option.value === value ? 'bg-indigo-50 text-indigo-900' : 'text-gray-900 hover:bg-gray-100'
+              }`}
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+            >
+              <span className={`block truncate ${option.value === value ? 'font-medium' : 'font-normal'}`}>
+                {option.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FinanceEntries() {
   const { user: currentUser } = useAuthStore()
   const [loading, setLoading] = useState(true)
@@ -47,6 +107,8 @@ export default function FinanceEntries() {
     status: 'ALL'
   }))
   
+  const [visibleCount, setVisibleCount] = useState(20)
+
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
@@ -65,6 +127,7 @@ export default function FinanceEntries() {
   const [isScanHelpOpen, setIsScanHelpOpen] = useState(false)
 
   useEffect(() => {
+    setVisibleCount(20)
     loadData()
   }, [filters])
 
@@ -440,31 +503,27 @@ export default function FinanceEntries() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
-              <select
+              <CustomSelect
                 value={filters.category_id}
-                onChange={(e) => setFilters((prev) => ({ ...prev, category_id: e.target.value }))}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              >
-                <option value="">Todas</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setFilters((prev) => ({ ...prev, category_id: val }))}
+                options={[
+                  { value: '', label: 'Todas' },
+                  ...categories.map(c => ({ value: c.id.toString(), label: c.name }))
+                ]}
+              />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
+              <CustomSelect
                 value={filters.status}
-                onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-              >
-                <option value="ALL">Todos</option>
-                <option value="PAID">Pago</option>
-                <option value="PENDING">Pendente</option>
-              </select>
+                onChange={(val) => setFilters((prev) => ({ ...prev, status: val }))}
+                options={[
+                  { value: 'ALL', label: 'Todos' },
+                  { value: 'PAID', label: 'Pago' },
+                  { value: 'PENDING', label: 'Pendente' }
+                ]}
+              />
             </div>
           </div>
 
@@ -501,7 +560,7 @@ export default function FinanceEntries() {
             Nenhum lançamento encontrado.
           </div>
         ) : (
-          entries.map((entry) => (
+          entries.slice(0, visibleCount).map((entry) => (
             <div key={entry.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -572,6 +631,18 @@ export default function FinanceEntries() {
             </div>
           ))
         )}
+        
+        {entries.length > visibleCount && (
+          <div className="pt-2 pb-4 flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setVisibleCount((prev) => prev + 20)}
+              className="w-full bg-white text-indigo-600 border-indigo-200 shadow-sm"
+            >
+              Carregar mais lançamentos
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Tabela desktop */}
@@ -589,7 +660,7 @@ export default function FinanceEntries() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {entries.map((entry) => (
+              {entries.slice(0, visibleCount).map((entry) => (
                 <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {new Intl.DateTimeFormat('pt-BR').format(new Date(entry.date + 'T00:00:00'))}
@@ -650,6 +721,18 @@ export default function FinanceEntries() {
             </tbody>
           </table>
         </div>
+        
+        {entries.length > visibleCount && (
+          <div className="p-4 border-t border-gray-200 flex justify-center bg-gray-50">
+            <Button
+              variant="outline"
+              onClick={() => setVisibleCount((prev) => prev + 20)}
+              className="bg-white text-indigo-600 border-indigo-200 shadow-sm"
+            >
+              Carregar mais lançamentos
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Modal de Lançamento */}
