@@ -418,6 +418,20 @@ async def list_appointments(
         query = query.filter(MedicalAppointment.family_member_id == member_id)
     
     appointments = query.order_by(MedicalAppointment.appointment_date.desc()).all()
+    
+    import json
+    for apt in appointments:
+        if apt.documents:
+            try:
+                db.expunge(apt)
+                docs = json.loads(apt.documents)
+                for d in docs:
+                    if 'content' in d:
+                        d['content'] = ""
+                apt.documents = json.dumps(docs)
+            except Exception:
+                pass
+                
     return appointments
 
 @router.put("/appointments/{appointment_id}", response_model=MedicalAppointmentSchema)
@@ -631,7 +645,22 @@ async def list_medications(
             (Medication.end_date.is_(None)) | (Medication.end_date >= today)
         )
     
-    return query.order_by(Medication.created_at.desc()).all()
+    medications = query.order_by(Medication.created_at.desc()).all()
+    
+    import json
+    for med in medications:
+        if med.documents:
+            try:
+                db.expunge(med)
+                docs = json.loads(med.documents)
+                for d in docs:
+                    if 'content' in d:
+                        d['content'] = ""
+                med.documents = json.dumps(docs)
+            except Exception:
+                pass
+                
+    return medications
 
 @router.put("/medications/{medication_id}", response_model=MedicationSchema)
 async def update_medication(
@@ -851,7 +880,22 @@ async def list_procedures(
     if member_id:
         query = query.filter(MedicalProcedure.family_member_id == member_id)
     
-    return query.order_by(MedicalProcedure.procedure_date.desc()).all()
+    procedures = query.order_by(MedicalProcedure.procedure_date.desc()).all()
+    
+    import json
+    for proc in procedures:
+        if proc.documents:
+            try:
+                db.expunge(proc)
+                docs = json.loads(proc.documents)
+                for d in docs:
+                    if 'content' in d:
+                        d['content'] = ""
+                proc.documents = json.dumps(docs)
+            except Exception:
+                pass
+                
+    return procedures
 
 @router.put("/procedures/{procedure_id}", response_model=MedicalProcedureSchema)
 async def update_procedure(
