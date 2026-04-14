@@ -174,7 +174,7 @@ export default function FinanceEntries() {
     familyAiConfig.enabled &&
     familyAiConfig.provider !== 'none' &&
     (
-      ((familyAiConfig.provider === 'openai' || familyAiConfig.provider === 'nvidia-nim') && familyAiConfig.has_openai_key) ||
+      ((familyAiConfig.provider === 'openai' || familyAiConfig.provider === 'nvidia-nim' || familyAiConfig.provider === 'minimax') && familyAiConfig.has_openai_key) ||
       (familyAiConfig.provider === 'azure' && familyAiConfig.has_azure_config)
     )
 
