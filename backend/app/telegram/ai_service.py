@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
-MINIMAX_BASE_URL = "https://api.minimax.chat/v1"
+MINIMAX_BASE_URL = "https://api.minimax.io/v1"
 
 
 def _is_nvidia_nim_config(cfg: FamilyAIConfig) -> bool:

@@ -9,7 +9,7 @@ from app.models.telegram import FamilyAIConfig
 
 logger = logging.getLogger(__name__)
 NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
-MINIMAX_BASE_URL = "https://api.minimax.chat/v1"
+MINIMAX_BASE_URL = "https://api.minimax.io/v1"
 
 
 def _is_nvidia_nim_config(cfg: FamilyAIConfig) -> bool:
@@ -112,22 +112,31 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
     """
     
     try:
-        request_kwargs = {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{visual_mime_type};base64,{base64_image}"
-                            }
+        # Formato padrão OpenAI Vision (suportado por MiniMax também)
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{visual_mime_type};base64,{base64_image}"
                         }
-                    ]
-                }
-            ],
+                    }
+                ]
+            }
+        ]
+        
+        # MiniMax: apenas MiniMax-Text-01 suporta visão, forçar este modelo
+        vision_model = model
+        if provider == "minimax":
+            vision_model = "MiniMax-Text-01"
+            logger.info(f"MiniMax vision: usando modelo {vision_model} em vez de {model}")
+        
+        request_kwargs = {
+            "model": vision_model,
+            "messages": messages,
             "max_tokens": 800,
         }
         if provider == "nvidia-nim":
@@ -150,5 +159,5 @@ def analyze_receipt(file_bytes: bytes, family_id: int, db: Session, mime_type: O
         data = json.loads(content)
         return data
     except Exception as e:
-        logger.exception("Erro ao analisar comprovante com IA")
+        logger.exception(f"Erro ao analisar comprovante com IA (provider={provider}, model={model}): {str(e)}")
         return None

@@ -979,7 +979,7 @@ export default function AdminFamilies() {
                     )}
                     {aiProvider === 'minimax' && (
                       <p className="mt-1 text-xs text-gray-500">
-                        Endpoint usado automaticamente: <code>https://api.minimax.chat/v1</code>
+                        Endpoint usado automaticamente: <code>https://api.minimax.io/v1</code>
                       </p>
                     )}
                   </div>

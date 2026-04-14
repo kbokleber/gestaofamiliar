@@ -336,11 +336,19 @@ async def upload_receipt(
     elif family_id is None:
         raise HTTPException(status_code=400, detail="Família não identificada.")
         
+    import time
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Ler conteúdo do arquivo
+    t0 = time.time()
     contents = await file.read()
+    logger.info(f"[RECEIPT] Arquivo lido: {len(contents)} bytes em {time.time()-t0:.2f}s")
     
     # Chamar IA para analisar
+    t1 = time.time()
     ai_data = analyze_receipt(contents, family_id, db, file.content_type)
+    logger.info(f"[RECEIPT] IA processou em {time.time()-t1:.2f}s")
     
     if not ai_data:
         raise HTTPException(
@@ -416,19 +424,56 @@ async def upload_receipt(
         db.add(category)
         db.flush()
         
-    # 3. Preparar Documento (Comprovante) em Base64
+    # 3. Preparar Documento (Comprovante) em Base64 com compressão
     import base64
     import json
-    b64_str = base64.b64encode(contents).decode('utf-8')
+    from io import BytesIO
+    from PIL import Image
+    
+    t2 = time.time()
+    
+    # Comprimir imagem para reduzir tempo de salvamento no banco
+    compressed_contents = contents
+    final_mime_type = file.content_type or "image/jpeg"
+    
+    if file.content_type and file.content_type.startswith("image/"):
+        try:
+            img = Image.open(BytesIO(contents))
+            
+            # Converter RGBA para RGB se necessário (para salvar como JPEG)
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            
+            # Redimensionar se muito grande (max 1200px de largura)
+            max_width = 1200
+            if img.width > max_width:
+                ratio = max_width / img.width
+                new_size = (max_width, int(img.height * ratio))
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
+            
+            # Comprimir como JPEG com 85% de qualidade
+            output = BytesIO()
+            img.save(output, format='JPEG', quality=85, optimize=True)
+            compressed_contents = output.getvalue()
+            final_mime_type = "image/jpeg"
+            
+            original_size = len(contents)
+            compressed_size = len(compressed_contents)
+            logger.info(f"[RECEIPT] Imagem comprimida: {original_size} -> {compressed_size} bytes ({100*compressed_size/original_size:.0f}%)")
+        except Exception as e:
+            logger.warning(f"[RECEIPT] Falha ao comprimir imagem: {e}, usando original")
+    
+    b64_str = base64.b64encode(compressed_contents).decode('utf-8')
     # O sistema usa um array de docs [ { "name": "...", "content": "base64..." } ]
     # mas o modelo diz "JSON com array de documentos base64". 
     # Vou seguir o padrão de outras telas que salvam um JSON array.
     doc_obj = {
         "name": file.filename or "comprovante.jpg",
-        "type": file.content_type or "image/jpeg",
+        "type": final_mime_type,
         "content": b64_str
     }
     documents_json = json.dumps([doc_obj])
+    logger.info(f"[RECEIPT] Base64 preparado: {len(documents_json)} chars em {time.time()-t2:.2f}s")
         
     created_entries: list[FinanceEntry] = []
     now = datetime.now()
@@ -454,8 +499,14 @@ async def upload_receipt(
         db.add(entry)
         created_entries.append(entry)
 
+    t3 = time.time()
     db.commit()
+    logger.info(f"[RECEIPT] Commit em {time.time()-t3:.2f}s")
+    
+    t4 = time.time()
     db.refresh(created_entries[0])
+    logger.info(f"[RECEIPT] Refresh em {time.time()-t4:.2f}s")
+    logger.info(f"[RECEIPT] TOTAL: {time.time()-t0:.2f}s")
 
     return created_entries[0]
 
