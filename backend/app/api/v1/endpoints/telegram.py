@@ -43,11 +43,17 @@ def _is_nvidia_nim_config(cfg: FamilyAIConfig) -> bool:
     return cfg.provider == "nvidia-nim" or model.startswith("nvidia-nim/")
 
 
+def _is_minimax_config(cfg: FamilyAIConfig) -> bool:
+    return cfg.provider == "minimax"
+
+
 def _get_family_ai_provider(cfg: Optional[FamilyAIConfig]) -> str:
     if not cfg:
         return "openai"
     if _is_nvidia_nim_config(cfg):
         return "nvidia-nim"
+    if _is_minimax_config(cfg):
+        return "minimax"
     return cfg.provider or "openai"
 
 
@@ -70,6 +76,8 @@ def _ai_available_for_family(family_id: Optional[int], db: Session) -> bool:
     if not cfg or not cfg.enabled or cfg.provider == "none":
         return False
     if (cfg.provider == "openai" and cfg.openai_api_key) or (_is_nvidia_nim_config(cfg) and cfg.openai_api_key):
+        return True
+    if _is_minimax_config(cfg) and cfg.openai_api_key:
         return True
     if cfg.provider == "azure" and cfg.azure_endpoint and cfg.azure_api_key:
         return True

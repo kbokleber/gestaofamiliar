@@ -20,7 +20,7 @@ class FamilyBotConfigUpdate(BaseModel):
 class FamilyAIConfigResponse(BaseModel):
     """Estado da config de IA da família (chaves nunca retornadas)."""
     enabled: bool = True
-    provider: str = "openai"  # openai | azure | nvidia-nim | none
+    provider: str = "openai"  # openai | azure | nvidia-nim | minimax | none
     openai_model: Optional[str] = None
     has_openai_key: bool = False
     has_azure_config: bool = False
@@ -29,7 +29,7 @@ class FamilyAIConfigResponse(BaseModel):
 class FamilyAIConfigUpdate(BaseModel):
     """Atualizar config de IA da família."""
     enabled: Optional[bool] = None
-    provider: Optional[str] = Field(None, pattern="^(openai|azure|nvidia-nim|none)$")
+    provider: Optional[str] = Field(None, pattern="^(openai|azure|nvidia-nim|minimax|none)$")
     openai_api_key: Optional[str] = None
     openai_model: Optional[str] = None
     azure_endpoint: Optional[str] = None

@@ -36,7 +36,7 @@ class FamilyAIConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False, unique=True, index=True)
     enabled = Column(Boolean, default=True, nullable=False)
-    provider = Column(String(20), nullable=False, default="openai")  # openai | azure | nvidia-nim | none
+    provider = Column(String(20), nullable=False, default="openai")  # openai | azure | nvidia-nim | minimax | none
     # OpenAI
     openai_api_key = Column(Text, nullable=True)
     openai_model = Column(String(80), nullable=False, default="gpt-4o-mini")

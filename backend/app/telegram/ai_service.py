@@ -20,11 +20,16 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+MINIMAX_BASE_URL = "https://api.minimax.chat/v1"
 
 
 def _is_nvidia_nim_config(cfg: FamilyAIConfig) -> bool:
     model = (cfg.openai_model or "").strip()
     return cfg.provider == "nvidia-nim" or model.startswith("nvidia-nim/")
+
+
+def _is_minimax_config(cfg: FamilyAIConfig) -> bool:
+    return cfg.provider == "minimax"
 
 
 def _get_nvidia_nim_model(cfg: FamilyAIConfig) -> str:
@@ -255,6 +260,13 @@ def _get_llm_client(family_id: Optional[int], db: Session) -> Optional[tuple[Ope
         )
         model = _get_nvidia_nim_model(cfg)
         return (client, model, "nvidia-nim")
+    if _is_minimax_config(cfg) and cfg.openai_api_key:
+        client = OpenAI(
+            api_key=cfg.openai_api_key,
+            base_url=MINIMAX_BASE_URL,
+        )
+        model = cfg.openai_model or "MiniMax-Text-01"
+        return (client, model, "minimax")
     if cfg.provider == "openai" and cfg.openai_api_key:
         client = OpenAI(api_key=cfg.openai_api_key)
         model = cfg.openai_model or "gpt-4o-mini"
