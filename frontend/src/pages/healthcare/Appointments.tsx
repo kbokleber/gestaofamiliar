@@ -36,6 +36,16 @@ interface Appointment {
 const EMPTY_APPOINTMENTS: Appointment[] = []
 const EMPTY_MEMBERS: FamilyMember[] = []
 
+// Cache local para carregamento instantâneo
+const getPlaceholderAppointments = (): Appointment[] | undefined => {
+  try {
+    const cached = localStorage.getItem('appointments-cache')
+    return cached ? JSON.parse(cached) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export default function Appointments() {
   const queryClient = useQueryClient()
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([])
@@ -64,13 +74,23 @@ export default function Appointments() {
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // React Query com defaults estáveis para evitar loop de re-render (Maximum update depth)
+  // React Query otimizado - carrega sem documentos para ser mais rápido
   const { data: appointments = EMPTY_APPOINTMENTS, isLoading: loadingAppointments, error: appointmentsError } = useQuery<Appointment[]>({
     queryKey: ['healthcare-appointments'],
     queryFn: async () => {
-      const response = await api.get('/healthcare/appointments')
+      const response = await api.get('/healthcare/appointments', { params: { include_documents: false } })
+      // Salvar cache local (apenas dados essenciais)
+      try {
+        const cacheData = response.data.map((a: Appointment) => ({
+          id: a.id, family_member_id: a.family_member_id, doctor_name: a.doctor_name,
+          specialty: a.specialty, appointment_date: a.appointment_date, location: a.location
+        }))
+        localStorage.setItem('appointments-cache', JSON.stringify(cacheData))
+      } catch { /* localStorage cheio, ignorar */ }
       return response.data
-    }
+    },
+    placeholderData: getPlaceholderAppointments(),
+    staleTime: 5 * 60 * 1000, // 5 minutos
   })
 
   const { data: members = EMPTY_MEMBERS } = useQuery<FamilyMember[]>({
@@ -78,7 +98,8 @@ export default function Appointments() {
     queryFn: async () => {
       const response = await api.get('/healthcare/members', { params: { include_photos: false } })
       return response.data
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutos
   })
 
   const loading = loadingAppointments

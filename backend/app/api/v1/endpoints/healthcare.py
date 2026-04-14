@@ -391,11 +391,13 @@ async def create_appointment(
 @router.get("/appointments", response_model=List[MedicalAppointmentSchema])
 async def list_appointments(
     member_id: int = None,
+    include_documents: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Listar consultas médicas (apenas da família do usuário) - COM CORREÇÃO DE TIMEZONE"""
+    """Listar consultas médicas (apenas da família do usuário).
+    Use include_documents=false para carregamento mais rápido."""
     from app.api.deps import get_user_family_ids
     
     # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
@@ -419,18 +421,27 @@ async def list_appointments(
     
     appointments = query.order_by(MedicalAppointment.appointment_date.desc()).all()
     
-    import json
-    for apt in appointments:
-        if apt.documents:
-            try:
-                db.expunge(apt)
-                docs = json.loads(apt.documents)
-                for d in docs:
-                    if 'content' in d:
-                        d['content'] = ""
-                apt.documents = json.dumps(docs)
-            except Exception:
-                pass
+    # Se não incluir documentos, retornar sem eles para economizar banda
+    if not include_documents:
+        return [
+            {
+                "id": a.id,
+                "family_member_id": a.family_member_id,
+                "doctor_name": a.doctor_name,
+                "specialty": a.specialty,
+                "appointment_date": a.appointment_date,
+                "location": a.location,
+                "reason": a.reason,
+                "diagnosis": a.diagnosis,
+                "prescription": a.prescription,
+                "next_appointment": a.next_appointment,
+                "notes": a.notes,
+                "documents": None,
+                "created_at": a.created_at,
+                "updated_at": a.updated_at
+            }
+            for a in appointments
+        ]
                 
     return appointments
 
@@ -854,11 +865,13 @@ async def create_procedure(
 @router.get("/procedures", response_model=List[MedicalProcedureSchema])
 async def list_procedures(
     member_id: int = None,
+    include_documents: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Listar procedimentos médicos (apenas da família do usuário)"""
+    """Listar procedimentos médicos (apenas da família do usuário).
+    Use include_documents=false para carregamento mais rápido."""
     from app.api.deps import get_user_family_ids
     
     # Se for admin sem family_id especificado, buscar de todas as famílias que tem acesso
@@ -882,18 +895,26 @@ async def list_procedures(
     
     procedures = query.order_by(MedicalProcedure.procedure_date.desc()).all()
     
-    import json
-    for proc in procedures:
-        if proc.documents:
-            try:
-                db.expunge(proc)
-                docs = json.loads(proc.documents)
-                for d in docs:
-                    if 'content' in d:
-                        d['content'] = ""
-                proc.documents = json.dumps(docs)
-            except Exception:
-                pass
+    # Se não incluir documentos, retornar sem eles para economizar banda
+    if not include_documents:
+        return [
+            {
+                "id": p.id,
+                "family_member_id": p.family_member_id,
+                "procedure_name": p.procedure_name,
+                "procedure_date": p.procedure_date,
+                "doctor_name": p.doctor_name,
+                "location": p.location,
+                "description": p.description,
+                "results": p.results,
+                "follow_up_notes": p.follow_up_notes,
+                "next_procedure_date": p.next_procedure_date,
+                "documents": None,
+                "created_at": p.created_at,
+                "updated_at": p.updated_at
+            }
+            for p in procedures
+        ]
                 
     return procedures
 

@@ -35,6 +35,16 @@ interface Procedure {
 const EMPTY_PROCEDURES: Procedure[] = []
 const EMPTY_MEMBERS: FamilyMember[] = []
 
+// Cache local para carregamento instantâneo
+const getPlaceholderProcedures = (): Procedure[] | undefined => {
+  try {
+    const cached = localStorage.getItem('procedures-cache')
+    return cached ? JSON.parse(cached) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export default function Procedures() {
   const queryClient = useQueryClient()
   const [filteredProcedures, setFilteredProcedures] = useState<Procedure[]>([])
@@ -61,13 +71,23 @@ export default function Procedures() {
   const [procedureToDelete, setProcedureToDelete] = useState<Procedure | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // React Query para cache automático (default estável evita loop de re-render)
+  // React Query otimizado - carrega sem documentos para ser mais rápido
   const { data: procedures = EMPTY_PROCEDURES, isLoading: loading, error: proceduresError } = useQuery<Procedure[]>({
     queryKey: ['healthcare-procedures'],
     queryFn: async () => {
-      const response = await api.get('/healthcare/procedures')
+      const response = await api.get('/healthcare/procedures', { params: { include_documents: false } })
+      // Salvar cache local (apenas dados essenciais)
+      try {
+        const cacheData = response.data.map((p: Procedure) => ({
+          id: p.id, family_member_id: p.family_member_id, procedure_name: p.procedure_name,
+          procedure_date: p.procedure_date, doctor_name: p.doctor_name, location: p.location
+        }))
+        localStorage.setItem('procedures-cache', JSON.stringify(cacheData))
+      } catch { /* localStorage cheio, ignorar */ }
       return response.data
-    }
+    },
+    placeholderData: getPlaceholderProcedures(),
+    staleTime: 5 * 60 * 1000, // 5 minutos
   })
 
   const { data: members = EMPTY_MEMBERS } = useQuery<FamilyMember[]>({
@@ -75,7 +95,8 @@ export default function Procedures() {
     queryFn: async () => {
       const response = await api.get('/healthcare/members', { params: { include_photos: false } })
       return response.data
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutos
   })
 
   const error = proceduresError ? (proceduresError as Error).message : null
