@@ -2,7 +2,8 @@ import base64
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session, defer
 from typing import List, Optional
 from datetime import datetime, timezone
 from app.db.base import get_db
@@ -95,11 +96,38 @@ async def list_family_members(
             family_ids = get_user_family_ids(current_user, db)
             if not family_ids:
                 return []
-            members = db.query(FamilyMember).filter(FamilyMember.family_id.in_(family_ids)).order_by(FamilyMember.order, FamilyMember.name).all()
+            query = db.query(FamilyMember).filter(FamilyMember.family_id.in_(family_ids))
         else:
             if family_id is None:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
-            members = db.query(FamilyMember).filter(FamilyMember.family_id == family_id).order_by(FamilyMember.order, FamilyMember.name).all()
+            query = db.query(FamilyMember).filter(FamilyMember.family_id == family_id)
+
+        if not include_photos:
+            query = query.options(defer(FamilyMember.photo))
+
+        members = query.order_by(FamilyMember.order, FamilyMember.name).all()
+
+        if not include_photos:
+            return [
+                {
+                    "id": m.id,
+                    "name": m.name,
+                    "birth_date": m.birth_date,
+                    "gender": m.gender,
+                    "relationship_type": m.relationship_type,
+                    "blood_type": m.blood_type,
+                    "allergies": m.allergies,
+                    "chronic_conditions": m.chronic_conditions,
+                    "emergency_contact": m.emergency_contact,
+                    "emergency_phone": m.emergency_phone,
+                    "notes": m.notes,
+                    "order": m.order,
+                    "photo": None,
+                    "created_at": m.created_at,
+                    "updated_at": m.updated_at,
+                }
+                for m in members
+            ]
 
         result: List[FamilyMemberSchema] = []
         member_index_in_result: List[int] = []
@@ -109,10 +137,6 @@ async def list_family_members(
                 member_index_in_result.append(i)
             except Exception as e:
                 logger.warning("list_family_members: skip member id=%s: %s", getattr(m, "id", "?"), e)
-
-        if not include_photos:
-            result = [r.model_copy(update={"photo": None}) for r in result]
-            return result
 
         if photo_thumb:
             import asyncio
@@ -892,11 +916,12 @@ async def list_procedures(
     
     if member_id:
         query = query.filter(MedicalProcedure.family_member_id == member_id)
-    
-    procedures = query.order_by(MedicalProcedure.procedure_date.desc()).all()
-    
-    # Se não incluir documentos, retornar sem eles para economizar banda
+
     if not include_documents:
+        procedures = query.add_columns(
+            (func.coalesce(func.length(MedicalProcedure.documents), 0) > 2).label("has_documents")
+        ).options(defer(MedicalProcedure.documents)).order_by(MedicalProcedure.procedure_date.desc()).all()
+
         return [
             {
                 "id": p.id,
@@ -910,13 +935,53 @@ async def list_procedures(
                 "follow_up_notes": p.follow_up_notes,
                 "next_procedure_date": p.next_procedure_date,
                 "documents": None,
+                "has_documents": has_documents,
                 "created_at": p.created_at,
                 "updated_at": p.updated_at
             }
-            for p in procedures
+            for p, has_documents in procedures
         ]
-                
+
+    procedures = query.order_by(MedicalProcedure.procedure_date.desc()).all()
+
     return procedures
+
+@router.get("/procedures/{procedure_id}", response_model=MedicalProcedureSchema)
+async def get_procedure(
+    procedure_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Obter um procedimento médico com documentos completos."""
+    from app.api.deps import get_user_family_ids
+
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Procedimento não encontrado"
+            )
+        procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
+            MedicalProcedure.id == procedure_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        procedure = db.query(MedicalProcedure).join(FamilyMember).filter(
+            MedicalProcedure.id == procedure_id,
+            FamilyMember.family_id == family_id
+        ).first()
+
+    if not procedure:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Procedimento não encontrado"
+        )
+
+    return procedure
 
 @router.put("/procedures/{procedure_id}", response_model=MedicalProcedureSchema)
 async def update_procedure(

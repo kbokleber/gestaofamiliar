@@ -79,6 +79,10 @@ class MedicalProcedure(Base):
     documents = Column(Text, nullable=True)  # JSON com array de documentos em base64
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    @property
+    def has_documents(self):
+        return bool(self.documents and len(self.documents) > 2)
     
     # Relacionamento
     family_member = relationship("FamilyMember", back_populates="procedures")

@@ -157,6 +157,7 @@ class MedicalProcedure(MedicalProcedureBase):
     id: int
     family_member_id: int
     documents: Optional[str] = None
+    has_documents: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
     

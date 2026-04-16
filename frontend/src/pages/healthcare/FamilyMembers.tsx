@@ -8,6 +8,11 @@ import Loading from '../../components/Loading'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateBR, calculateAge, toDateInputValue } from '../../utils/dateUtils'
 import {
+  getNormalizedMimeType,
+  IMAGE_AND_DOCUMENT_ACCEPT,
+  isAllowedUploadFile,
+} from '../../utils/uploadValidation'
+import {
   DndContext,
   closestCenter,
   KeyboardSensor,
@@ -305,19 +310,21 @@ export default function FamilyMembers() {
     }
 
     // Validar tipo (apenas imagens)
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/heic', 'image/heif']
-    const fileExtension = file.name.split('.').pop()?.toLowerCase() || ''
-    const isHeic = fileExtension === 'heic' || fileExtension === 'heif'
-
-    if (!validTypes.includes(file.type) && !isHeic) {
-      alert('A foto deve ser JPG, PNG, GIF ou HEIC')
+    if (!isAllowedUploadFile(file)) {
+      alert('A foto deve ser JPG, JPEG, PNG, GIF ou HEIC')
       e.target.value = '' // Limpar input
       setShowPhotoMenu(false)
       return
     }
 
     try {
-      setPhotoFile(file)
+      const normalizedMimeType = getNormalizedMimeType(file)
+      const normalizedFile =
+        normalizedMimeType && normalizedMimeType !== file.type
+          ? new File([file], file.name, { type: normalizedMimeType, lastModified: file.lastModified })
+          : file
+
+      setPhotoFile(normalizedFile)
       setShowPhotoMenu(false)
       
       // Criar preview (com prefixo data: para exibição)
@@ -325,7 +332,7 @@ export default function FamilyMembers() {
       reader.onloadend = () => {
         setPhotoPreview(reader.result as string)
       }
-      reader.readAsDataURL(file)
+      reader.readAsDataURL(normalizedFile)
     } catch (error) {
       console.error('Erro ao processar foto:', error)
       alert('Erro ao processar a foto')
@@ -618,7 +625,7 @@ export default function FamilyMembers() {
                     <input 
                       id="photo-camera-create"
                       type="file" 
-                      accept="image/jpeg,image/jpg,image/png,image/gif,image/heic,image/heif,.heic,.heif" 
+                      accept={IMAGE_AND_DOCUMENT_ACCEPT}
                       capture="environment"
                       className="hidden" 
                       onChange={handlePhotoChange}
@@ -626,7 +633,7 @@ export default function FamilyMembers() {
                     <input 
                       id="photo-gallery-create"
                       type="file" 
-                      accept="image/jpeg,image/jpg,image/png,image/gif,image/heic,image/heif,.heic,.heif" 
+                      accept={IMAGE_AND_DOCUMENT_ACCEPT}
                       className="hidden" 
                       onChange={handlePhotoChange}
                     />
@@ -909,7 +916,7 @@ export default function FamilyMembers() {
                   <input 
                     id="photo-camera-edit"
                     type="file" 
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/heic,image/heif,.heic,.heif" 
+                    accept={IMAGE_AND_DOCUMENT_ACCEPT}
                     capture="environment"
                     className="hidden" 
                     onChange={handlePhotoChange}
@@ -917,7 +924,7 @@ export default function FamilyMembers() {
                   <input 
                     id="photo-gallery-edit"
                     type="file" 
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/heic,image/heif,.heic,.heif" 
+                    accept={IMAGE_AND_DOCUMENT_ACCEPT}
                     className="hidden" 
                     onChange={handlePhotoChange}
                   />

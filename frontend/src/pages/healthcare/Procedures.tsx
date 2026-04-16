@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { Activity, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
@@ -27,6 +27,7 @@ interface Procedure {
   follow_up_notes: string
   next_procedure_date: string | null
   documents: string | null
+  has_documents?: boolean
   created_at: string
   updated_at: string
   family_member?: FamilyMember
@@ -39,7 +40,21 @@ const EMPTY_MEMBERS: FamilyMember[] = []
 const getPlaceholderProcedures = (): Procedure[] | undefined => {
   try {
     const cached = localStorage.getItem('procedures-cache')
-    return cached ? JSON.parse(cached) : undefined
+    if (!cached) return undefined
+
+    const parsed = JSON.parse(cached)
+    if (!Array.isArray(parsed)) return undefined
+
+    // Ignora cache legado que não tinha os campos completos usados na edição.
+    if (
+      parsed.length > 0 &&
+      (!('description' in parsed[0]) || !('results' in parsed[0]) || !('follow_up_notes' in parsed[0]))
+    ) {
+      localStorage.removeItem('procedures-cache')
+      return undefined
+    }
+
+    return parsed
   } catch {
     return undefined
   }
@@ -47,7 +62,6 @@ const getPlaceholderProcedures = (): Procedure[] | undefined => {
 
 export default function Procedures() {
   const queryClient = useQueryClient()
-  const [filteredProcedures, setFilteredProcedures] = useState<Procedure[]>([])
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null)
@@ -79,8 +93,19 @@ export default function Procedures() {
       // Salvar cache local (apenas dados essenciais)
       try {
         const cacheData = response.data.map((p: Procedure) => ({
-          id: p.id, family_member_id: p.family_member_id, procedure_name: p.procedure_name,
-          procedure_date: p.procedure_date, doctor_name: p.doctor_name, location: p.location
+          id: p.id,
+          family_member_id: p.family_member_id,
+          procedure_name: p.procedure_name,
+          procedure_date: p.procedure_date,
+          doctor_name: p.doctor_name,
+          location: p.location,
+          description: p.description || '',
+          results: p.results || '',
+          follow_up_notes: p.follow_up_notes || '',
+          next_procedure_date: p.next_procedure_date || null,
+          documents: null,
+          created_at: p.created_at,
+          updated_at: p.updated_at,
         }))
         localStorage.setItem('procedures-cache', JSON.stringify(cacheData))
       } catch { /* localStorage cheio, ignorar */ }
@@ -101,7 +126,7 @@ export default function Procedures() {
 
   const error = proceduresError ? (proceduresError as Error).message : null
 
-  useEffect(() => {
+  const filteredProcedures = useMemo(() => {
     let filtered = [...procedures]
 
     if (filters.member_id > 0) {
@@ -124,37 +149,8 @@ export default function Procedures() {
       })
     }
 
-    setFilteredProcedures(filtered)
+    return filtered
   }, [procedures, filters.member_id, filters.start_date, filters.end_date])
-
-  const applyFilters = () => {
-    let filtered = [...procedures]
-
-    if (filters.member_id > 0) {
-      filtered = filtered.filter(procedure => procedure.family_member_id === filters.member_id)
-    }
-    if (filters.start_date) {
-      const startDate = new Date(filters.start_date)
-      startDate.setHours(0, 0, 0, 0)
-      filtered = filtered.filter(procedure => {
-        const procedureDate = new Date(procedure.procedure_date)
-        return procedureDate >= startDate
-      })
-    }
-    if (filters.end_date) {
-      const endDate = new Date(filters.end_date)
-      endDate.setHours(23, 59, 59, 999)
-      filtered = filtered.filter(procedure => {
-        const procedureDate = new Date(procedure.procedure_date)
-        return procedureDate <= endDate
-      })
-    }
-    setFilteredProcedures(filtered)
-  }
-
-  const handleFilter = () => {
-    applyFilters()
-  }
 
   const handleExportExcel = () => {
     const dataToExport = filteredProcedures.map(procedure => ({
@@ -263,30 +259,39 @@ export default function Procedures() {
     }
   }
 
-  const startEdit = (procedure: Procedure) => {
-    setEditingProcedure(procedure)
-    setFormData({
-      family_member_id: procedure.family_member_id,
-      procedure_name: procedure.procedure_name,
-      procedure_date: toDateTimeInputValue(procedure.procedure_date) || '',
-      doctor_name: procedure.doctor_name,
-      location: procedure.location,
-      description: procedure.description,
-      results: procedure.results || '',
-      follow_up_notes: procedure.follow_up_notes || '',
-      next_procedure_date: toDateTimeInputValue(procedure.next_procedure_date) || ''
-    })
-    // Carregar documentos
-    if (procedure.documents) {
-      try {
-        setDocuments(JSON.parse(procedure.documents))
-      } catch (e) {
+  const startEdit = async (procedure: Procedure) => {
+    try {
+      const response = await api.get(`/healthcare/procedures/${procedure.id}`)
+      const fullProcedure: Procedure = response.data
+
+      setEditingProcedure(fullProcedure)
+      setFormData({
+        family_member_id: fullProcedure.family_member_id,
+        procedure_name: fullProcedure.procedure_name,
+        procedure_date: toDateTimeInputValue(fullProcedure.procedure_date) || '',
+        doctor_name: fullProcedure.doctor_name,
+        location: fullProcedure.location,
+        description: fullProcedure.description,
+        results: fullProcedure.results || '',
+        follow_up_notes: fullProcedure.follow_up_notes || '',
+        next_procedure_date: toDateTimeInputValue(fullProcedure.next_procedure_date) || ''
+      })
+
+      if (fullProcedure.documents) {
+        try {
+          setDocuments(JSON.parse(fullProcedure.documents))
+        } catch {
+          setDocuments([])
+        }
+      } else {
         setDocuments([])
       }
-    } else {
-      setDocuments([])
+
+      setIsEditingInline(true)
+    } catch (err: any) {
+      console.error('Erro ao carregar procedimento completo:', err)
+      alert(err.response?.data?.detail || 'Erro ao carregar os documentos do procedimento')
     }
-    setIsEditingInline(true)
   }
 
   const cancelEdit = () => {
@@ -590,7 +595,7 @@ export default function Procedures() {
               </div>
               <div className="flex items-end">
                 <button
-                  onClick={handleFilter}
+                  type="button"
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
                 >
                   <Filter className="mr-2 h-5 w-5" />
@@ -617,7 +622,7 @@ export default function Procedures() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-semibold text-gray-900">{procedure.procedure_name}</h3>
-                      {procedure.documents && (
+                      {(procedure.documents || procedure.has_documents) && (
                         <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
                       )}
                     </div>
@@ -718,7 +723,7 @@ export default function Procedures() {
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div className="text-sm font-medium text-gray-900">{procedure.procedure_name}</div>
-                        {procedure.documents && (
+                        {(procedure.documents || procedure.has_documents) && (
                           <Paperclip className="h-4 w-4 text-blue-500 ml-2" aria-label="Possui documentos anexados" />
                         )}
                       </div>

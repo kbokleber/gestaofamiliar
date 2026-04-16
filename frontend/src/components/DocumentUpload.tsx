@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import { Upload, X, FileText, Image, Download, Eye } from 'lucide-react'
 import ConfirmDeleteModal from './ConfirmDeleteModal'
+import {
+  getFileExtension,
+  getNormalizedMimeType,
+  IMAGE_AND_DOCUMENT_ACCEPT,
+  isAllowedUploadFile,
+} from '../utils/uploadValidation'
 
 export interface Document {
   name: string
@@ -49,12 +55,12 @@ export default function DocumentUpload({
         }
 
         // Validar tipo
-        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf', 'image/heic', 'image/heif']
-        const fileExtension = file.name.split('.').pop()?.toLowerCase() || ''
+        const fileExtension = getFileExtension(file.name)
         const isHeic = fileExtension === 'heic' || fileExtension === 'heif'
+        const normalizedMimeType = getNormalizedMimeType(file)
         
-        if (!validTypes.includes(file.type) && !isHeic) {
-          alert(`O arquivo "${file.name}" não é um tipo válido (JPG, PNG, GIF, PDF ou HEIC)`)
+        if (!isAllowedUploadFile(file) && !isHeic) {
+          alert(`O arquivo "${file.name}" não é um tipo válido (JPG, JPEG, PNG, GIF, PDF ou HEIC)`)
           continue
         }
 
@@ -63,7 +69,7 @@ export default function DocumentUpload({
 
         newDocuments.push({
           name: file.name,
-          type: file.type || (isHeic ? `image/${fileExtension}` : ''),
+          type: normalizedMimeType || (isHeic ? `image/${fileExtension}` : ''),
           size: file.size,
           data: base64
         })
@@ -239,7 +245,7 @@ export default function DocumentUpload({
               type="file"
               className="hidden"
               multiple
-              accept="image/jpeg,image/jpg,image/png,image/gif,application/pdf,image/heic,image/heif,.heic,.heif"
+              accept={IMAGE_AND_DOCUMENT_ACCEPT}
               onChange={handleFileSelect}
               disabled={uploading || documents.length >= maxFiles}
             />
