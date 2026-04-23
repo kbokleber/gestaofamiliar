@@ -12,11 +12,8 @@ export function useAppVersion() {
   const [revision, setRevision] = useState(extractRevision(APP_VERSION))
 
   useEffect(() => {
-    if (APP_VERSION !== 'dev-local') {
-      setVersion(APP_VERSION)
-      setRevision(extractRevision(APP_VERSION))
-      return
-    }
+    setVersion(APP_VERSION)
+    setRevision(extractRevision(APP_VERSION))
 
     const controller = new AbortController()
 

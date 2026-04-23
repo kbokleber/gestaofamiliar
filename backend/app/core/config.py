@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "dev"
     APP_COMMIT_SHORT: str = "local"
     APP_RELEASE_NAME: Optional[str] = None
+    SOURCE_COMMIT: Optional[str] = None
+    COMMIT_SHA: Optional[str] = None
+    GITHUB_SHA: Optional[str] = None
     
     # Database
     DATABASE_URL: str

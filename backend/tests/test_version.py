@@ -5,6 +5,9 @@ def test_get_app_version_info_falls_back_to_git(monkeypatch):
     monkeypatch.setattr(version.settings, "APP_VERSION", "dev")
     monkeypatch.setattr(version.settings, "APP_COMMIT_SHORT", "local")
     monkeypatch.setattr(version.settings, "APP_RELEASE_NAME", None)
+    monkeypatch.setattr(version.settings, "SOURCE_COMMIT", None)
+    monkeypatch.setattr(version.settings, "COMMIT_SHA", None)
+    monkeypatch.setattr(version.settings, "GITHUB_SHA", None)
     version._resolve_git_version_info.cache_clear()
     monkeypatch.setattr(
         version,
@@ -25,10 +28,30 @@ def test_get_app_version_info_falls_back_to_git(monkeypatch):
     }
 
 
+def test_get_app_version_info_prefers_ci_commit(monkeypatch):
+    monkeypatch.setattr(version.settings, "APP_VERSION", "dev")
+    monkeypatch.setattr(version.settings, "APP_COMMIT_SHORT", "local")
+    monkeypatch.setattr(version.settings, "APP_RELEASE_NAME", None)
+    monkeypatch.setattr(version.settings, "SOURCE_COMMIT", "e692c9a4379876abcdef1234567890abcdef1234")
+    monkeypatch.setattr(version.settings, "COMMIT_SHA", None)
+    monkeypatch.setattr(version.settings, "GITHUB_SHA", None)
+    version._resolve_git_version_info.cache_clear()
+    monkeypatch.setattr(version, "_resolve_git_version_info", lambda: None)
+
+    data = version.get_app_version_info()
+
+    assert data["commit"] == "e692c9a"
+    assert data["version"].endswith("-e692c9a")
+    assert data["releaseName"].endswith("-e692c9a")
+
+
 def test_get_app_version_info_prefers_runtime_env(monkeypatch):
     monkeypatch.setattr(version.settings, "APP_VERSION", "2026.03.12-b5243f9")
     monkeypatch.setattr(version.settings, "APP_COMMIT_SHORT", "b5243f9")
     monkeypatch.setattr(version.settings, "APP_RELEASE_NAME", "2026.03.12-b5243f9")
+    monkeypatch.setattr(version.settings, "SOURCE_COMMIT", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    monkeypatch.setattr(version.settings, "COMMIT_SHA", None)
+    monkeypatch.setattr(version.settings, "GITHUB_SHA", None)
     version._resolve_git_version_info.cache_clear()
     monkeypatch.setattr(version, "_resolve_git_version_info", lambda: None)
 
