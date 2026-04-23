@@ -8,7 +8,7 @@ import { useAppVersion } from '../hooks/useAppVersion'
 export default function Login() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((state) => state.setAuth)
-  const appVersion = useAppVersion()
+  const { revision, buildTimeLabel } = useAppVersion()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
@@ -92,7 +92,10 @@ export default function Login() {
             Entre com sua conta
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            Versão {appVersion}
+            Compilado em: {buildTimeLabel}
+          </p>
+          <p className="text-xs text-gray-500">
+            Rev: {revision}
           </p>
         </div>
 
