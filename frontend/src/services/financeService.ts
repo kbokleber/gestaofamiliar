@@ -42,11 +42,13 @@ export interface FinanceSummary {
   month_balance: number
   previous_month_balance: number
   expenses_by_category: {
+    category_id: number
     category_name: string
     amount: number
     color: string
   }[]
   incomes_by_category: {
+    category_id: number
     category_name: string
     amount: number
     color: string

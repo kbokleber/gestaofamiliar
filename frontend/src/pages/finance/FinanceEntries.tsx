@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus,
   Trash2,
@@ -176,6 +177,7 @@ function EntriesPaginationBar({
 
 export default function FinanceEntries() {
   const { user: currentUser } = useAuthStore()
+  const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<Entry[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -218,6 +220,35 @@ export default function FinanceEntries() {
     setSelectedIds(new Set())
     loadData()
   }, [filters])
+
+  /** Drill-down do painel financeiro: ?category_id=&year=&month=|all */
+  useEffect(() => {
+    const cat = searchParams.get('category_id')
+    const y = searchParams.get('year')
+    const mo = searchParams.get('month')
+    if (!cat && !y) return
+
+    setFilters((prev) => {
+      const next = { ...prev }
+      if (cat) next.category_id = cat
+      if (y) {
+        const yearNum = parseInt(y, 10)
+        if (!Number.isNaN(yearNum)) {
+          if (mo === 'all' || mo === null || mo === '') {
+            next.start_date = formatDateForInput(new Date(yearNum, 0, 1))
+            next.end_date = formatDateForInput(new Date(yearNum, 11, 31))
+          } else {
+            const mv = parseInt(mo, 10)
+            if (!Number.isNaN(mv) && mv >= 1 && mv <= 12) {
+              next.start_date = formatDateForInput(new Date(yearNum, mv - 1, 1))
+              next.end_date = formatDateForInput(new Date(yearNum, mv, 0))
+            }
+          }
+        }
+      }
+      return next
+    })
+  }, [searchParams])
 
   useEffect(() => {
     const tp = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))

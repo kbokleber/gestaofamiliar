@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { TrendingUp, TrendingDown, Wallet, Calendar, PieChart } from 'lucide-react'
 import { financeService, FinanceSummary } from '../../services/financeService'
 import Loading from '../../components/Loading'
@@ -7,35 +8,58 @@ type CategorySlice = FinanceSummary['expenses_by_category'][number]
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
+/** Donut slice: ângulos em radianos, 0 no topo (como o gráfico anterior). */
+function donutSegmentPath(
+  cx: number,
+  cy: number,
+  rInner: number,
+  rOuter: number,
+  angleStart: number,
+  angleEnd: number
+): string {
+  const p = (r: number, a: number) => [cx + r * Math.cos(a), cy + r * Math.sin(a)] as const
+  const [x0o, y0o] = p(rOuter, angleStart)
+  const [x1o, y1o] = p(rOuter, angleEnd)
+  const [x1i, y1i] = p(rInner, angleEnd)
+  const [x0i, y0i] = p(rInner, angleStart)
+  const large = angleEnd - angleStart > Math.PI ? 1 : 0
+  return `M ${x0o} ${y0o} A ${rOuter} ${rOuter} 0 ${large} 1 ${x1o} ${y1o} L ${x1i} ${y1i} A ${rInner} ${rInner} 0 ${large} 0 ${x0i} ${y0i} Z`
+}
+
+function pctToAngle(pct: number): number {
+  return -Math.PI / 2 + (pct / 100) * 2 * Math.PI
+}
+
 function PieCategoryCard({
   title,
   items,
   emptyMessage,
+  onCategorySelect,
 }: {
   title: string
   items: CategorySlice[]
   emptyMessage: string
+  onCategorySelect?: (categoryId: number) => void
 }) {
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0)
+  const clickable = typeof onCategorySelect === 'function'
 
-  const gradient = items.length
-    ? `conic-gradient(${items
-        .reduce(
-          (acc, item, index) => {
-            const value = Number(item.amount)
-            const percentage = total > 0 ? (value / total) * 100 : 0
-            const start = acc.current
-            const end = start + percentage
+  const cx = 100
+  const cy = 100
+  const rOuter = 92
+  const rInner = 52
 
-            acc.current = end
-            acc.parts.push(`${item.color || ['#22c55e', '#ef4444', '#6366f1', '#f59e0b'][index % 4]} ${start}% ${end}%`)
-
-            return acc
-          },
-          { current: 0, parts: [] as string[] }
-        )
-        .parts.join(', ')})`
-    : 'conic-gradient(#e5e7eb 0% 100%)'
+  let pctCursor = 0
+  const slices = items.map((item, index) => {
+    const value = Number(item.amount)
+    const percentage = total > 0 ? (value / total) * 100 : 0
+    const startPct = pctCursor
+    pctCursor += percentage
+    const color = item.color || ['#22c55e', '#ef4444', '#6366f1', '#f59e0b'][index % 4]
+    const a0 = pctToAngle(startPct)
+    const a1 = pctToAngle(pctCursor)
+    return { item, value, percentage, color, a0, a1, path: donutSegmentPath(cx, cy, rInner, rOuter, a0, a1) }
+  })
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -49,12 +73,29 @@ function PieCategoryCard({
       ) : (
         <div className="flex flex-col xl:flex-row gap-6 items-center">
           <div className="relative flex items-center justify-center">
-            <div
-              className="h-52 w-52 rounded-full shadow-inner"
-              style={{ background: gradient }}
-              aria-hidden="true"
-            />
-            <div className="absolute flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white shadow-sm">
+            <svg
+              viewBox="0 0 200 200"
+              className={`h-52 w-52 shrink-0 drop-shadow ${clickable ? '' : ''}`}
+              role={clickable ? 'img' : undefined}
+              aria-label={clickable ? `${title}: clique numa fatia para ver lançamentos` : undefined}
+            >
+              {slices.map(({ item, color, path }, index) => (
+                <path
+                  key={item.category_id ?? `${item.category_name}-${index}`}
+                  d={path}
+                  fill={color}
+                  stroke="white"
+                  strokeWidth="1"
+                  className={clickable ? 'cursor-pointer transition-opacity hover:opacity-90' : ''}
+                  onClick={
+                    clickable && item.category_id != null
+                      ? () => onCategorySelect!(item.category_id)
+                      : undefined
+                  }
+                />
+              ))}
+            </svg>
+            <div className="pointer-events-none absolute flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white shadow-sm">
               <span className="text-xs font-medium uppercase tracking-wide text-gray-400">Total</span>
               <span className="text-sm font-bold text-gray-900 text-center px-2">
                 {currencyFormatter.format(total)}
@@ -62,14 +103,10 @@ function PieCategoryCard({
             </div>
           </div>
 
-          <div className="w-full space-y-3">
-            {items.map((item, index) => {
-              const value = Number(item.amount)
-              const percentage = total > 0 ? (value / total) * 100 : 0
-              const color = item.color || ['#22c55e', '#ef4444', '#6366f1', '#f59e0b'][index % 4]
-
-              return (
-                <div key={`${item.category_name}-${index}`} className="flex items-start justify-between gap-4">
+          <div className="w-full space-y-1">
+            {slices.map(({ item, value, percentage, color }, index) => {
+              const inner = (
+                <div className="flex w-full items-start justify-between gap-4">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="mt-1 h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
                     <div className="min-w-0">
@@ -82,6 +119,24 @@ function PieCategoryCard({
                   </span>
                 </div>
               )
+              if (clickable && item.category_id != null) {
+                return (
+                  <button
+                    key={item.category_id}
+                    type="button"
+                    onClick={() => onCategorySelect!(item.category_id)}
+                    title="Ver lançamentos desta categoria"
+                    className="flex w-full rounded-lg px-2 py-2 text-left transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {inner}
+                  </button>
+                )
+              }
+              return (
+                <div key={`${item.category_name}-${index}`} className="px-2 py-2">
+                  {inner}
+                </div>
+              )
             })}
           </div>
         </div>
@@ -91,6 +146,7 @@ function PieCategoryCard({
 }
 
 export default function FinanceDashboard() {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState<FinanceSummary | null>(null)
   const [month, setMonth] = useState<number | null>(new Date().getMonth() + 1)
@@ -118,6 +174,15 @@ export default function FinanceDashboard() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const openEntriesForCategory = (categoryId: number) => {
+    const params = new URLSearchParams()
+    params.set('category_id', String(categoryId))
+    params.set('year', String(year))
+    if (month === null) params.set('month', 'all')
+    else params.set('month', String(month))
+    navigate(`/finance/entries?${params.toString()}`)
   }
 
 
@@ -320,11 +385,13 @@ export default function FinanceDashboard() {
             title="Despesas por Categoria"
             items={summary?.expenses_by_category || []}
             emptyMessage="Nenhuma despesa paga registrada neste ano."
+            onCategorySelect={openEntriesForCategory}
           />
           <PieCategoryCard
             title="Receitas por Categoria"
             items={summary?.incomes_by_category || []}
             emptyMessage="Nenhuma receita paga registrada neste ano."
+            onCategorySelect={openEntriesForCategory}
           />
         </div>
       ) : (
@@ -339,8 +406,14 @@ export default function FinanceDashboard() {
               {summary?.expenses_by_category.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">Nenhuma despesa paga registrada neste mês.</p>
               ) : (
-                summary?.expenses_by_category.map((cat, i) => (
-                  <div key={i} className="group">
+                summary?.expenses_by_category.map((cat) => (
+                  <button
+                    key={cat.category_id}
+                    type="button"
+                    onClick={() => openEntriesForCategory(cat.category_id)}
+                    title="Ver lançamentos desta categoria"
+                    className="group block w-full rounded-lg px-1 py-1 text-left transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium text-gray-700">{cat.category_name}</span>
                       <span className="text-sm font-semibold text-gray-900">
@@ -348,15 +421,15 @@ export default function FinanceDashboard() {
                       </span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div 
-                        className="h-2 rounded-full transition-all duration-500" 
-                        style={{ 
+                      <div
+                        className="h-2 rounded-full transition-all duration-500"
+                        style={{
                           width: `${summary?.month_expense ? (Number(cat.amount) / Number(summary.month_expense)) * 100 : 0}%`,
-                          backgroundColor: cat.color || '#ef4444'
+                          backgroundColor: cat.color || '#ef4444',
                         }}
                       />
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -372,8 +445,14 @@ export default function FinanceDashboard() {
               {summary?.incomes_by_category.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">Nenhuma receita paga registrada neste mês.</p>
               ) : (
-                summary?.incomes_by_category.map((cat, i) => (
-                  <div key={i} className="group">
+                summary?.incomes_by_category.map((cat) => (
+                  <button
+                    key={cat.category_id}
+                    type="button"
+                    onClick={() => openEntriesForCategory(cat.category_id)}
+                    title="Ver lançamentos desta categoria"
+                    className="group block w-full rounded-lg px-1 py-1 text-left transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium text-gray-700">{cat.category_name}</span>
                       <span className="text-sm font-semibold text-gray-900">
@@ -381,15 +460,15 @@ export default function FinanceDashboard() {
                       </span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div 
-                        className="h-2 rounded-full transition-all duration-500" 
-                        style={{ 
+                      <div
+                        className="h-2 rounded-full transition-all duration-500"
+                        style={{
                           width: `${summary?.month_income ? (Number(cat.amount) / Number(summary.month_income)) * 100 : 0}%`,
-                          backgroundColor: cat.color || '#22c55e'
+                          backgroundColor: cat.color || '#22c55e',
                         }}
                       />
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>

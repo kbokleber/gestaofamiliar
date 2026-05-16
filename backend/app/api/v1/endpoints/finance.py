@@ -1179,11 +1179,12 @@ async def get_finance_summary(
             extract('year', FinanceEntry.date) == prev_year
         ).scalar() or Decimal('0.00')
     
-    # Estatísticas por categoria (Despesas)
+    # Estatísticas por categoria (Despesas) — inclui category_id para drill-down no frontend
     cat_query = db.query(
+        FinanceCategory.id,
         FinanceCategory.name,
         func.sum(FinanceEntry.amount).label('total'),
-        FinanceCategory.color
+        FinanceCategory.color,
     ).join(FinanceEntry, FinanceEntry.category_id == FinanceCategory.id).filter(
         FinanceEntry.family_id.in_(f_ids),
         FinanceEntry.type == 'EXPENSE',
@@ -1193,12 +1194,13 @@ async def get_finance_summary(
     if month:
         cat_query = cat_query.filter(extract('month', FinanceEntry.date) == month)
     
-    cat_stats = cat_query.group_by(FinanceCategory.name, FinanceCategory.color).all()
+    cat_stats = cat_query.group_by(FinanceCategory.id, FinanceCategory.name, FinanceCategory.color).all()
 
     income_cat_query = db.query(
+        FinanceCategory.id,
         FinanceCategory.name,
         func.sum(FinanceEntry.amount).label('total'),
-        FinanceCategory.color
+        FinanceCategory.color,
     ).join(FinanceEntry, FinanceEntry.category_id == FinanceCategory.id).filter(
         FinanceEntry.family_id.in_(f_ids),
         FinanceEntry.type == 'INCOME',
@@ -1208,7 +1210,7 @@ async def get_finance_summary(
     if month:
         income_cat_query = income_cat_query.filter(extract('month', FinanceEntry.date) == month)
 
-    income_cat_stats = income_cat_query.group_by(FinanceCategory.name, FinanceCategory.color).all()
+    income_cat_stats = income_cat_query.group_by(FinanceCategory.id, FinanceCategory.name, FinanceCategory.color).all()
 
     # Dados mensais para gráfico de evolução (ano todo)
     monthly_data = None
@@ -1247,8 +1249,14 @@ async def get_finance_summary(
         "month_expense": expense,
         "month_balance": income - expense,
         "previous_month_balance": prev_income - prev_expense,
-        "expenses_by_category": [{"category_name": name, "amount": total, "color": color} for name, total, color in cat_stats],
-        "incomes_by_category": [{"category_name": name, "amount": total, "color": color} for name, total, color in income_cat_stats],
+        "expenses_by_category": [
+            {"category_id": int(cid), "category_name": name, "amount": total, "color": color}
+            for cid, name, total, color in cat_stats
+        ],
+        "incomes_by_category": [
+            {"category_id": int(cid), "category_name": name, "amount": total, "color": color}
+            for cid, name, total, color in income_cat_stats
+        ],
         "monthly_data": monthly_data
     }
 
