@@ -26,4 +26,7 @@ class Family(Base):
     finance_categories = relationship("FinanceCategory", back_populates="family", cascade="all, delete-orphan")
     finance_entries = relationship("FinanceEntry", back_populates="family", cascade="all, delete-orphan")
     finance_recurrences = relationship("FinanceRecurrence", back_populates="family", cascade="all, delete-orphan")
+    finance_import_category_rules = relationship(
+        "FinanceImportCategoryRule", back_populates="family", cascade="all, delete-orphan"
+    )
 

@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from app.utils.category_matching import find_best_matching_category
+from app.utils.category_matching import find_best_matching_category, score_category_name_vs_description
 
 
 def test_find_best_matching_category_ignores_accents_and_case():
@@ -46,3 +46,8 @@ def test_find_best_matching_category_returns_none_when_unrelated():
     )
 
     assert category is None
+
+
+def test_score_category_name_vs_description_empty_description():
+    assert score_category_name_vs_description("Alimentação", None) == 0.0
+    assert score_category_name_vs_description("Alimentação", "") == 0.0

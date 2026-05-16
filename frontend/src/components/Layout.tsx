@@ -2,7 +2,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp
+  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAppVersion } from '../hooks/useAppVersion'
@@ -46,6 +46,7 @@ export default function Layout() {
         { name: 'Lançamentos', href: '/finance/entries', icon: Wallet },
         { name: 'Recorrências', href: '/finance/recurrences', icon: Calendar },
         { name: 'Categorias', href: '/finance/categories', icon: Settings },
+        { name: 'Regras de importação', href: '/finance/import-category-rules', icon: ListFilter },
       ]
     },
   ]

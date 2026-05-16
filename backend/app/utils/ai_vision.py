@@ -22,7 +22,7 @@ def _is_minimax_config(cfg: FamilyAIConfig) -> bool:
 
 
 def _get_nvidia_nim_model(cfg: FamilyAIConfig) -> str:
-    model = (cfg.openai_model or "moonshotai/kimi-k2.5").strip()
+    model = (cfg.openai_model or "moonshotai/kimi-k2.6").strip()
     return model.replace("nvidia-nim/", "", 1)
 
 def get_ai_client(family_id: int, db: Session) -> Optional[tuple]:

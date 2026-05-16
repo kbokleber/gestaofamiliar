@@ -166,13 +166,19 @@ export default function AdminFamilies() {
     setAiProvider(provider)
 
     if (provider === 'nvidia-nim' && (!openaiModel || openaiModel === 'gpt-4o-mini' || openaiModel === 'MiniMax-Text-01')) {
-      setOpenaiModel('moonshotai/kimi-k2.5')
+      setOpenaiModel('moonshotai/kimi-k2.6')
     }
-    if (provider === 'minimax' && (!openaiModel || openaiModel === 'gpt-4o-mini' || openaiModel === 'moonshotai/kimi-k2.5')) {
+    if (
+      provider === 'minimax' &&
+      (!openaiModel ||
+        openaiModel === 'gpt-4o-mini' ||
+        openaiModel === 'moonshotai/kimi-k2.5' ||
+        openaiModel === 'moonshotai/kimi-k2.6')
+    ) {
       setOpenaiModel('MiniMax-Text-01')
     }
 
-    if (provider === 'openai' && (!openaiModel || openaiModel === 'moonshotai/kimi-k2.5')) {
+    if (provider === 'openai' && (!openaiModel || openaiModel === 'moonshotai/kimi-k2.5' || openaiModel === 'moonshotai/kimi-k2.6')) {
       setOpenaiModel('gpt-4o-mini')
     }
   }
@@ -989,7 +995,7 @@ export default function AdminFamilies() {
                       type="text"
                       value={openaiModel}
                       onChange={(e) => setOpenaiModel(e.target.value)}
-                      placeholder={aiProvider === 'nvidia-nim' ? 'moonshotai/kimi-k2.5' : aiProvider === 'minimax' ? 'MiniMax-Text-01' : 'gpt-4o-mini'}
+                      placeholder={aiProvider === 'nvidia-nim' ? 'moonshotai/kimi-k2.6' : aiProvider === 'minimax' ? 'MiniMax-Text-01' : 'gpt-4o-mini'}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
                   </div>

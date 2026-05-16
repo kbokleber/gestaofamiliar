@@ -26,6 +26,7 @@ class FinanceCategory(Base):
     created_by = relationship("User")
     entries = relationship("FinanceEntry", back_populates="category")
     recurrences = relationship("FinanceRecurrence", back_populates="category")
+    import_rules = relationship("FinanceImportCategoryRule", back_populates="category")
 
 class FinanceEntry(Base):
     """
@@ -87,3 +88,28 @@ class FinanceRecurrence(Base):
     family = relationship("Family", back_populates="finance_recurrences")
     category = relationship("FinanceCategory", back_populates="recurrences")
     entries = relationship("FinanceEntry", back_populates="recurrence")
+
+
+class FinanceImportCategoryRule(Base):
+    """
+    Regra de mapeamento texto do extrato (Detalhes) -> categoria, por família.
+    Fase 1: match por substring normalizada (contains).
+    """
+
+    __tablename__ = "finance_import_category_rule"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("finance_category.id"), nullable=False, index=True)
+    pattern = Column(String(200), nullable=False)
+    entry_type = Column(String(10), nullable=False)  # EXPENSE, INCOME, BOTH
+    priority = Column(Integer, nullable=False, default=100)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now(), nullable=False)
+
+    family = relationship("Family", back_populates="finance_import_category_rules")
+    category = relationship("FinanceCategory", back_populates="import_rules")
+    created_by = relationship("User")

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict
-from typing import List, Optional
+from pydantic import BaseModel, ConfigDict, Field
+from typing import List, Optional, Literal
 import datetime
 from decimal import Decimal
 
@@ -81,6 +81,92 @@ class FinanceEntry(FinanceEntryBase):
 
     class Config:
         from_attributes = True
+
+
+# ----- BANK IMPORT / BULK -----
+class SuggestImportCategoryItem(BaseModel):
+    description: str
+    type: str  # INCOME ou EXPENSE
+
+
+class SuggestImportCategoriesRequest(BaseModel):
+    items: List[SuggestImportCategoryItem] = Field(..., max_length=500)
+
+
+class SuggestImportCategoryResult(BaseModel):
+    category_id: Optional[int] = None
+    confidence: Optional[Literal["high", "low"]] = None
+
+
+class SuggestImportCategoriesResponse(BaseModel):
+    suggestions: List[SuggestImportCategoryResult]
+
+
+class FinanceEntryBulkCreate(BaseModel):
+    entries: List[FinanceEntryCreate] = Field(..., max_length=500)
+
+
+class FinanceEntryBulkError(BaseModel):
+    index: int
+    detail: str
+
+
+class FinanceEntryBulkResult(BaseModel):
+    created: int
+    errors: List[FinanceEntryBulkError] = Field(default_factory=list)
+
+
+class FinanceEntryBulkIds(BaseModel):
+    entry_ids: List[int] = Field(..., min_length=1, max_length=500)
+
+
+class FinanceEntryBulkCategoryBody(BaseModel):
+    entry_ids: List[int] = Field(..., min_length=1, max_length=500)
+    category_id: Optional[int] = None
+
+
+class FinanceEntryBulkDeleteResult(BaseModel):
+    deleted: int
+
+
+class FinanceEntryBulkCategoryResult(BaseModel):
+    updated: int
+    skipped: int = 0
+
+
+# ----- IMPORT CATEGORY RULES -----
+ImportRuleEntryType = Literal["EXPENSE", "INCOME", "BOTH"]
+
+
+class FinanceImportCategoryRuleBase(BaseModel):
+    pattern: str = Field(..., min_length=1, max_length=200)
+    category_id: int
+    entry_type: ImportRuleEntryType
+    priority: int = 100
+    is_active: bool = True
+
+
+class FinanceImportCategoryRuleCreate(FinanceImportCategoryRuleBase):
+    pass
+
+
+class FinanceImportCategoryRuleUpdate(BaseModel):
+    pattern: Optional[str] = Field(None, min_length=1, max_length=200)
+    category_id: Optional[int] = None
+    entry_type: Optional[ImportRuleEntryType] = None
+    priority: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
+class FinanceImportCategoryRule(FinanceImportCategoryRuleBase):
+    id: int
+    family_id: int
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+    category: Optional[FinanceCategory] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ----- RECURRENCES -----
 class FinanceRecurrenceBase(BaseModel):

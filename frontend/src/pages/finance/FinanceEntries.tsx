@@ -1,5 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Trash2, Edit2, CheckCircle, XCircle, Camera, Loader2, Paperclip, Image, HelpCircle, ChevronDown } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  Edit2,
+  CheckCircle,
+  XCircle,
+  Camera,
+  Loader2,
+  Paperclip,
+  Image,
+  HelpCircle,
+  ChevronDown,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+} from 'lucide-react'
 import { financeService, Entry, Category } from '../../services/financeService'
 import Loading from '../../components/Loading'
 import Modal from '../../components/Modal'
@@ -7,6 +23,7 @@ import Button from '../../components/Button'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
+import BankImportModal from '../../components/finance/BankImportModal'
 
 const formatDateForInput = (date: Date) => {
   const year = date.getFullYear()
@@ -24,6 +41,8 @@ const getCurrentMonthFilter = () => {
     end_date: formatDateForInput(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
   }
 }
+
+const PAGE_SIZE = 20
 
 interface FamilyAIConfig {
   enabled: boolean
@@ -93,6 +112,68 @@ function CustomSelect({ value, onChange, options, placeholder = 'Selecione...' }
   );
 }
 
+interface EntriesPaginationBarProps {
+  page: number
+  totalPages: number
+  totalItems: number
+  onFirst: () => void
+  onPrev: () => void
+  onNext: () => void
+  onLast: () => void
+  className?: string
+}
+
+function EntriesPaginationBar({
+  page,
+  totalPages,
+  totalItems,
+  onFirst,
+  onPrev,
+  onNext,
+  onLast,
+  className = '',
+}: EntriesPaginationBarProps) {
+  const start = totalItems === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const end = Math.min(page * PAGE_SIZE, totalItems)
+  const atFirst = page <= 1
+  const atLast = page >= totalPages
+
+  const btn =
+    'inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white p-2 text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white'
+
+  return (
+    <div
+      className={`flex flex-col items-center justify-between gap-3 sm:flex-row sm:gap-4 ${className}`}
+      role="navigation"
+      aria-label="Paginação de lançamentos"
+    >
+      <p className="text-sm text-gray-600 tabular-nums">
+        <span className="font-medium text-gray-900">
+          Página {page} de {totalPages}
+        </span>
+        <span className="mx-2 text-gray-300" aria-hidden>
+          ·
+        </span>
+        {totalItems === 0 ? 'Nenhum lançamento' : `Itens ${start}–${end} de ${totalItems}`}
+      </p>
+      <div className="flex items-center gap-1">
+        <button type="button" className={btn} onClick={onFirst} disabled={atFirst} title="Primeira página" aria-label="Primeira página">
+          <ChevronsLeft className="h-5 w-5" />
+        </button>
+        <button type="button" className={btn} onClick={onPrev} disabled={atFirst} title="Página anterior" aria-label="Página anterior">
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <button type="button" className={btn} onClick={onNext} disabled={atLast} title="Próxima página" aria-label="Próxima página">
+          <ChevronRight className="h-5 w-5" />
+        </button>
+        <button type="button" className={btn} onClick={onLast} disabled={atLast} title="Última página" aria-label="Última página">
+          <ChevronsRight className="h-5 w-5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function FinanceEntries() {
   const { user: currentUser } = useAuthStore()
   const [loading, setLoading] = useState(true)
@@ -104,10 +185,11 @@ export default function FinanceEntries() {
   const [filters, setFilters] = useState(() => ({
     ...getCurrentMonthFilter(),
     category_id: '',
-    status: 'ALL'
+    status: 'ALL',
+    description: '',
   }))
-  
-  const [visibleCount, setVisibleCount] = useState(20)
+
+  const [currentPage, setCurrentPage] = useState(1)
 
   const [formData, setFormData] = useState({
     description: '',
@@ -125,20 +207,39 @@ export default function FinanceEntries() {
   const [familyAiConfig, setFamilyAiConfig] = useState<FamilyAIConfig | null>(null)
   const [showScanMenu, setShowScanMenu] = useState(false)
   const [isScanHelpOpen, setIsScanHelpOpen] = useState(false)
+  const [bankImportOpen, setBankImportOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const [bulkCategoryId, setBulkCategoryId] = useState('')
+  const [bulkActionLoading, setBulkActionLoading] = useState(false)
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false)
 
   useEffect(() => {
-    setVisibleCount(20)
+    setCurrentPage(1)
+    setSelectedIds(new Set())
     loadData()
   }, [filters])
+
+  useEffect(() => {
+    const tp = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
+    setCurrentPage((p) => (p > tp ? tp : p))
+  }, [entries.length])
 
   const loadData = async () => {
     setLoading(true)
     try {
+      const desc = filters.description.trim()
+      const categoryFilter =
+        filters.category_id === '__none__'
+          ? { uncategorized_only: true as const }
+          : filters.category_id
+            ? { category_id: parseInt(filters.category_id, 10) }
+            : {}
       const params = {
         start_date: filters.start_date || undefined,
         end_date: filters.end_date || undefined,
-        category_id: filters.category_id ? parseInt(filters.category_id) : undefined,
-        is_paid: filters.status === 'PAID' ? true : filters.status === 'PENDING' ? false : undefined
+        ...categoryFilter,
+        is_paid: filters.status === 'PAID' ? true : filters.status === 'PENDING' ? false : undefined,
+        description_contains: desc || undefined,
       }
 
       const [entriesData, categoriesData] = await Promise.all([
@@ -147,6 +248,10 @@ export default function FinanceEntries() {
       ])
       setEntries(entriesData)
       setCategories(categoriesData)
+      setSelectedIds((prev) => {
+        const allowed = new Set(entriesData.map((e) => e.id))
+        return new Set([...prev].filter((id) => allowed.has(id)))
+      })
 
       try {
         const familyIdParam =
@@ -246,6 +351,103 @@ export default function FinanceEntries() {
       console.error('Erro ao excluir:', error)
     }
   }
+
+  const totalPages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
+  const page = Math.min(currentPage, totalPages)
+  const pageStart = (page - 1) * PAGE_SIZE
+  const visibleEntries = entries.slice(pageStart, pageStart + PAGE_SIZE)
+  const visibleIds = visibleEntries.map((e) => e.id)
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+  const someVisibleSelected = visibleIds.some((id) => selectedIds.has(id))
+
+  const toggleRowSelected = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        visibleIds.forEach((id) => next.delete(id))
+        return next
+      })
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        visibleIds.forEach((id) => next.add(id))
+        return next
+      })
+    }
+  }
+
+  const selectAllFiltered = () => {
+    setSelectedIds(new Set(entries.map((e) => e.id)))
+  }
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const handleBulkApplyCategory = async () => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+    setBulkActionLoading(true)
+    try {
+      const categoryId =
+        bulkCategoryId === '' ? null : parseInt(bulkCategoryId, 10)
+      const res = await financeService.bulkUpdateEntryCategory(ids, categoryId)
+      let msg = `${res.updated} lançamento(s) atualizado(s).`
+      if (res.skipped > 0) {
+        msg += ` ${res.skipped} ignorado(s) (categoria incompatível com receita/despesa).`
+      }
+      alert(msg)
+      setBulkCategoryId('')
+      clearSelection()
+      await loadData()
+    } catch (error) {
+      console.error('Erro ao aplicar categoria em massa:', error)
+      alert('Não foi possível aplicar a categoria. Tente novamente.')
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }
+
+  const handleBulkDeleteConfirm = async () => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+    setBulkActionLoading(true)
+    try {
+      const res = await financeService.bulkDeleteEntries(ids)
+      alert(`${res.deleted} lançamento(s) excluído(s).`)
+      setIsBulkDeleteModalOpen(false)
+      clearSelection()
+      await loadData()
+    } catch (error) {
+      console.error('Erro ao excluir em massa:', error)
+      alert('Não foi possível excluir os lançamentos.')
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }
+
+  const bulkCategoryOptions = [
+    { value: '', label: 'Sem categoria' },
+    ...categories
+      .filter((c) => c.is_active)
+      .map((c) => ({
+        value: c.id.toString(),
+        label: `${c.type === 'INCOME' ? 'Receita' : 'Despesa'} · ${c.name}`,
+      })),
+  ]
+
+  const goFirstPage = () => setCurrentPage(1)
+  const goPrevPage = () => setCurrentPage((p) => Math.max(1, p - 1))
+  const goNextPage = () => setCurrentPage((p) => Math.min(totalPages, p + 1))
+  const goLastPage = () => setCurrentPage(totalPages)
 
   const openEntryModal = (entry?: Entry) => {
     if (entry) {
@@ -481,6 +683,14 @@ export default function FinanceEntries() {
           </div>
 
           <button
+            type="button"
+            onClick={() => setBankImportOpen(true)}
+            className="inline-flex items-center px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 transition-colors shadow-sm"
+          >
+            Importar extrato BB
+          </button>
+
+          <button
             onClick={() => openEntryModal()}
             className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
           >
@@ -498,7 +708,8 @@ export default function FinanceEntries() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
         <div className="flex flex-col lg:flex-row gap-4 lg:items-end">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data inicial</label>
               <input
@@ -526,6 +737,7 @@ export default function FinanceEntries() {
                 onChange={(val) => setFilters((prev) => ({ ...prev, category_id: val }))}
                 options={[
                   { value: '', label: 'Todas' },
+                  { value: '__none__', label: 'Sem categoria' },
                   ...categories.map(c => ({ value: c.id.toString(), label: c.name }))
                 ]}
               />
@@ -543,15 +755,29 @@ export default function FinanceEntries() {
                 ]}
               />
             </div>
+            </div>
+
+            <div className="w-full min-w-0">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+              <input
+                type="search"
+                value={filters.description}
+                onChange={(e) => setFilters((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Pesquisar na descrição do lançamento…"
+                autoComplete="off"
+                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              />
+            </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               variant="outline"
               onClick={() => setFilters({
                 ...getCurrentMonthFilter(),
                 category_id: '',
-                status: 'ALL'
+                status: 'ALL',
+                description: '',
               })}
             >
               Mês atual
@@ -562,7 +788,8 @@ export default function FinanceEntries() {
                 start_date: '',
                 end_date: '',
                 category_id: '',
-                status: 'ALL'
+                status: 'ALL',
+                description: '',
               })}
             >
               Limpar
@@ -571,6 +798,68 @@ export default function FinanceEntries() {
         </div>
       </div>
 
+      {entries.length > 0 && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/80 px-4 py-3 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+              <span className="font-medium text-indigo-900">
+                {selectedIds.size === 0
+                  ? 'Selecione lançamentos para alterar categoria ou excluir em massa.'
+                  : `${selectedIds.size} selecionado(s)`}
+              </span>
+              {entries.length > 0 && selectedIds.size < entries.length && (
+                <button
+                  type="button"
+                  onClick={selectAllFiltered}
+                  className="text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-900"
+                >
+                  Selecionar todos ({entries.length})
+                </button>
+              )}
+              {selectedIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  className="text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900"
+                >
+                  Limpar seleção
+                </button>
+              )}
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="min-w-[200px] flex-1 sm:max-w-xs">
+                <CustomSelect
+                  value={bulkCategoryId}
+                  onChange={setBulkCategoryId}
+                  options={bulkCategoryOptions}
+                  placeholder="Categoria para aplicar…"
+                />
+              </div>
+              <Button
+                variant="outline"
+                disabled={selectedIds.size === 0 || bulkActionLoading}
+                onClick={handleBulkApplyCategory}
+                className="border-indigo-200 bg-white whitespace-nowrap"
+              >
+                {bulkActionLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Aplicar categoria'
+                )}
+              </Button>
+              <Button
+                variant="danger"
+                disabled={selectedIds.size === 0 || bulkActionLoading}
+                onClick={() => setIsBulkDeleteModalOpen(true)}
+                className="whitespace-nowrap"
+              >
+                Excluir selecionados
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lista mobile */}
       <div className="space-y-3 md:hidden">
         {entries.length === 0 ? (
@@ -578,9 +867,17 @@ export default function FinanceEntries() {
             Nenhum lançamento encontrado.
           </div>
         ) : (
-          entries.slice(0, visibleCount).map((entry) => (
+          visibleEntries.map((entry) => (
             <div key={entry.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-4">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  checked={selectedIds.has(entry.id)}
+                  onChange={() => toggleRowSelected(entry.id)}
+                  aria-label={`Selecionar ${entry.description}`}
+                />
+                <div className="flex flex-1 items-start justify-between gap-3 min-w-0">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-gray-900 break-words">{entry.description}</p>
@@ -593,6 +890,7 @@ export default function FinanceEntries() {
                 </div>
                 <div className={`text-sm font-bold whitespace-nowrap ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
                   {entry.type === 'INCOME' ? '+' : '-'} {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(entry.amount)}
+                </div>
                 </div>
               </div>
 
@@ -649,16 +947,18 @@ export default function FinanceEntries() {
             </div>
           ))
         )}
-        
-        {entries.length > visibleCount && (
-          <div className="pt-2 pb-4 flex justify-center">
-            <Button
-              variant="outline"
-              onClick={() => setVisibleCount((prev) => prev + 20)}
-              className="w-full bg-white text-indigo-600 border-indigo-200 shadow-sm"
-            >
-              Carregar mais lançamentos
-            </Button>
+
+        {entries.length > 0 && (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+            <EntriesPaginationBar
+              page={page}
+              totalPages={totalPages}
+              totalItems={entries.length}
+              onFirst={goFirstPage}
+              onPrev={goPrevPage}
+              onNext={goNextPage}
+              onLast={goLastPage}
+            />
           </div>
         )}
       </div>
@@ -669,7 +969,21 @@ export default function FinanceEntries() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                <th className="w-10 px-3 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected
+                    }}
+                    onChange={toggleSelectAllVisible}
+                    disabled={visibleIds.length === 0}
+                    title="Selecionar lançamentos visíveis nesta página"
+                    aria-label="Selecionar lançamentos visíveis"
+                  />
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
@@ -678,9 +992,18 @@ export default function FinanceEntries() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {entries.slice(0, visibleCount).map((entry) => (
+              {visibleEntries.map((entry) => (
                 <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  <td className="px-3 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      checked={selectedIds.has(entry.id)}
+                      onChange={() => toggleRowSelected(entry.id)}
+                      aria-label={`Selecionar ${entry.description}`}
+                    />
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                     {new Intl.DateTimeFormat('pt-BR').format(new Date(entry.date + 'T00:00:00'))}
                   </td>
                   <td className="px-6 py-4">
@@ -731,7 +1054,7 @@ export default function FinanceEntries() {
               ))}
               {entries.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     Nenhum lançamento encontrado. Clique em "Novo Lançamento" para começar.
                   </td>
                 </tr>
@@ -739,16 +1062,18 @@ export default function FinanceEntries() {
             </tbody>
           </table>
         </div>
-        
-        {entries.length > visibleCount && (
-          <div className="p-4 border-t border-gray-200 flex justify-center bg-gray-50">
-            <Button
-              variant="outline"
-              onClick={() => setVisibleCount((prev) => prev + 20)}
-              className="bg-white text-indigo-600 border-indigo-200 shadow-sm"
-            >
-              Carregar mais lançamentos
-            </Button>
+
+        {entries.length > 0 && (
+          <div className="border-t border-gray-200 bg-gray-50 px-4 py-3">
+            <EntriesPaginationBar
+              page={page}
+              totalPages={totalPages}
+              totalItems={entries.length}
+              onFirst={goFirstPage}
+              onPrev={goPrevPage}
+              onNext={goNextPage}
+              onLast={goLastPage}
+            />
           </div>
         )}
       </div>
@@ -960,12 +1285,30 @@ export default function FinanceEntries() {
         </div>
       </Modal>
 
+      <BankImportModal
+        isOpen={bankImportOpen}
+        onClose={() => setBankImportOpen(false)}
+        categories={categories}
+        onImported={loadData}
+      />
+
       <ConfirmDeleteModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDelete}
         title="Excluir Lançamento"
         message="Tem certeza que deseja excluir este lançamento? Esta ação não pode ser desfeita."
+      />
+
+      <ConfirmDeleteModal
+        isOpen={isBulkDeleteModalOpen}
+        onClose={() => setIsBulkDeleteModalOpen(false)}
+        onConfirm={() => {
+          void handleBulkDeleteConfirm()
+        }}
+        title="Excluir lançamentos em massa"
+        message={`Excluir ${selectedIds.size} lançamento(s) selecionado(s)? Esta ação não pode ser desfeita.`}
+        isLoading={bulkActionLoading}
       />
     </div>
   )

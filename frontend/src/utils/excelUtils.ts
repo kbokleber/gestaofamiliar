@@ -42,3 +42,19 @@ export function exportToExcel(
   XLSX.writeFile(workbook, `${filename}.xlsx`)
 }
 
+/** Lê a primeira planilha do arquivo como matriz de células (para importação de extratos). */
+export async function readExcelFirstSheetAsMatrix(
+  file: File
+): Promise<(string | number | null | boolean)[][]> {
+  const buf = await file.arrayBuffer()
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true })
+  const name = wb.SheetNames[0]
+  if (!name) return []
+  const sheet = wb.Sheets[name]
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true }) as (
+    | string
+    | number
+    | null
+    | boolean
+  )[][]
+}

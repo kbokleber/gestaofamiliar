@@ -73,6 +73,10 @@ if (-not (Test-Path '.\venv\Scripts\Activate.ps1')) {
 }
 .\venv\Scripts\Activate.ps1
 
+# Windows: variável de usuário DATABASE_URL (ex.: 127.0.0.1) sobrescreve o backend/.env — limpar para usar o .env do projeto.
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+Remove-Item Env:DEV_DATABASE_URL -ErrorAction SilentlyContinue
+
 # Configurar timezone para Sao Paulo
 `$env:TZ = 'America/Sao_Paulo'
 Write-Host 'Timezone configurado: America/Sao_Paulo' -ForegroundColor Cyan

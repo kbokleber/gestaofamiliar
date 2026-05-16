@@ -7,12 +7,25 @@ from decimal import Decimal
 
 from app.db.base import get_db
 from app.models.user import User
-from app.models.finance import FinanceCategory, FinanceEntry, FinanceRecurrence
+from app.models.finance import FinanceCategory, FinanceEntry, FinanceImportCategoryRule, FinanceRecurrence
 from app.schemas.finance import (
     FinanceCategory as CategorySchema, FinanceCategoryCreate, FinanceCategoryUpdate,
     FinanceEntry as EntrySchema, FinanceEntryCreate, FinanceEntryUpdate,
     FinanceRecurrence as RecurrenceSchema, FinanceRecurrenceCreate, FinanceRecurrenceUpdate,
-    FinanceSummary
+    FinanceSummary,
+    SuggestImportCategoriesRequest,
+    SuggestImportCategoriesResponse,
+    SuggestImportCategoryResult,
+    FinanceEntryBulkCreate,
+    FinanceEntryBulkResult,
+    FinanceEntryBulkError,
+    FinanceEntryBulkIds,
+    FinanceEntryBulkCategoryBody,
+    FinanceEntryBulkDeleteResult,
+    FinanceEntryBulkCategoryResult,
+    FinanceImportCategoryRule as ImportRuleSchema,
+    FinanceImportCategoryRuleCreate,
+    FinanceImportCategoryRuleUpdate,
 )
 from app.api.deps import get_current_user, get_current_family
 from app.utils.ai_vision import analyze_receipt
@@ -24,6 +37,8 @@ from app.utils.installments import (
 )
 from app.utils.recurrence_generation import resolve_months_to_process
 from app.utils.receipt_dates import resolve_receipt_date
+from app.utils.bank_category_suggest import suggest_category_for_bank_line
+from app.utils.import_category_rules import match_import_category_rule
 
 router = APIRouter()
 
@@ -139,7 +154,175 @@ async def delete_category(
     db.commit()
     return None
 
+# ----- IMPORT CATEGORY RULES -----
+
+
+def _finance_family_id_or_400(
+    db: Session,
+    current_user: User,
+    family_id: Optional[int],
+) -> int:
+    from app.api.deps import get_user_family_ids
+
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nenhuma família encontrada",
+            )
+        return family_ids[0]
+    if family_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Família não especificada",
+        )
+    return family_id
+
+
+def _validate_rule_category(db: Session, *, family_id: int, category_id: int) -> FinanceCategory:
+    cat = (
+        db.query(FinanceCategory)
+        .filter(
+            FinanceCategory.id == category_id,
+            FinanceCategory.family_id == family_id,
+            FinanceCategory.is_active == True,
+        )
+        .first()
+    )
+    if not cat:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Categoria não encontrada para esta família ou inativa",
+        )
+    return cat
+
+
+@router.get("/import-category-rules", response_model=List[ImportRuleSchema])
+async def list_import_category_rules(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family),
+):
+    fid = _finance_family_id_or_400(db, current_user, family_id)
+    return (
+        db.query(FinanceImportCategoryRule)
+        .options(joinedload(FinanceImportCategoryRule.category))
+        .filter(FinanceImportCategoryRule.family_id == fid)
+        .order_by(FinanceImportCategoryRule.priority.asc(), FinanceImportCategoryRule.id.asc())
+        .all()
+    )
+
+
+@router.post("/import-category-rules", response_model=ImportRuleSchema, status_code=status.HTTP_201_CREATED)
+async def create_import_category_rule(
+    body: FinanceImportCategoryRuleCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family),
+):
+    fid = _finance_family_id_or_400(db, current_user, family_id)
+    cat = _validate_rule_category(db, family_id=fid, category_id=body.category_id)
+    if body.entry_type != "BOTH" and cat.type != body.entry_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tipo da regra deve coincidir com o tipo da categoria (ou use BOTH)",
+        )
+
+    now = datetime.now()
+    rule = FinanceImportCategoryRule(
+        family_id=fid,
+        category_id=body.category_id,
+        pattern=body.pattern.strip(),
+        entry_type=body.entry_type,
+        priority=body.priority,
+        is_active=body.is_active,
+        created_by_id=current_user.id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(rule)
+    db.commit()
+    db.refresh(rule)
+    return db.query(FinanceImportCategoryRule).options(joinedload(FinanceImportCategoryRule.category)).filter(
+        FinanceImportCategoryRule.id == rule.id
+    ).first()
+
+
+@router.put("/import-category-rules/{rule_id}", response_model=ImportRuleSchema)
+async def update_import_category_rule(
+    rule_id: int,
+    body: FinanceImportCategoryRuleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family),
+):
+    fid = _finance_family_id_or_400(db, current_user, family_id)
+    rule = (
+        db.query(FinanceImportCategoryRule)
+        .filter(FinanceImportCategoryRule.id == rule_id, FinanceImportCategoryRule.family_id == fid)
+        .first()
+    )
+    if not rule:
+        raise HTTPException(status_code=404, detail="Regra não encontrada")
+
+    data = body.model_dump(exclude_unset=True)
+    if "pattern" in data and data["pattern"] is not None:
+        data["pattern"] = data["pattern"].strip()
+        if not data["pattern"]:
+            raise HTTPException(status_code=400, detail="Padrão não pode ser vazio")
+
+    new_cat_id = data.get("category_id", rule.category_id)
+    if "category_id" in data or "entry_type" in data:
+        _validate_rule_category(db, family_id=fid, category_id=new_cat_id)
+        cat_check = db.query(FinanceCategory).filter(FinanceCategory.id == new_cat_id).first()
+        et = data.get("entry_type", rule.entry_type)
+        if et != "BOTH" and cat_check and cat_check.type != et:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tipo da regra deve coincidir com o tipo da categoria (ou use BOTH)",
+            )
+
+    for key, value in data.items():
+        setattr(rule, key, value)
+    rule.updated_at = datetime.now()
+    db.commit()
+    return db.query(FinanceImportCategoryRule).options(joinedload(FinanceImportCategoryRule.category)).filter(
+        FinanceImportCategoryRule.id == rule.id
+    ).first()
+
+
+@router.delete("/import-category-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_import_category_rule(
+    rule_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family),
+):
+    """Desativa a regra (soft delete)."""
+    fid = _finance_family_id_or_400(db, current_user, family_id)
+    rule = (
+        db.query(FinanceImportCategoryRule)
+        .filter(FinanceImportCategoryRule.id == rule_id, FinanceImportCategoryRule.family_id == fid)
+        .first()
+    )
+    if not rule:
+        raise HTTPException(status_code=404, detail="Regra não encontrada")
+    rule.is_active = False
+    rule.updated_at = datetime.now()
+    db.commit()
+    return None
+
 # ----- ENTRIES -----
+
+def _escape_like_pattern(term: str) -> str:
+    """Escapa %, _ e \\ para uso seguro em ILIKE com escape='\\'."""
+    return (
+        term.replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+
 
 @router.get("/entries", response_model=List[EntrySchema])
 async def list_entries(
@@ -148,6 +331,15 @@ async def list_entries(
     category_id: Optional[int] = None,
     type: Optional[str] = None,
     is_paid: Optional[bool] = None,
+    description_contains: Optional[str] = Query(
+        None,
+        max_length=200,
+        description="Filtra lançamentos cuja descrição contenha o texto (sem diferenciar maiúsculas/minúsculas).",
+    ),
+    uncategorized_only: bool = Query(
+        False,
+        description="Quando true, retorna apenas lançamentos sem categoria (ignora category_id).",
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
@@ -169,13 +361,20 @@ async def list_entries(
         query = query.filter(FinanceEntry.date >= start_date)
     if end_date:
         query = query.filter(FinanceEntry.date <= end_date)
-    if category_id:
+    if uncategorized_only:
+        query = query.filter(FinanceEntry.category_id.is_(None))
+    elif category_id:
         query = query.filter(FinanceEntry.category_id == category_id)
     if type:
         query = query.filter(FinanceEntry.type == type)
     if is_paid is not None:
         query = query.filter(FinanceEntry.is_paid == is_paid)
-        
+    if description_contains:
+        raw = description_contains.strip()
+        if raw:
+            pattern = f"%{_escape_like_pattern(raw)}%"
+            query = query.filter(FinanceEntry.description.ilike(pattern, escape="\\"))
+
     entries = query.order_by(FinanceEntry.date.desc(), FinanceEntry.created_at.desc()).all()
     
     # Strip base64 content to save drastic bandwidth on massive lists
@@ -232,6 +431,231 @@ async def create_entry(
         import logging
         logging.error(f"Erro ao criar lançamento: {str(e)} - Dump: {dump} - Family: {family_id} - User: {current_user.id}")
         raise
+
+
+@router.post("/suggest-import-categories", response_model=SuggestImportCategoriesResponse)
+async def suggest_import_categories(
+    body: SuggestImportCategoriesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family),
+):
+    """Sugere categorias para linhas de extrato (descrição + INCOME/EXPENSE)."""
+    from app.api.deps import get_user_family_ids
+
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nenhuma família encontrada",
+            )
+        family_id = family_ids[0]
+    elif family_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Família não especificada",
+        )
+
+    categories = (
+        db.query(FinanceCategory)
+        .filter(
+            FinanceCategory.family_id == family_id,
+            FinanceCategory.is_active == True,
+        )
+        .all()
+    )
+
+    rules = (
+        db.query(FinanceImportCategoryRule)
+        .filter(
+            FinanceImportCategoryRule.family_id == family_id,
+            FinanceImportCategoryRule.is_active == True,
+        )
+        .order_by(FinanceImportCategoryRule.priority.asc(), FinanceImportCategoryRule.id.asc())
+        .all()
+    )
+    cat_by_id = {c.id: c for c in categories}
+
+    suggestions: List[SuggestImportCategoryResult] = []
+    for item in body.items:
+        if item.type not in ("INCOME", "EXPENSE"):
+            suggestions.append(SuggestImportCategoryResult())
+            continue
+        rule_cat, rule_conf = match_import_category_rule(
+            rules, cat_by_id, item.description, item.type
+        )
+        if rule_cat is not None:
+            suggestions.append(
+                SuggestImportCategoryResult(category_id=rule_cat.id, confidence=rule_conf)
+            )
+            continue
+        cat, conf = suggest_category_for_bank_line(item.description, item.type, categories)
+        if cat is None:
+            suggestions.append(SuggestImportCategoryResult())
+        else:
+            suggestions.append(
+                SuggestImportCategoryResult(category_id=cat.id, confidence=conf)
+            )
+
+    return SuggestImportCategoriesResponse(suggestions=suggestions)
+
+
+@router.post("/entries/bulk", response_model=FinanceEntryBulkResult)
+async def bulk_create_entries(
+    payload: FinanceEntryBulkCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family),
+):
+    """Cria vários lançamentos; importação de extrato força is_paid=True."""
+    from app.api.deps import get_user_family_ids
+
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Nenhuma família encontrada",
+            )
+        family_id = family_ids[0]
+    elif family_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Família não especificada",
+        )
+
+    cat_by_id = {
+        c.id: c
+        for c in db.query(FinanceCategory).filter(
+            FinanceCategory.family_id == family_id,
+            FinanceCategory.is_active == True,
+        ).all()
+    }
+
+    now = datetime.now()
+    created = 0
+    errors: List[FinanceEntryBulkError] = []
+
+    for idx, entry_data in enumerate(payload.entries):
+        try:
+            with db.begin_nested():
+                dump = entry_data.model_dump()
+                if dump.get("type") not in ("INCOME", "EXPENSE"):
+                    raise ValueError("Tipo de lançamento inválido (use INCOME ou EXPENSE)")
+                cat_id = dump.get("category_id")
+                if cat_id is not None:
+                    cat = cat_by_id.get(cat_id)
+                    if cat is None:
+                        raise ValueError("Categoria não encontrada para esta família")
+                    if cat.type != dump["type"]:
+                        raise ValueError(
+                            "Categoria incompatível com o tipo do lançamento (receita/despesa)"
+                        )
+                dump["is_paid"] = True
+                entry = FinanceEntry(
+                    **dump,
+                    family_id=family_id,
+                    created_by_id=current_user.id,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(entry)
+                db.flush()
+            created += 1
+        except Exception as e:
+            errors.append(FinanceEntryBulkError(index=idx, detail=str(e)))
+
+    db.commit()
+    return FinanceEntryBulkResult(created=created, errors=errors)
+
+
+def _finance_entries_scope_query(
+    db: Session,
+    current_user: User,
+    family_id: Optional[int],
+):
+    """Query base de lançamentos visíveis ao usuário (mesma regra de list_entries)."""
+    from app.api.deps import get_user_family_ids
+
+    query = db.query(FinanceEntry)
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            return None
+        return query.filter(FinanceEntry.family_id.in_(family_ids))
+    if family_id:
+        return query.filter(FinanceEntry.family_id == family_id)
+    return None
+
+
+@router.post("/entries/bulk-delete", response_model=FinanceEntryBulkDeleteResult)
+async def bulk_delete_entries(
+    body: FinanceEntryBulkIds,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family),
+):
+    """Exclui vários lançamentos de uma vez (apenas IDs permitidos ao usuário)."""
+    scope = _finance_entries_scope_query(db, current_user, family_id)
+    if scope is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Família não especificada",
+        )
+    entries = scope.filter(FinanceEntry.id.in_(body.entry_ids)).all()
+    deleted = 0
+    for entry in entries:
+        db.delete(entry)
+        deleted += 1
+    db.commit()
+    return FinanceEntryBulkDeleteResult(deleted=deleted)
+
+
+@router.patch("/entries/bulk-category", response_model=FinanceEntryBulkCategoryResult)
+async def bulk_update_entries_category(
+    body: FinanceEntryBulkCategoryBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family),
+):
+    """Define a mesma categoria em vários lançamentos; ignora tipo incompatível ou categoria inexistente."""
+    scope = _finance_entries_scope_query(db, current_user, family_id)
+    if scope is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Família não especificada",
+        )
+    entries = scope.filter(FinanceEntry.id.in_(body.entry_ids)).all()
+    now = datetime.now()
+    updated = 0
+    skipped = 0
+
+    for entry in entries:
+        if body.category_id is None:
+            entry.category_id = None
+            entry.updated_at = now
+            updated += 1
+            continue
+        cat = (
+            db.query(FinanceCategory)
+            .filter(
+                FinanceCategory.id == body.category_id,
+                FinanceCategory.family_id == entry.family_id,
+                FinanceCategory.is_active == True,
+            )
+            .first()
+        )
+        if not cat or cat.type != entry.type:
+            skipped += 1
+            continue
+        entry.category_id = cat.id
+        entry.updated_at = now
+        updated += 1
+
+    db.commit()
+    return FinanceEntryBulkCategoryResult(updated=updated, skipped=skipped)
+
 
 @router.put("/entries/{entry_id}", response_model=EntrySchema)
 async def update_entry(

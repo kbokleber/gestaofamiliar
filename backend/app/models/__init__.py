@@ -10,7 +10,12 @@ from app.models.telegram import (
     TelegramUserLink,
     TelegramLinkCode,
 )
-from app.models.finance import FinanceCategory, FinanceEntry, FinanceRecurrence
+from app.models.finance import (
+    FinanceCategory,
+    FinanceEntry,
+    FinanceImportCategoryRule,
+    FinanceRecurrence,
+)
 
 __all__ = [
     "User",
@@ -33,4 +38,5 @@ __all__ = [
     "FinanceCategory",
     "FinanceEntry",
     "FinanceRecurrence",
+    "FinanceImportCategoryRule",
 ]

@@ -18,6 +18,7 @@ import FinanceDashboard from './pages/finance/FinanceDashboard'
 import FinanceEntries from './pages/finance/FinanceEntries'
 import FinanceRecurrences from './pages/finance/FinanceRecurrences'
 import FinanceCategories from './pages/finance/FinanceCategories'
+import FinanceImportRules from './pages/finance/FinanceImportRules'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -52,6 +53,7 @@ function App() {
         <Route path="/finance/entries" element={<FinanceEntries />} />
         <Route path="/finance/recurrences" element={<FinanceRecurrences />} />
         <Route path="/finance/categories" element={<FinanceCategories />} />
+        <Route path="/finance/import-category-rules" element={<FinanceImportRules />} />
         
         {/* Admin Routes */}
         <Route path="/admin/users" element={<AdminUsers />} />

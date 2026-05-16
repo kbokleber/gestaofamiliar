@@ -119,6 +119,8 @@ Set-Location '$backendPath'
 if (Test-Path '.\venv\Scripts\Activate.ps1') {
     .\venv\Scripts\Activate.ps1
 }
+Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+Remove-Item Env:DEV_DATABASE_URL -ErrorAction SilentlyContinue
 `$env:TZ = 'America/Sao_Paulo'
 Write-Host 'Timezone configurado: America/Sao_Paulo' -ForegroundColor Cyan
 Write-Host 'Backend iniciando em http://localhost:8001' -ForegroundColor Green

@@ -51,6 +51,13 @@ def _score_candidate(category_name: str, *, reference_name: str, description: st
     return best_score
 
 
+def score_category_name_vs_description(category_name: str, description: str | None) -> float:
+    """Score 0..1 for how well a category name matches a bank line description (no external reference name)."""
+    if not description:
+        return 0.0
+    return _score_candidate(category_name, reference_name="", description=description)
+
+
 def find_best_matching_category(
     categories: Iterable[Any],
     *,

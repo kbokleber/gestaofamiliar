@@ -58,6 +58,19 @@ export interface FinanceSummary {
   }[]
 }
 
+export interface ImportCategoryRule {
+  id: number
+  family_id: number
+  category_id: number
+  pattern: string
+  entry_type: 'EXPENSE' | 'INCOME' | 'BOTH'
+  priority: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  category?: Category
+}
+
 export const financeService = {
   // Categorias
   async getCategories() {
@@ -76,13 +89,48 @@ export const financeService = {
     await api.delete(`/finance/categories/${id}`)
   },
 
+  async getImportCategoryRules() {
+    const response = await api.get<ImportCategoryRule[]>('/finance/import-category-rules')
+    return response.data
+  },
+  async createImportCategoryRule(data: {
+    pattern: string
+    category_id: number
+    entry_type: string
+    priority?: number
+    is_active?: boolean
+  }) {
+    const response = await api.post<ImportCategoryRule>('/finance/import-category-rules', data)
+    return response.data
+  },
+  async updateImportCategoryRule(
+    id: number,
+    data: Partial<{
+      pattern: string
+      category_id: number
+      entry_type: string
+      priority: number
+      is_active: boolean
+    }>
+  ) {
+    const response = await api.put<ImportCategoryRule>(`/finance/import-category-rules/${id}`, data)
+    return response.data
+  },
+  async deleteImportCategoryRule(id: number) {
+    await api.delete(`/finance/import-category-rules/${id}`)
+  },
+
   // Lançamentos
   async getEntries(params?: {
     start_date?: string
     end_date?: string
     category_id?: number
+    /** Apenas lançamentos sem categoria (no servidor ignora category_id). */
+    uncategorized_only?: boolean
     type?: string
     is_paid?: boolean
+    /** Texto parcial na descrição (case-insensitive no servidor). */
+    description_contains?: string
   }) {
     const response = await api.get<Entry[]>('/finance/entries', { params })
     return response.data
@@ -134,5 +182,45 @@ export const financeService = {
   async getSummary(month?: number, year?: number) {
     const response = await api.get<FinanceSummary>('/finance/summary', { params: { month, year } })
     return response.data
-  }
+  },
+
+  async suggestImportCategories(items: { description: string; type: string }[]) {
+    const response = await api.post<{
+      suggestions: { category_id: number | null; confidence: string | null }[]
+    }>('/finance/suggest-import-categories', { items })
+    return response.data.suggestions
+  },
+
+  async bulkCreateEntries(
+    entries: {
+      description: string
+      amount: number
+      date: string
+      type: string
+      category_id?: number
+      payment_method?: string
+      is_paid?: boolean
+    }[]
+  ) {
+    const response = await api.post<{ created: number; errors: { index: number; detail: string }[] }>(
+      '/finance/entries/bulk',
+      { entries }
+    )
+    return response.data
+  },
+
+  async bulkDeleteEntries(entryIds: number[]) {
+    const response = await api.post<{ deleted: number }>('/finance/entries/bulk-delete', {
+      entry_ids: entryIds,
+    })
+    return response.data
+  },
+
+  async bulkUpdateEntryCategory(entryIds: number[], categoryId: number | null) {
+    const response = await api.patch<{ updated: number; skipped: number }>('/finance/entries/bulk-category', {
+      entry_ids: entryIds,
+      category_id: categoryId,
+    })
+    return response.data
+  },
 }
