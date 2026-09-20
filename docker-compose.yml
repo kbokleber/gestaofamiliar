@@ -19,8 +19,9 @@ services:
     restart: unless-stopped
 
   web:
-    image: kbokleber/sistema_familiar:latest
-    command: python manage.py runserver 0.0.0.0:8000
+    build:
+      context: .
+      dockerfile: Dockerfile
     volumes:
       - .:/app
       - static_volume:/app/staticfiles
@@ -34,6 +35,7 @@ services:
       - POSTGRES_PASSWORD=SuaSenhaSeguraParaDB2024!@#
       - DB_HOST=db
       - DB_PORT=5432
+      - SECRET_KEY=django-insecure-dev-key
     depends_on:
       db:
         condition: service_healthy

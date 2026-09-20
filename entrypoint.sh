@@ -1,29 +1,28 @@
 #!/bin/bash
+set -e
 
-# Espera o banco de dados estar pronto
-echo "Waiting for database..."
-while ! nc -z db 5432; do
-  sleep 0.1
+DB_HOST="${DB_HOST:-db}"
+DB_PORT="${DB_PORT:-5432}"
+
+echo "Waiting for database at ${DB_HOST}:${DB_PORT}..."
+while ! nc -z "$DB_HOST" "$DB_PORT"; do
+  sleep 0.5
 done
 echo "Database is ready!"
 
-# Executa as migrations
 echo "Running migrations..."
-python manage.py migrate
+python manage.py migrate --noinput
 
-# Cria um superusuário se não existir
-echo "Creating superuser..."
+echo "Ensuring superuser..."
 python manage.py shell -c "
-from django.contrib.auth import get_user_model;
-User = get_user_model();
+from django.contrib.auth import get_user_model
+User = get_user_model()
 if not User.objects.filter(username='admin').exists():
     User.objects.create_superuser('admin', 'admin@example.com', 'admin123')
 "
 
-# Coleta arquivos estáticos
 echo "Collecting static files..."
 python manage.py collectstatic --noinput
 
-# Inicia o servidor
 echo "Starting server..."
-exec "$@" 
+exec "$@"

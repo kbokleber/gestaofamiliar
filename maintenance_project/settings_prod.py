@@ -2,9 +2,9 @@ import os
 from .settings import *
 
 # Configurações de Segurança
-DEBUG = True  # Temporariamente True para debug
-SECRET_KEY = 'django-insecure-sua-chave-secreta-muito-segura-123'  # Temporário para desenvolvimento
-ALLOWED_HOSTS = ['*']  # Permite todos os hosts durante o desenvolvimento
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-sua-chave-secreta-muito-segura-123')
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
 # Configurações do Banco de Dados
 DATABASES = {
