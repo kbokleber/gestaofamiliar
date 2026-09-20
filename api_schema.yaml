@@ -1,0 +1,3098 @@
+openapi: 3.0.3
+info:
+  title: Sistema Familiar API
+  version: 1.0.0
+  description: 'API REST do Sistema Familiar (saude familiar e manutencao). Autentique
+    com Token: POST /api/auth/token/ com username e password, depois envie o header
+    Authorization: Token <chave>.'
+paths:
+  /api/appointments/:
+    get:
+      operationId: api_appointments_list
+      summary: Listar consultas
+      parameters:
+      - in: query
+        name: family_member
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: specialty
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMedicalAppointmentList'
+          description: ''
+    post:
+      operationId: api_appointments_create
+      summary: Criar consulta
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalAppointment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalAppointment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalAppointment'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalAppointment'
+          description: ''
+  /api/appointments/{id}/:
+    get:
+      operationId: api_appointments_retrieve
+      summary: Detalhe da consulta
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Consulta Médica.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalAppointment'
+          description: ''
+    put:
+      operationId: api_appointments_update
+      summary: Atualizar consulta
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Consulta Médica.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalAppointment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalAppointment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalAppointment'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalAppointment'
+          description: ''
+    patch:
+      operationId: api_appointments_partial_update
+      summary: Atualizar parcialmente consulta
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Consulta Médica.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalAppointment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalAppointment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalAppointment'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalAppointment'
+          description: ''
+    delete:
+      operationId: api_appointments_destroy
+      summary: Excluir consulta
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Consulta Médica.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/auth/token/:
+    post:
+      operationId: api_auth_token_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthToken'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+          description: ''
+  /api/equipment/:
+    get:
+      operationId: api_equipment_list
+      summary: Listar equipamentos
+      parameters:
+      - in: query
+        name: brand
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: owner
+        schema:
+          type: integer
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: type
+        schema:
+          type: string
+          nullable: true
+          title: Tipo
+          enum:
+          - eletrodomestico
+          - eletronico
+          - movel
+          - outro
+          - veiculo
+        description: |-
+          * `eletronico` - Eletrônico
+          * `eletrodomestico` - Eletrodoméstico
+          * `movel` - Móvel
+          * `veiculo` - Veículo
+          * `outro` - Outro
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEquipmentList'
+          description: ''
+    post:
+      operationId: api_equipment_create
+      summary: Criar equipamento
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Equipment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Equipment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Equipment'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+          description: ''
+  /api/equipment-attachments/:
+    get:
+      operationId: api_equipment_attachments_list
+      summary: Listar anexos de equipamento
+      parameters:
+      - in: query
+        name: equipment
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEquipmentAttachmentList'
+          description: ''
+    post:
+      operationId: api_equipment_attachments_create
+      summary: Criar anexo
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentAttachment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EquipmentAttachment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EquipmentAttachment'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAttachment'
+          description: ''
+  /api/equipment-attachments/{id}/:
+    get:
+      operationId: api_equipment_attachments_retrieve
+      summary: Detalhe do anexo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Anexo do Equipamento.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAttachment'
+          description: ''
+    put:
+      operationId: api_equipment_attachments_update
+      summary: Atualizar anexo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Anexo do Equipamento.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentAttachment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EquipmentAttachment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EquipmentAttachment'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAttachment'
+          description: ''
+    patch:
+      operationId: api_equipment_attachments_partial_update
+      summary: Atualizar parcialmente anexo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Anexo do Equipamento.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipmentAttachment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipmentAttachment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipmentAttachment'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentAttachment'
+          description: ''
+    delete:
+      operationId: api_equipment_attachments_destroy
+      summary: Excluir anexo
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Anexo do Equipamento.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/equipment/{id}/:
+    get:
+      operationId: api_equipment_retrieve
+      summary: Detalhe do equipamento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Equipamento.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+          description: ''
+    put:
+      operationId: api_equipment_update
+      summary: Atualizar equipamento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Equipamento.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Equipment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Equipment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Equipment'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+          description: ''
+    patch:
+      operationId: api_equipment_partial_update
+      summary: Atualizar parcialmente equipamento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Equipamento.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEquipment'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Equipment'
+          description: ''
+    delete:
+      operationId: api_equipment_destroy
+      summary: Excluir equipamento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Equipamento.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/family-members/:
+    get:
+      operationId: api_family_members_list
+      summary: Listar membros da família
+      parameters:
+      - in: query
+        name: blood_type
+        schema:
+          type: string
+      - in: query
+        name: gender
+        schema:
+          type: string
+          nullable: true
+          title: Gênero
+          enum:
+          - F
+          - M
+          - O
+        description: |-
+          * `M` - Masculino
+          * `F` - Feminino
+          * `O` - Outro
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: user
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFamilyMemberList'
+          description: ''
+    post:
+      operationId: api_family_members_create
+      summary: Criar membro
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyMember'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FamilyMember'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FamilyMember'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMember'
+          description: ''
+  /api/family-members/{id}/:
+    get:
+      operationId: api_family_members_retrieve
+      summary: Detalhe do membro
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Membro da Família.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMember'
+          description: ''
+    put:
+      operationId: api_family_members_update
+      summary: Atualizar membro
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Membro da Família.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyMember'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FamilyMember'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FamilyMember'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMember'
+          description: ''
+    patch:
+      operationId: api_family_members_partial_update
+      summary: Atualizar parcialmente membro
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Membro da Família.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyMember'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyMember'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyMember'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMember'
+          description: ''
+    delete:
+      operationId: api_family_members_destroy
+      summary: Excluir membro
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Membro da Família.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/maintenance-images/:
+    get:
+      operationId: api_maintenance_images_list
+      summary: Listar imagens de manutenção
+      parameters:
+      - in: query
+        name: order
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMaintenanceImageList'
+          description: ''
+    post:
+      operationId: api_maintenance_images_create
+      summary: Criar imagem
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceImage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaintenanceImage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaintenanceImage'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceImage'
+          description: ''
+  /api/maintenance-images/{id}/:
+    get:
+      operationId: api_maintenance_images_retrieve
+      summary: Detalhe da imagem
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem da Manutenção.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceImage'
+          description: ''
+    put:
+      operationId: api_maintenance_images_update
+      summary: Atualizar imagem
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem da Manutenção.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceImage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaintenanceImage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaintenanceImage'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceImage'
+          description: ''
+    patch:
+      operationId: api_maintenance_images_partial_update
+      summary: Atualizar parcialmente imagem
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem da Manutenção.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMaintenanceImage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMaintenanceImage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMaintenanceImage'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceImage'
+          description: ''
+    delete:
+      operationId: api_maintenance_images_destroy
+      summary: Excluir imagem
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Imagem da Manutenção.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/maintenance-orders/:
+    get:
+      operationId: api_maintenance_orders_list
+      summary: Listar ordens de manutenção
+      parameters:
+      - in: query
+        name: created_by
+        schema:
+          type: integer
+      - in: query
+        name: equipment
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          type: string
+          title: Prioridade
+          enum:
+          - alta
+          - baixa
+          - media
+          - urgente
+        description: |-
+          * `baixa` - Baixa
+          * `media` - Média
+          * `alta` - Alta
+          * `urgente` - Urgente
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelada
+          - concluida
+          - em_andamento
+          - pendente
+        description: |-
+          * `pendente` - Pendente
+          * `em_andamento` - Em Andamento
+          * `concluida` - Concluída
+          * `cancelada` - Cancelada
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMaintenanceOrderList'
+          description: ''
+    post:
+      operationId: api_maintenance_orders_create
+      summary: Criar ordem
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceOrder'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaintenanceOrder'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaintenanceOrder'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOrder'
+          description: ''
+  /api/maintenance-orders/{id}/:
+    get:
+      operationId: api_maintenance_orders_retrieve
+      summary: Detalhe da ordem
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Ordem de Manutenção.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOrder'
+          description: ''
+    put:
+      operationId: api_maintenance_orders_update
+      summary: Atualizar ordem
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Ordem de Manutenção.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceOrder'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MaintenanceOrder'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MaintenanceOrder'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOrder'
+          description: ''
+    patch:
+      operationId: api_maintenance_orders_partial_update
+      summary: Atualizar parcialmente ordem
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Ordem de Manutenção.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMaintenanceOrder'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMaintenanceOrder'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMaintenanceOrder'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceOrder'
+          description: ''
+    delete:
+      operationId: api_maintenance_orders_destroy
+      summary: Excluir ordem
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Ordem de Manutenção.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/medications/:
+    get:
+      operationId: api_medications_list
+      summary: Listar medicamentos
+      parameters:
+      - in: query
+        name: family_member
+        schema:
+          type: integer
+      - in: query
+        name: frequency
+        schema:
+          type: string
+          title: Frequência
+          enum:
+          - as_needed
+          - every_12h
+          - every_4h
+          - every_6h
+          - every_8h
+          - four_times
+          - once
+          - three_times
+          - twice
+        description: |-
+          * `once` - Uma vez ao dia
+          * `twice` - Duas vezes ao dia
+          * `three_times` - Três vezes ao dia
+          * `four_times` - Quatro vezes ao dia
+          * `every_12h` - A cada 12 horas
+          * `every_8h` - A cada 8 horas
+          * `every_6h` - A cada 6 horas
+          * `every_4h` - A cada 4 horas
+          * `as_needed` - Conforme necessário
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMedicationList'
+          description: ''
+    post:
+      operationId: api_medications_create
+      summary: Criar medicamento
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Medication'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Medication'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Medication'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+          description: ''
+  /api/medications/{id}/:
+    get:
+      operationId: api_medications_retrieve
+      summary: Detalhe do medicamento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medicamento.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+          description: ''
+    put:
+      operationId: api_medications_update
+      summary: Atualizar medicamento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medicamento.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Medication'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Medication'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Medication'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+          description: ''
+    patch:
+      operationId: api_medications_partial_update
+      summary: Atualizar parcialmente medicamento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medicamento.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMedication'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMedication'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMedication'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+          description: ''
+    delete:
+      operationId: api_medications_destroy
+      summary: Excluir medicamento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medicamento.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/procedures/:
+    get:
+      operationId: api_procedures_list
+      summary: Listar procedimentos
+      parameters:
+      - in: query
+        name: family_member
+        schema:
+          type: integer
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMedicalProcedureList'
+          description: ''
+    post:
+      operationId: api_procedures_create
+      summary: Criar procedimento
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalProcedure'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalProcedure'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalProcedure'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalProcedure'
+          description: ''
+  /api/procedures/{id}/:
+    get:
+      operationId: api_procedures_retrieve
+      summary: Detalhe do procedimento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Procedimento Médico.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalProcedure'
+          description: ''
+    put:
+      operationId: api_procedures_update
+      summary: Atualizar procedimento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Procedimento Médico.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalProcedure'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalProcedure'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalProcedure'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalProcedure'
+          description: ''
+    patch:
+      operationId: api_procedures_partial_update
+      summary: Atualizar parcialmente procedimento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Procedimento Médico.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalProcedure'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalProcedure'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalProcedure'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalProcedure'
+          description: ''
+    delete:
+      operationId: api_procedures_destroy
+      summary: Excluir procedimento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Procedimento Médico.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/profiles/:
+    get:
+      operationId: api_profiles_list
+      summary: Listar perfis
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProfileList'
+          description: ''
+  /api/profiles/{id}/:
+    get:
+      operationId: api_profiles_retrieve
+      summary: Detalhe do perfil
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Perfil.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    put:
+      operationId: api_profiles_update
+      summary: Atualizar perfil
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Perfil.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Profile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Profile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Profile'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    patch:
+      operationId: api_profiles_partial_update
+      summary: Atualizar parcialmente perfil
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Perfil.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfile'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+  /api/profiles/me/:
+    get:
+      operationId: api_profiles_me_retrieve
+      summary: Perfil do usuário autenticado
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+  /api/users/:
+    get:
+      operationId: api_users_list
+      summary: Listar usuários
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserList'
+          description: ''
+  /api/users/{id}/:
+    get:
+      operationId: api_users_retrieve
+      summary: Detalhe do usuário
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this usuário.
+        required: true
+      tags:
+      - api
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+components:
+  schemas:
+    AuthToken:
+      type: object
+      properties:
+        username:
+          type: string
+          writeOnly: true
+          title: Nome do usuário
+        password:
+          type: string
+          writeOnly: true
+          title: Senha
+        token:
+          type: string
+          readOnly: true
+      required:
+      - password
+      - token
+      - username
+    BlankEnum:
+      enum:
+      - ''
+    Equipment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nome
+          maxLength: 100
+        type:
+          nullable: true
+          title: Tipo
+          oneOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        brand:
+          type: string
+          nullable: true
+          title: Marca
+          maxLength: 100
+        model:
+          type: string
+          nullable: true
+          title: Modelo
+          maxLength: 100
+        serial_number:
+          type: string
+          nullable: true
+          title: Número de Série
+          maxLength: 100
+        purchase_date:
+          type: string
+          format: date
+          nullable: true
+          title: Data de Compra
+        owner:
+          type: integer
+          nullable: true
+          title: Proprietário
+        owner_username:
+          type: string
+          readOnly: true
+          nullable: true
+        notes:
+          type: string
+          title: Observações
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentAttachment'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Criação
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Atualização
+      required:
+      - attachments
+      - created_at
+      - id
+      - name
+      - owner_username
+      - updated_at
+    EquipmentAttachment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        equipment:
+          type: integer
+          title: Equipamento
+        file:
+          type: string
+          format: uri
+          title: Arquivo
+          pattern: (?:pdf|doc|docx|jpg|jpeg|png|gif)$
+        description:
+          type: string
+          title: Descrição
+          maxLength: 255
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Upload
+        uploaded_by:
+          type: integer
+          readOnly: true
+          nullable: true
+          title: Upload por
+      required:
+      - equipment
+      - file
+      - id
+      - uploaded_at
+      - uploaded_by
+    FamilyMember:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          nullable: true
+          title: Usuário
+        name:
+          type: string
+          title: Nome
+          maxLength: 100
+        photo:
+          type: string
+          format: uri
+          nullable: true
+          title: Foto
+        birth_date:
+          type: string
+          format: date
+          title: Data de Nascimento
+        gender:
+          nullable: true
+          title: Gênero
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        relationship:
+          type: string
+          nullable: true
+          title: Parentesco
+          maxLength: 50
+        blood_type:
+          type: string
+          title: Tipo Sanguíneo
+          maxLength: 5
+        allergies:
+          type: string
+          title: Alergias
+        chronic_conditions:
+          type: string
+          title: Condições Crônicas
+        emergency_contact:
+          type: string
+          nullable: true
+          title: Contato de Emergência
+          maxLength: 100
+        emergency_phone:
+          type: string
+          nullable: true
+          title: Telefone de Emergência
+          maxLength: 20
+        notes:
+          type: string
+          title: Observações
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Criado em
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Atualizado em
+      required:
+      - birth_date
+      - created_at
+      - id
+      - name
+      - updated_at
+    FrequencyEnum:
+      enum:
+      - once
+      - twice
+      - three_times
+      - four_times
+      - every_12h
+      - every_8h
+      - every_6h
+      - every_4h
+      - as_needed
+      type: string
+      description: |-
+        * `once` - Uma vez ao dia
+        * `twice` - Duas vezes ao dia
+        * `three_times` - Três vezes ao dia
+        * `four_times` - Quatro vezes ao dia
+        * `every_12h` - A cada 12 horas
+        * `every_8h` - A cada 8 horas
+        * `every_6h` - A cada 6 horas
+        * `every_4h` - A cada 4 horas
+        * `as_needed` - Conforme necessário
+    GenderEnum:
+      enum:
+      - M
+      - F
+      - O
+      type: string
+      description: |-
+        * `M` - Masculino
+        * `F` - Feminino
+        * `O` - Outro
+    MaintenanceImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        order:
+          type: integer
+        image:
+          type: string
+          format: uri
+          title: Imagem
+        description:
+          type: string
+          title: Descrição
+          maxLength: 200
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Upload
+      required:
+      - id
+      - image
+      - order
+      - uploaded_at
+    MaintenanceOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        equipment:
+          type: integer
+          title: Equipamento
+        equipment_name:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          title: Título
+          maxLength: 200
+        description:
+          type: string
+          title: Descrição
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityEnum'
+          title: Prioridade
+        service_provider:
+          type: string
+          title: Empresa Prestadora do Serviço
+          maxLength: 200
+        completion_date:
+          type: string
+          format: date
+          nullable: true
+          title: Data da Manutenção
+        cost:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          title: Custo
+        warranty_expiration:
+          type: string
+          format: date
+          nullable: true
+          title: Data de Vencimento da Garantia
+        warranty_terms:
+          type: string
+          title: Termos da Garantia
+        invoice_number:
+          type: string
+          title: Número da Nota Fiscal
+          maxLength: 50
+        invoice_file:
+          type: string
+          format: uri
+          nullable: true
+          title: Nota Fiscal (PDF/Imagem)
+        notes:
+          type: string
+          title: Observações
+        created_by:
+          type: integer
+          readOnly: true
+          title: Criado por
+        created_by_username:
+          type: string
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaintenanceImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Criação
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última Atualização
+      required:
+      - created_at
+      - created_by
+      - created_by_username
+      - description
+      - equipment
+      - equipment_name
+      - id
+      - images
+      - title
+      - updated_at
+    MedicalAppointment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        family_member:
+          type: integer
+          title: Membro da Família
+        family_member_name:
+          type: string
+          readOnly: true
+        doctor_name:
+          type: string
+          title: Nome do Médico
+          maxLength: 100
+        specialty:
+          type: string
+          title: Especialidade
+          maxLength: 100
+        appointment_date:
+          type: string
+          format: date-time
+          title: Data da Consulta
+        location:
+          type: string
+          title: Local
+          maxLength: 200
+        reason:
+          type: string
+          title: Motivo da Consulta
+        diagnosis:
+          type: string
+          title: Diagnóstico
+        prescription:
+          type: string
+          title: Prescrição
+        next_appointment:
+          type: string
+          format: date-time
+          nullable: true
+          title: Próxima Consulta
+        notes:
+          type: string
+          title: Observações
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Criado em
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Atualizado em
+      required:
+      - appointment_date
+      - created_at
+      - doctor_name
+      - family_member
+      - family_member_name
+      - id
+      - reason
+      - specialty
+      - updated_at
+    MedicalProcedure:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        family_member:
+          type: integer
+          title: Membro da Família
+        family_member_name:
+          type: string
+          readOnly: true
+        procedure_name:
+          type: string
+          title: Nome do Procedimento
+          maxLength: 200
+        procedure_date:
+          type: string
+          format: date-time
+          title: Data do Procedimento
+        doctor_name:
+          type: string
+          title: Nome do Médico
+          maxLength: 100
+        location:
+          type: string
+          title: Local
+          maxLength: 200
+        description:
+          type: string
+          title: Descrição
+        results:
+          type: string
+          title: Resultados
+        follow_up_notes:
+          type: string
+          title: Observações de Acompanhamento
+        next_procedure_date:
+          type: string
+          format: date-time
+          nullable: true
+          title: Data do Próximo Procedimento
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Criado em
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Atualizado em
+      required:
+      - created_at
+      - description
+      - doctor_name
+      - family_member
+      - family_member_name
+      - id
+      - location
+      - procedure_date
+      - procedure_name
+      - updated_at
+    Medication:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        family_member:
+          type: integer
+          title: Membro da Família
+        family_member_name:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          title: Nome do Medicamento
+          maxLength: 100
+        dosage:
+          type: string
+          title: Dosagem
+          maxLength: 50
+        frequency:
+          allOf:
+          - $ref: '#/components/schemas/FrequencyEnum'
+          title: Frequência
+        start_date:
+          type: string
+          format: date
+          title: Data de Início
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          title: Data de Término
+        prescribed_by:
+          type: string
+          title: Prescrito por
+          maxLength: 100
+        prescription_number:
+          type: string
+          title: Número da Receita
+          maxLength: 50
+        instructions:
+          type: string
+          title: Instruções Especiais
+        side_effects:
+          type: string
+          title: Efeitos Colaterais
+        notes:
+          type: string
+          title: Observações
+        is_active:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - dosage
+      - family_member
+      - family_member_name
+      - frequency
+      - id
+      - is_active
+      - name
+      - start_date
+      - updated_at
+    NullEnum:
+      enum:
+      - null
+    PaginatedEquipmentAttachmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentAttachment'
+    PaginatedEquipmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Equipment'
+    PaginatedFamilyMemberList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/FamilyMember'
+    PaginatedMaintenanceImageList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaintenanceImage'
+    PaginatedMaintenanceOrderList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaintenanceOrder'
+    PaginatedMedicalAppointmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MedicalAppointment'
+    PaginatedMedicalProcedureList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MedicalProcedure'
+    PaginatedMedicationList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Medication'
+    PaginatedProfileList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Profile'
+    PaginatedUserList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    PatchedEquipment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nome
+          maxLength: 100
+        type:
+          nullable: true
+          title: Tipo
+          oneOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        brand:
+          type: string
+          nullable: true
+          title: Marca
+          maxLength: 100
+        model:
+          type: string
+          nullable: true
+          title: Modelo
+          maxLength: 100
+        serial_number:
+          type: string
+          nullable: true
+          title: Número de Série
+          maxLength: 100
+        purchase_date:
+          type: string
+          format: date
+          nullable: true
+          title: Data de Compra
+        owner:
+          type: integer
+          nullable: true
+          title: Proprietário
+        owner_username:
+          type: string
+          readOnly: true
+          nullable: true
+        notes:
+          type: string
+          title: Observações
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/EquipmentAttachment'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Criação
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Atualização
+    PatchedEquipmentAttachment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        equipment:
+          type: integer
+          title: Equipamento
+        file:
+          type: string
+          format: uri
+          title: Arquivo
+          pattern: (?:pdf|doc|docx|jpg|jpeg|png|gif)$
+        description:
+          type: string
+          title: Descrição
+          maxLength: 255
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Upload
+        uploaded_by:
+          type: integer
+          readOnly: true
+          nullable: true
+          title: Upload por
+    PatchedFamilyMember:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          nullable: true
+          title: Usuário
+        name:
+          type: string
+          title: Nome
+          maxLength: 100
+        photo:
+          type: string
+          format: uri
+          nullable: true
+          title: Foto
+        birth_date:
+          type: string
+          format: date
+          title: Data de Nascimento
+        gender:
+          nullable: true
+          title: Gênero
+          oneOf:
+          - $ref: '#/components/schemas/GenderEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        relationship:
+          type: string
+          nullable: true
+          title: Parentesco
+          maxLength: 50
+        blood_type:
+          type: string
+          title: Tipo Sanguíneo
+          maxLength: 5
+        allergies:
+          type: string
+          title: Alergias
+        chronic_conditions:
+          type: string
+          title: Condições Crônicas
+        emergency_contact:
+          type: string
+          nullable: true
+          title: Contato de Emergência
+          maxLength: 100
+        emergency_phone:
+          type: string
+          nullable: true
+          title: Telefone de Emergência
+          maxLength: 20
+        notes:
+          type: string
+          title: Observações
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Criado em
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Atualizado em
+    PatchedMaintenanceImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        order:
+          type: integer
+        image:
+          type: string
+          format: uri
+          title: Imagem
+        description:
+          type: string
+          title: Descrição
+          maxLength: 200
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Upload
+    PatchedMaintenanceOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        equipment:
+          type: integer
+          title: Equipamento
+        equipment_name:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          title: Título
+          maxLength: 200
+        description:
+          type: string
+          title: Descrição
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityEnum'
+          title: Prioridade
+        service_provider:
+          type: string
+          title: Empresa Prestadora do Serviço
+          maxLength: 200
+        completion_date:
+          type: string
+          format: date
+          nullable: true
+          title: Data da Manutenção
+        cost:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+          title: Custo
+        warranty_expiration:
+          type: string
+          format: date
+          nullable: true
+          title: Data de Vencimento da Garantia
+        warranty_terms:
+          type: string
+          title: Termos da Garantia
+        invoice_number:
+          type: string
+          title: Número da Nota Fiscal
+          maxLength: 50
+        invoice_file:
+          type: string
+          format: uri
+          nullable: true
+          title: Nota Fiscal (PDF/Imagem)
+        notes:
+          type: string
+          title: Observações
+        created_by:
+          type: integer
+          readOnly: true
+          title: Criado por
+        created_by_username:
+          type: string
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaintenanceImage'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Criação
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última Atualização
+    PatchedMedicalAppointment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        family_member:
+          type: integer
+          title: Membro da Família
+        family_member_name:
+          type: string
+          readOnly: true
+        doctor_name:
+          type: string
+          title: Nome do Médico
+          maxLength: 100
+        specialty:
+          type: string
+          title: Especialidade
+          maxLength: 100
+        appointment_date:
+          type: string
+          format: date-time
+          title: Data da Consulta
+        location:
+          type: string
+          title: Local
+          maxLength: 200
+        reason:
+          type: string
+          title: Motivo da Consulta
+        diagnosis:
+          type: string
+          title: Diagnóstico
+        prescription:
+          type: string
+          title: Prescrição
+        next_appointment:
+          type: string
+          format: date-time
+          nullable: true
+          title: Próxima Consulta
+        notes:
+          type: string
+          title: Observações
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Criado em
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Atualizado em
+    PatchedMedicalProcedure:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        family_member:
+          type: integer
+          title: Membro da Família
+        family_member_name:
+          type: string
+          readOnly: true
+        procedure_name:
+          type: string
+          title: Nome do Procedimento
+          maxLength: 200
+        procedure_date:
+          type: string
+          format: date-time
+          title: Data do Procedimento
+        doctor_name:
+          type: string
+          title: Nome do Médico
+          maxLength: 100
+        location:
+          type: string
+          title: Local
+          maxLength: 200
+        description:
+          type: string
+          title: Descrição
+        results:
+          type: string
+          title: Resultados
+        follow_up_notes:
+          type: string
+          title: Observações de Acompanhamento
+        next_procedure_date:
+          type: string
+          format: date-time
+          nullable: true
+          title: Data do Próximo Procedimento
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Criado em
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Atualizado em
+    PatchedMedication:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        family_member:
+          type: integer
+          title: Membro da Família
+        family_member_name:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          title: Nome do Medicamento
+          maxLength: 100
+        dosage:
+          type: string
+          title: Dosagem
+          maxLength: 50
+        frequency:
+          allOf:
+          - $ref: '#/components/schemas/FrequencyEnum'
+          title: Frequência
+        start_date:
+          type: string
+          format: date
+          title: Data de Início
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          title: Data de Término
+        prescribed_by:
+          type: string
+          title: Prescrito por
+          maxLength: 100
+        prescription_number:
+          type: string
+          title: Número da Receita
+          maxLength: 50
+        instructions:
+          type: string
+          title: Instruções Especiais
+        side_effects:
+          type: string
+          title: Efeitos Colaterais
+        notes:
+          type: string
+          title: Observações
+        is_active:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        phone:
+          type: string
+          title: Telefone
+          maxLength: 20
+        address:
+          type: string
+          title: Endereço
+          maxLength: 200
+        city:
+          type: string
+          title: Cidade
+          maxLength: 100
+        state:
+          type: string
+          title: Estado
+          maxLength: 50
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Criação
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última Atualização
+    PriorityEnum:
+      enum:
+      - baixa
+      - media
+      - alta
+      - urgente
+      type: string
+      description: |-
+        * `baixa` - Baixa
+        * `media` - Média
+        * `alta` - Alta
+        * `urgente` - Urgente
+    Profile:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        phone:
+          type: string
+          title: Telefone
+          maxLength: 20
+        address:
+          type: string
+          title: Endereço
+          maxLength: 200
+        city:
+          type: string
+          title: Cidade
+          maxLength: 100
+        state:
+          type: string
+          title: Estado
+          maxLength: 50
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Data de Criação
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Última Atualização
+      required:
+      - created_at
+      - id
+      - updated_at
+      - user
+    StatusEnum:
+      enum:
+      - pendente
+      - em_andamento
+      - concluida
+      - cancelada
+      type: string
+      description: |-
+        * `pendente` - Pendente
+        * `em_andamento` - Em Andamento
+        * `concluida` - Concluída
+        * `cancelada` - Cancelada
+    TypeEnum:
+      enum:
+      - eletronico
+      - eletrodomestico
+      - movel
+      - veiculo
+      - outro
+      type: string
+      description: |-
+        * `eletronico` - Eletrônico
+        * `eletrodomestico` - Eletrodoméstico
+        * `movel` - Móvel
+        * `veiculo` - Veículo
+        * `outro` - Outro
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+          title: Usuário
+          description: Obrigatório. 150 caracteres ou menos. Letras, números e @/./+/-/_
+            apenas.
+        first_name:
+          type: string
+          readOnly: true
+          title: Primeiro nome
+        last_name:
+          type: string
+          readOnly: true
+          title: Último nome
+        email:
+          type: string
+          format: email
+          readOnly: true
+          title: Endereço de email
+      required:
+      - email
+      - first_name
+      - id
+      - last_name
+      - username
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    tokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Token-based authentication with required prefix "Token"

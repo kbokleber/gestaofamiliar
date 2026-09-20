@@ -69,9 +69,33 @@
                     </div>
                     {% endif %}
 
-                    <div class="mt-4">
+                    <!-- Anexos -->
+                    {% if equipment.attachments.exists %}
+                    <div class="mb-4">
+                        <h5 class="text-muted mb-3">Anexos</h5>
+                        <div class="list-group">
+                            {% for attachment in equipment.attachments.all %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi {% if attachment.is_image %}bi-image{% elif attachment.is_document %}bi-file-earmark-text{% else %}bi-file-earmark{% endif %} me-2"></i>
+                                    {{ attachment.description or attachment.file.name }}
+                                    <small class="text-muted d-block">
+                                        {{ attachment.uploaded_at|date:"d/m/Y H:i" }} por {{ attachment.uploaded_by.get_full_name|default:attachment.uploaded_by.username }}
+                                    </small>
+                                </div>
+                                <a href="{{ attachment.file.url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                    <i class="bi bi-download"></i>
+                                </a>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Histórico de Manutenções -->
+                    {% if maintenance_orders %}
+                    <div class="mb-4">
                         <h5 class="text-muted mb-3">Histórico de Manutenções</h5>
-                        {% if maintenance_orders %}
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
@@ -79,7 +103,7 @@
                                         <th>Data</th>
                                         <th>Status</th>
                                         <th>Descrição</th>
-                                        <th>Custo</th>
+                                        <th>Valor</th>
                                         <th>Ações</th>
                                     </tr>
                                 </thead>
@@ -93,10 +117,9 @@
                                             </span>
                                         </td>
                                         <td>{{ order.description|truncatechars:50 }}</td>
-                                        <td>R$ {{ order.cost|default:"0,00" }}</td>
+                                        <td>R$ {{ order.cost|floatformat:2 }}</td>
                                         <td>
-                                            <a href="{% url 'maintenance:order_detail' order.pk %}" 
-                                               class="btn btn-sm btn-outline-primary">
+                                            <a href="{% url 'maintenance:order_detail' order.pk %}" class="btn btn-sm btn-outline-primary">
                                                 <i class="bi bi-eye"></i>
                                             </a>
                                         </td>
@@ -105,29 +128,18 @@
                                 </tbody>
                             </table>
                         </div>
-                        {% else %}
-                        <div class="text-center py-3">
-                            <p class="text-muted mb-0">Nenhuma manutenção registrada para este equipamento.</p>
-                        </div>
-                        {% endif %}
                     </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_css %}
 <style>
     .card {
         border: none;
-        border-radius: 0.5rem;
-    }
-
-    .card-header {
-        border-radius: 0.5rem 0.5rem 0 0 !important;
-        border-bottom: none;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     }
 
     .btn {
@@ -150,6 +162,11 @@
     }
 
     dd {
+        margin-bottom: 0.5rem;
+    }
+
+    .list-group-item {
+        border-radius: 0.375rem !important;
         margin-bottom: 0.5rem;
     }
 </style>

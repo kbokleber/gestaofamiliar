@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.core.validators import FileExtensionValidator
 
 User = get_user_model()
 
@@ -34,6 +35,34 @@ class Equipment(models.Model):
 
     def get_absolute_url(self):
         return reverse('maintenance:equipment_detail', kwargs={'pk': self.pk})
+
+class EquipmentAttachment(models.Model):
+    equipment = models.ForeignKey(Equipment, on_delete=models.CASCADE, related_name='attachments', verbose_name='Equipamento')
+    file = models.FileField(
+        upload_to='equipment_attachments/%Y/%m/%d/',
+        validators=[FileExtensionValidator(['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'gif'])],
+        verbose_name='Arquivo'
+    )
+    description = models.CharField(max_length=255, blank=True, verbose_name='Descrição')
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='Data de Upload')
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, verbose_name='Upload por')
+
+    class Meta:
+        verbose_name = 'Anexo do Equipamento'
+        verbose_name_plural = 'Anexos do Equipamento'
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f'Anexo de {self.equipment.name} - {self.description or self.file.name}'
+
+    def get_file_extension(self):
+        return self.file.name.split('.')[-1].lower()
+
+    def is_image(self):
+        return self.get_file_extension() in ['jpg', 'jpeg', 'png', 'gif']
+
+    def is_document(self):
+        return self.get_file_extension() in ['pdf', 'doc', 'docx']
 
 class MaintenanceOrder(models.Model):
     STATUS_CHOICES = (

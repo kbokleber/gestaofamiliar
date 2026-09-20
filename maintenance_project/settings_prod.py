@@ -12,8 +12,8 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.environ.get('POSTGRES_DB', 'sistema_familiar_db'),
         'USER': os.environ.get('POSTGRES_USER', 'sistema_familiar_user'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'SuaSenhaSeguraParaDB2024!@#'),
-        'HOST': os.environ.get('DB_HOST', 'db'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'SenhaSegura2024'),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
         'PORT': os.environ.get('DB_PORT', '5432'),
         'CONN_MAX_AGE': 60,
         'OPTIONS': {

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15
@@ -18,19 +16,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    deploy:
-      mode: replicated
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-        max_attempts: 3
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
+    restart: unless-stopped
 
   web:
-    build: .
+    image: kbokleber/sistema_familiar:latest
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
@@ -40,31 +29,23 @@ services:
       - "8000:8000"
     environment:
       - DJANGO_SETTINGS_MODULE=maintenance_project.settings_prod
-      - DATABASE_URL=postgres://sistema_familiar_user:SuaSenhaSeguraParaDB2024!@#@db:5432/sistema_familiar_db
+      - POSTGRES_DB=sistema_familiar_db
+      - POSTGRES_USER=sistema_familiar_user
+      - POSTGRES_PASSWORD=SuaSenhaSeguraParaDB2024!@#
+      - DB_HOST=db
+      - DB_PORT=5432
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - sistema-familiar-net
-    deploy:
-      mode: replicated
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-        max_attempts: 3
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-    driver: local
   static_volume:
-    driver: local
   media_volume:
-    driver: local
 
 networks:
   sistema-familiar-net:
-    driver: overlay
-    attachable: true 
+    driver: bridge 

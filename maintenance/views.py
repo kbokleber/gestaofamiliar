@@ -1,7 +1,7 @@
 from django.views.generic.edit import CreateView, DeleteView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
-from .models import MaintenanceOrder, Equipment
+from .models import MaintenanceOrder, Equipment, EquipmentAttachment
 from django.views.generic import DetailView, ListView, TemplateView
 from django.db.models import Q
 from datetime import datetime
@@ -12,6 +12,9 @@ from django.http import HttpResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from .forms import EquipmentForm
 
 class CreateOrderView(LoginRequiredMixin, CreateView):
     model = MaintenanceOrder
@@ -37,13 +40,27 @@ class CreateOrderView(LoginRequiredMixin, CreateView):
 
 class CreateEquipmentView(LoginRequiredMixin, CreateView):
     model = Equipment
+    form_class = EquipmentForm
     template_name = 'maintenance/equipment_form.html'
-    fields = ['name', 'type', 'brand', 'model', 'serial_number', 'purchase_date', 'notes']
     success_url = reverse_lazy('dashboard:home')
 
     def form_valid(self, form):
         form.instance.owner = self.request.user
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        
+        # Processa o arquivo anexado
+        file = self.request.FILES.get('attachment')
+        description = self.request.POST.get('attachment_description')
+        
+        if file:
+            EquipmentAttachment.objects.create(
+                equipment=form.instance,
+                file=file,
+                description=description,
+                uploaded_by=self.request.user
+            )
+        
+        return response
 
 class DetailOrderView(LoginRequiredMixin, DetailView):
     model = MaintenanceOrder
@@ -283,8 +300,8 @@ class EquipmentDetailView(LoginRequiredMixin, DetailView):
 
 class EquipmentUpdateView(LoginRequiredMixin, UpdateView):
     model = Equipment
+    form_class = EquipmentForm
     template_name = 'maintenance/equipment_form.html'
-    fields = ['name', 'type', 'brand', 'model', 'serial_number', 'purchase_date', 'notes']
     success_url = reverse_lazy('maintenance:equipment_list')
 
     def get_queryset(self):
@@ -293,7 +310,25 @@ class EquipmentUpdateView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['is_update'] = True
+        context['attachments'] = self.object.attachments.all()
         return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        
+        # Processa o arquivo anexado
+        file = self.request.FILES.get('attachment')
+        description = self.request.POST.get('attachment_description')
+        
+        if file:
+            EquipmentAttachment.objects.create(
+                equipment=form.instance,
+                file=file,
+                description=description,
+                uploaded_by=self.request.user
+            )
+        
+        return response
 
 class EquipmentDeleteView(LoginRequiredMixin, DeleteView):
     model = Equipment

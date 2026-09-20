@@ -25,11 +25,15 @@ INSTALLED_APPS = [
     'crispy_bootstrap5',
     'widget_tweaks',
     'django_filters',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'drf_spectacular',
     # Local apps
     'accounts',
     'maintenance',
     'dashboard',
-    'healthcare.apps.HealthcareConfig',  # New healthcare app
+    'healthcare.apps.HealthcareConfig',
+    'api',
 ]
 
 MIDDLEWARE = [
@@ -114,4 +118,35 @@ LOGOUT_REDIRECT_URL = '/login/'
 LOGIN_URL = '/login/'
 
 # Django Notifications
-DJANGO_NOTIFICATIONS_CONFIG = {'USE_JSONFIELD': True} 
+DJANGO_NOTIFICATIONS_CONFIG = {'USE_JSONFIELD': True}
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 25,
+}
+
+# OpenAPI / Swagger
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Sistema Familiar API',
+    'DESCRIPTION': (
+        'API REST do Sistema Familiar (saude familiar e manutencao). '
+        'Autentique com Token: POST /api/auth/token/ com username e password, '
+        'depois envie o header Authorization: Token <chave>.'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+} 
