@@ -443,31 +443,89 @@ async def list_appointments(
     if member_id:
         query = query.filter(MedicalAppointment.family_member_id == member_id)
     
-    appointments = query.order_by(MedicalAppointment.appointment_date.desc()).all()
-    
     # Se não incluir documentos, retornar sem eles para economizar banda
     if not include_documents:
+        from sqlalchemy import func
+
+        rows = (
+            query.with_entities(
+                MedicalAppointment.id,
+                MedicalAppointment.family_member_id,
+                MedicalAppointment.doctor_name,
+                MedicalAppointment.specialty,
+                MedicalAppointment.appointment_date,
+                MedicalAppointment.location,
+                MedicalAppointment.reason,
+                MedicalAppointment.diagnosis,
+                MedicalAppointment.prescription,
+                MedicalAppointment.next_appointment,
+                MedicalAppointment.notes,
+                MedicalAppointment.created_at,
+                MedicalAppointment.updated_at,
+                (func.coalesce(func.length(MedicalAppointment.documents), 0) > 2).label("has_documents"),
+            )
+            .order_by(MedicalAppointment.appointment_date.desc())
+            .all()
+        )
         return [
             {
-                "id": a.id,
-                "family_member_id": a.family_member_id,
-                "doctor_name": a.doctor_name,
-                "specialty": a.specialty,
-                "appointment_date": a.appointment_date,
-                "location": a.location,
-                "reason": a.reason,
-                "diagnosis": a.diagnosis,
-                "prescription": a.prescription,
-                "next_appointment": a.next_appointment,
-                "notes": a.notes,
+                "id": r.id,
+                "family_member_id": r.family_member_id,
+                "doctor_name": r.doctor_name,
+                "specialty": r.specialty,
+                "appointment_date": r.appointment_date,
+                "location": r.location,
+                "reason": r.reason,
+                "diagnosis": r.diagnosis,
+                "prescription": r.prescription,
+                "next_appointment": r.next_appointment,
+                "notes": r.notes,
                 "documents": None,
-                "created_at": a.created_at,
-                "updated_at": a.updated_at
+                "has_documents": bool(r.has_documents),
+                "created_at": r.created_at,
+                "updated_at": r.updated_at,
             }
-            for a in appointments
+            for r in rows
         ]
-                
-    return appointments
+
+    return query.order_by(MedicalAppointment.appointment_date.desc()).all()
+
+@router.get("/appointments/{appointment_id}", response_model=MedicalAppointmentSchema)
+async def get_appointment(
+    appointment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Obter uma consulta médica com documentos completos."""
+    from app.api.deps import get_user_family_ids
+
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Consulta não encontrada"
+            )
+        appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
+            MedicalAppointment.id == appointment_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        appointment = db.query(MedicalAppointment).join(FamilyMember).filter(
+            MedicalAppointment.id == appointment_id,
+            FamilyMember.family_id == family_id
+        ).first()
+
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Consulta não encontrada"
+        )
+
+    return appointment
 
 @router.put("/appointments/{appointment_id}", response_model=MedicalAppointmentSchema)
 async def update_appointment(
@@ -507,7 +565,13 @@ async def update_appointment(
             detail="Consulta não encontrada"
         )
     
-    for field, value in appointment_data.model_dump(exclude_unset=True).items():
+    update_data = appointment_data.model_dump(exclude_unset=True)
+    all_data = appointment_data.model_dump(exclude_unset=False)
+    # Garantir persistência de anexos mesmo quando enviados explicitamente
+    if "documents" in all_data:
+        update_data["documents"] = all_data["documents"]
+
+    for field, value in update_data.items():
         setattr(appointment, field, value)
     
     db.commit()

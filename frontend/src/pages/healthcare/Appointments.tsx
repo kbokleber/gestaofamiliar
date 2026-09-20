@@ -28,6 +28,7 @@ interface Appointment {
   next_appointment: string | null
   notes: string
   documents: string | null
+  has_documents?: boolean
   created_at: string
   updated_at: string
   family_member?: FamilyMember
@@ -268,31 +269,40 @@ export default function Appointments() {
     }
   }
 
-  const startEdit = (appointment: Appointment) => {
-    setEditingAppointment(appointment)
-    setFormData({
-      family_member_id: appointment.family_member_id,
-      doctor_name: appointment.doctor_name,
-      specialty: appointment.specialty,
-      appointment_date: toDateTimeInputValue(appointment.appointment_date) || '',
-      location: appointment.location || '',
-      reason: appointment.reason,
-      diagnosis: appointment.diagnosis || '',
-      prescription: appointment.prescription || '',
-      next_appointment: toDateTimeInputValue(appointment.next_appointment) || '',
-      notes: appointment.notes || ''
-    })
-    // Carregar documentos
-    if (appointment.documents) {
-      try {
-        setDocuments(JSON.parse(appointment.documents))
-      } catch (e) {
+  const startEdit = async (appointment: Appointment) => {
+    try {
+      const response = await api.get(`/healthcare/appointments/${appointment.id}`)
+      const fullAppointment: Appointment = response.data
+
+      setEditingAppointment(fullAppointment)
+      setFormData({
+        family_member_id: fullAppointment.family_member_id,
+        doctor_name: fullAppointment.doctor_name,
+        specialty: fullAppointment.specialty,
+        appointment_date: toDateTimeInputValue(fullAppointment.appointment_date) || '',
+        location: fullAppointment.location || '',
+        reason: fullAppointment.reason,
+        diagnosis: fullAppointment.diagnosis || '',
+        prescription: fullAppointment.prescription || '',
+        next_appointment: toDateTimeInputValue(fullAppointment.next_appointment) || '',
+        notes: fullAppointment.notes || ''
+      })
+
+      if (fullAppointment.documents) {
+        try {
+          setDocuments(JSON.parse(fullAppointment.documents))
+        } catch {
+          setDocuments([])
+        }
+      } else {
         setDocuments([])
       }
-    } else {
-      setDocuments([])
+
+      setIsEditingInline(true)
+    } catch (err: any) {
+      console.error('Erro ao carregar consulta completa:', err)
+      alert(err.response?.data?.detail || 'Erro ao carregar os anexos da consulta')
     }
-    setIsEditingInline(true)
   }
 
   const cancelEdit = () => {
@@ -646,7 +656,7 @@ export default function Appointments() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg font-semibold text-gray-900">{getMemberName(appointment.family_member_id)}</h3>
-                      {appointment.documents && (
+                      {(appointment.documents || appointment.has_documents) && (
                         <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
                       )}
                     </div>
@@ -736,7 +746,7 @@ export default function Appointments() {
                         <div className="text-sm font-medium text-gray-900">
                           {getMemberName(appointment.family_member_id)}
                         </div>
-                        {appointment.documents && (
+                        {(appointment.documents || appointment.has_documents) && (
                           <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
                         )}
                       </div>

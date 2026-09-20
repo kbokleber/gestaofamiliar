@@ -23,6 +23,10 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+backend/.env
+
+# Override local do Docker Compose (ex.: porta 5433 em dev)
+docker-compose.override.yml
 
 # IDE / Editor
 .vscode/
