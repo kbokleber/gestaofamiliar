@@ -13,8 +13,6 @@ services:
       PGTZ: America/Sao_Paulo
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -q"]
       interval: 15s
@@ -34,8 +32,6 @@ services:
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       TZ: America/Sao_Paulo
-    ports:
-      - "8001:8001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,8 +46,6 @@ services:
     container_name: sistema-familiar-frontend
     environment:
       TZ: America/Sao_Paulo
-    ports:
-      - "3000:80"
     depends_on:
       - backend
     restart: unless-stopped
