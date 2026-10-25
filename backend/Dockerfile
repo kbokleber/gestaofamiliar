@@ -13,6 +13,7 @@ ENV APP_RELEASE_NAME=$APP_RELEASE_NAME
 RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
+    ghostscript \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements e instalar dependências Python

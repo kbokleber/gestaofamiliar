@@ -1,11 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText, X } from 'lucide-react'
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-
-GlobalWorkerOptions.workerSrc = pdfWorker
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Button from '../../components/Button'
@@ -203,69 +199,17 @@ function CartaoAtividade({
   )
 }
 
-function PaginasPdf({ url }: { url: string }) {
-  const hostRef = useRef<HTMLDivElement>(null)
-  const [falha, setFalha] = useState('')
-  const [carregando, setCarregando] = useState(true)
-
-  useEffect(() => {
-    let cancelado = false
-    const host = hostRef.current
-    if (!host) return
-    host.replaceChildren()
-    setCarregando(true)
-    setFalha('')
-    let destruir = () => undefined as void
-    fetch(url)
-      .then((resposta) => resposta.arrayBuffer())
-      .then((buffer) => getDocument({ data: new Uint8Array(buffer) }))
-      .then((carregado) => {
-        destruir = () => {
-          carregado.destroy()
-        }
-        return carregado.promise
-      })
-      .then(async (pdf) => {
-        for (let numero = 1; numero <= pdf.numPages; numero += 1) {
-          if (cancelado) return
-          const pagina = await pdf.getPage(numero)
-          const base = pagina.getViewport({ scale: 1 })
-          const largura = host.clientWidth || window.innerWidth
-          const escala = (largura / base.width) * Math.min(2, window.devicePixelRatio || 1)
-          const viewport = pagina.getViewport({ scale: escala })
-          const canvas = document.createElement('canvas')
-          const contexto = canvas.getContext('2d')
-          if (!contexto) continue
-          canvas.width = viewport.width
-          canvas.height = viewport.height
-          canvas.className = 'mb-3 w-full bg-white'
-          canvas.style.width = '100%'
-          canvas.style.height = 'auto'
-          await pagina.render({ canvasContext: contexto, viewport }).promise
-          if (!cancelado) host.appendChild(canvas)
-          if (numero === 1) setCarregando(false)
-        }
-        if (!cancelado) setCarregando(false)
-      })
-      .catch(() => {
-        if (!cancelado) {
-          setCarregando(false)
-          setFalha('Não foi possível mostrar o PDF.')
-        }
-      })
-    return () => {
-      cancelado = true
-      destruir()
-    }
-  }, [url])
-
-  return (
-    <div className="min-h-0 flex-1 overflow-auto bg-neutral-800 px-2 py-3">
-      {carregando && <p className="mb-3 text-center text-sm text-white">Abrindo PDF...</p>}
-      {falha && <p className="text-center text-sm text-red-200">{falha}</p>}
-      <div ref={hostRef} />
-    </div>
-  )
+function formatarTamanho(bytes: number) {
+  if (!bytes) return ''
+  const unidades = ['B', 'KB', 'MB']
+  let valor = bytes
+  let indice = 0
+  while (valor >= 1024 && indice < unidades.length - 1) {
+    valor /= 1024
+    indice += 1
+  }
+  const texto = valor.toLocaleString('pt-BR', { maximumFractionDigits: indice === 0 ? 0 : 1 })
+  return `${texto} ${unidades[indice]}`
 }
 
 function GaleriaAnexos({
@@ -277,41 +221,11 @@ function GaleriaAnexos({
   isAdmin: boolean
   onChange: (atividade: Atividade) => void
 }) {
-  const [urls, setUrls] = useState<string[]>([])
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
   const [aberto, setAberto] = useState<number | null>(null)
+  const [urlAberta, setUrlAberta] = useState('')
   const anexos = atividade.anexos ?? []
-  const chaveAnexos = anexos.map((item, indice) => `${indice}:${item.name}:${item.size}`).join('|')
-
-  useEffect(() => {
-    let ativo = true
-    const criadas: string[] = []
-    const carregar = async () => {
-      try {
-        for (let indice = 0; indice < anexos.length; indice += 1) {
-          const resposta = await api.get(
-            `/estudos/atividades/${atividade.id}/anexos/${indice}/download`,
-            { responseType: 'blob' },
-          )
-          if (!ativo) return
-          const tipo = anexos[indice]?.type || resposta.data.type || 'application/octet-stream'
-          const arquivo = resposta.data.type === tipo ? resposta.data : new Blob([resposta.data], { type: tipo })
-          criadas.push(URL.createObjectURL(arquivo))
-        }
-        if (ativo) setUrls([...criadas])
-      } catch {
-        if (ativo) setErro('Não foi possível abrir os anexos.')
-      }
-    }
-    setUrls([])
-    setErro('')
-    if (anexos.length > 0) carregar()
-    return () => {
-      ativo = false
-      criadas.forEach((url) => URL.revokeObjectURL(url))
-    }
-  }, [atividade.id, chaveAnexos])
 
   const enviar = async (arquivo: File) => {
     const corpo = new FormData()
@@ -344,13 +258,39 @@ function GaleriaAnexos({
     }
   }
 
-  const visualizar = (indice: number) => {
-    if (!urls[indice]) {
-      setErro('O arquivo ainda está carregando.')
+  const visualizar = async (indice: number) => {
+    const anexo = anexos[indice]
+    if (!anexo) return
+    setErro('')
+    if (!anexo.type.startsWith('image/')) {
+      const janela = window.open('', '_blank')
+      try {
+        const resposta = await api.get(
+          `/estudos/atividades/${atividade.id}/anexos/${indice}/download`,
+          { params: { inline: 1 }, responseType: 'blob' },
+        )
+        const endereco = URL.createObjectURL(new Blob([resposta.data], { type: 'application/pdf' }))
+        if (janela) {
+          janela.location.href = endereco
+          return
+        }
+        setAberto(indice)
+        setUrlAberta(endereco)
+      } catch (error: any) {
+        janela?.close()
+        setErro(error.response?.data?.detail || 'Não foi possível abrir o PDF.')
+      }
       return
     }
-    setErro('')
     setAberto(indice)
+    setUrlAberta('')
+    try {
+      const resposta = await api.get<{ url: string }>(`/estudos/atividades/${atividade.id}/anexos/${indice}/link`)
+      setUrlAberta(resposta.data.url)
+    } catch (error: any) {
+      setErro(error.response?.data?.detail || 'Não foi possível abrir o arquivo.')
+      setAberto(null)
+    }
   }
 
   return (
@@ -358,28 +298,24 @@ function GaleriaAnexos({
       {anexos.length > 0 && (
         <div className="space-y-3">
           {anexos.map((anexo, indice) => {
-            const url = urls[indice]
             const imagem = anexo.type.startsWith('image/')
             return (
               <article key={`${anexo.name}-${indice}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-                {imagem && url && (
-                  <img src={url} alt={anexo.name} className="h-44 w-full object-cover" />
-                )}
-                {!imagem && (
-                  <div className="flex items-center gap-3 px-4 py-4">
-                    <FileText className="h-6 w-6 shrink-0 text-red-600" />
+                <div className="flex items-center gap-3 px-4 py-4">
+                  {imagem ? <ImagePlus className="h-6 w-6 shrink-0 text-indigo-600" /> : <FileText className="h-6 w-6 shrink-0 text-red-600" />}
+                  <div className="min-w-0">
                     <p className="truncate text-base text-gray-800">{anexo.name}</p>
+                    {anexo.size > 0 && <p className="text-sm text-gray-500">{formatarTamanho(anexo.size)}</p>}
                   </div>
-                )}
+                </div>
                 <div className={isAdmin ? 'grid grid-cols-2 border-t border-gray-100' : 'border-t border-gray-100'}>
                   <button
                     type="button"
                     onClick={() => visualizar(indice)}
-                    disabled={!url}
-                    className="flex min-h-12 items-center justify-center gap-2 text-base text-indigo-700 active:bg-indigo-50 disabled:text-gray-400"
+                    className="flex min-h-12 items-center justify-center gap-2 text-base text-indigo-700 active:bg-indigo-50"
                   >
                     <Eye className="h-5 w-5" />
-                    {url ? 'Visualizar' : 'Carregando...'}
+                    Visualizar
                   </button>
                   {isAdmin && (
                     <button
@@ -415,25 +351,31 @@ function GaleriaAnexos({
         </label>
       )}
       {erro && <p className="text-sm text-red-700">{erro}</p>}
-      {aberto !== null && urls[aberto] && createPortal(
+      {aberto !== null && createPortal(
         <div className="fixed inset-0 z-[80] flex flex-col bg-neutral-900">
           <div className="flex items-center justify-between gap-3 bg-white px-3 py-2">
             <p className="truncate text-base font-medium text-gray-900">{anexos[aberto]?.name}</p>
             <button
               type="button"
-              onClick={() => setAberto(null)}
+              onClick={() => { setAberto(null); setUrlAberta('') }}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-600"
               aria-label="Fechar visualização"
             >
               <X className="h-6 w-6" />
             </button>
           </div>
-          {anexos[aberto]?.type.startsWith('image/') ? (
+          {!urlAberta && <p className="px-4 py-6 text-center text-sm text-white">Abrindo arquivo...</p>}
+          {urlAberta && anexos[aberto]?.type.startsWith('image/') && (
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-800 p-2">
-              <img src={urls[aberto]} alt={anexos[aberto]?.name || 'Imagem'} className="max-h-full max-w-full object-contain" />
+              <img src={urlAberta} alt={anexos[aberto]?.name || 'Imagem'} className="max-h-full max-w-full object-contain" />
             </div>
-          ) : (
-            <PaginasPdf url={urls[aberto]} />
+          )}
+          {urlAberta && !anexos[aberto]?.type.startsWith('image/') && (
+            <iframe
+              title={anexos[aberto]?.name || 'PDF'}
+              src={urlAberta}
+              className="h-0 w-full flex-1 border-0 bg-white"
+            />
           )}
         </div>,
         document.body,

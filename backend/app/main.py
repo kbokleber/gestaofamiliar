@@ -73,6 +73,9 @@ def startup_create_tables():
             conn.execute(text(
                 "ALTER TABLE estudo_atividade ADD COLUMN IF NOT EXISTS anexos TEXT"
             ))
+            conn.execute(text(
+                "ALTER TABLE estudo_atividade ADD COLUMN IF NOT EXISTS anexos_resumo TEXT"
+            ))
         logger.info("Tabelas do banco verificadas/criadas.")
     except Exception as e:
         logger.exception("Erro ao criar tabelas: %s", e)
