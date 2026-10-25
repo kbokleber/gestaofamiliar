@@ -110,6 +110,85 @@ function formatPrazoLongo(iso: string) {
   return `${dia} às ${hora}`
 }
 
+function diaDoPrazo(iso: string) {
+  const data = new Date(iso)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${data.getFullYear()}-${pad(data.getMonth() + 1)}-${pad(data.getDate())}`
+}
+
+function agruparPorPrazo(itens: Atividade[]) {
+  const ordenados = [...itens].sort((a, b) => {
+    const diferenca = new Date(a.prazo_entrega).getTime() - new Date(b.prazo_entrega).getTime()
+    return diferenca !== 0 ? diferenca : a.id - b.id
+  })
+  const mapa = new Map<string, Atividade[]>()
+  for (const item of ordenados) {
+    const chave = diaDoPrazo(item.prazo_entrega)
+    const lista = mapa.get(chave) ?? []
+    lista.push(item)
+    mapa.set(chave, lista)
+  }
+  return Array.from(mapa.entries())
+}
+
+function CartaoAtividade({
+  atividade,
+  isAdmin,
+  onAbrir,
+  onEditar,
+  onExcluir,
+}: {
+  atividade: Atividade
+  isAdmin: boolean
+  onAbrir: (atividade: Atividade) => void
+  onEditar: (atividade: Atividade) => void
+  onExcluir: (atividade: Atividade) => void
+}) {
+  return (
+    <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={() => onAbrir(atividade)}
+        className="w-full px-4 py-4 text-left active:bg-indigo-50"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${atividade.status === 'concluida' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+            {atividade.status === 'concluida' ? 'Concluída' : 'Pendente'}
+          </span>
+          {atividade.disciplina && (
+            <span className="text-sm text-gray-500">{atividade.disciplina}</span>
+          )}
+        </div>
+        <p className="mt-2 text-lg font-semibold leading-snug text-gray-900">{atividade.titulo}</p>
+        <p className="mt-1 text-base text-gray-700">Prazo: {formatPrazoCurto(atividade.prazo_entrega)}</p>
+        {atividade.professor && (
+          <p className="mt-0.5 text-sm text-gray-500">{atividade.professor}</p>
+        )}
+      </button>
+      {isAdmin && (
+        <div className="grid grid-cols-2 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={() => onEditar(atividade)}
+            className="flex min-h-12 items-center justify-center gap-2 text-base text-blue-700 active:bg-blue-50"
+          >
+            <Pencil className="h-5 w-5" />
+            Editar
+          </button>
+          <button
+            type="button"
+            onClick={() => onExcluir(atividade)}
+            className="flex min-h-12 items-center justify-center gap-2 border-l border-gray-100 text-base text-red-700 active:bg-red-50"
+          >
+            <Trash2 className="h-5 w-5" />
+            Excluir
+          </button>
+        </div>
+      )}
+    </article>
+  )
+}
+
 function toDateTimeLocal(iso: string) {
   const data = new Date(iso)
   const pad = (value: number) => String(value).padStart(2, '0')
@@ -182,15 +261,35 @@ export default function Atividades() {
     })
   }, [atividades, busca, recorte])
 
-  const grupos = useMemo(() => {
-    const mapa = new Map<string, Atividade[]>()
+  const grupos = useMemo(() => agruparPorPrazo(visiveis), [visiveis])
+
+  const porFilho = useMemo(() => {
+    if (!isAdmin) return []
+    const mapa = new Map<number, Atividade[]>()
     for (const item of visiveis) {
-      const lista = mapa.get(item.data) ?? []
+      const lista = mapa.get(item.aluno_id) ?? []
       lista.push(item)
-      mapa.set(item.data, lista)
+      mapa.set(item.aluno_id, lista)
+    }
+    if (!busca.trim() && recorte === 'todas') {
+      for (const filho of filhos) {
+        if (alunoFiltro && filho.id !== alunoFiltro) continue
+        if (!mapa.has(filho.id)) mapa.set(filho.id, [])
+      }
     }
     return Array.from(mapa.entries())
-  }, [visiveis])
+      .map(([id, itens]) => {
+        const cadastro = filhos.find((filho) => filho.id === id)
+        const nome = itens[0]?.aluno_nome || (cadastro ? nomeAluno(cadastro) : 'Filho')
+        return {
+          id,
+          nome,
+          pendentes: itens.filter((item) => item.status !== 'concluida').length,
+          dias: agruparPorPrazo(itens),
+        }
+      })
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [isAdmin, visiveis, filhos, busca, recorte, alunoFiltro])
 
   const salvar = useMutation({
     mutationFn: async () => {
@@ -357,67 +456,73 @@ export default function Atividades() {
         <p className="text-gray-600">Nenhuma atividade por aqui.</p>
       )}
 
-      {!isError && atividades.length > 0 && grupos.length === 0 && (
+      {!isError && atividades.length > 0 && (isAdmin ? porFilho.length === 0 : grupos.length === 0) && (
         <p className="text-gray-600">Nenhuma tarefa encontrada.</p>
       )}
 
+      {isAdmin && (
+        <div className="space-y-5">
+          {porFilho.map((filho) => (
+            <section key={filho.id} className="overflow-hidden rounded-2xl border border-indigo-100">
+              <header className="bg-indigo-50 px-4 py-3">
+                <h2 className="text-lg font-bold text-indigo-950">{filho.nome}</h2>
+                <p className="text-sm text-indigo-800">
+                  {filho.pendentes} {filho.pendentes === 1 ? 'pendente' : 'pendentes'}
+                  {filho.dias.length === 0 ? ' · nenhuma tarefa' : ''}
+                </p>
+              </header>
+              <div className="space-y-4 bg-gray-50 px-3 py-3">
+                {filho.dias.length === 0 && (
+                  <p className="text-sm text-gray-600">Nenhuma tarefa deste filho.</p>
+                )}
+                {filho.dias.map(([dia, itens]) => (
+                  <div key={dia}>
+                    <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                      Prazo {formatDia(dia)}
+                    </h3>
+                    <div className="space-y-2">
+                      {itens.map((atividade) => (
+                        <CartaoAtividade
+                          key={atividade.id}
+                          atividade={atividade}
+                          isAdmin={isAdmin}
+                          onAbrir={setSelecionada}
+                          onEditar={abrirEdicao}
+                          onExcluir={setExcluindo}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {!isAdmin && (
       <div className="space-y-6">
         {grupos.map(([dia, itens]) => (
           <section key={dia}>
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-              {formatDia(dia)}
+              Prazo {formatDia(dia)}
             </h2>
             <div className="space-y-2">
               {itens.map((atividade) => (
-                <article key={atividade.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                  <button
-                    type="button"
-                    onClick={() => setSelecionada(atividade)}
-                    className="w-full px-4 py-4 text-left active:bg-indigo-50"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${atividade.status === 'concluida' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {atividade.status === 'concluida' ? 'Concluída' : 'Pendente'}
-                      </span>
-                      {atividade.disciplina && (
-                        <span className="text-sm text-gray-500">{atividade.disciplina}</span>
-                      )}
-                    </div>
-                    <p className="mt-2 text-lg font-semibold leading-snug text-gray-900">{atividade.titulo}</p>
-                    <p className="mt-1 text-base text-gray-700">Prazo: {formatPrazoCurto(atividade.prazo_entrega)}</p>
-                    {atividade.professor && (
-                      <p className="mt-0.5 text-sm text-gray-500">{atividade.professor}</p>
-                    )}
-                    {isAdmin && (
-                      <p className="mt-1 text-sm font-medium text-indigo-700">{atividade.aluno_nome}</p>
-                    )}
-                  </button>
-                  {isAdmin && (
-                    <div className="grid grid-cols-2 border-t border-gray-100">
-                      <button
-                        type="button"
-                        onClick={() => abrirEdicao(atividade)}
-                        className="flex min-h-12 items-center justify-center gap-2 text-base text-blue-700 active:bg-blue-50"
-                      >
-                        <Pencil className="h-5 w-5" />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setExcluindo(atividade)}
-                        className="flex min-h-12 items-center justify-center gap-2 border-l border-gray-100 text-base text-red-700 active:bg-red-50"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                        Excluir
-                      </button>
-                    </div>
-                  )}
-                </article>
+                <CartaoAtividade
+                  key={atividade.id}
+                  atividade={atividade}
+                  isAdmin={false}
+                  onAbrir={setSelecionada}
+                  onEditar={abrirEdicao}
+                  onExcluir={setExcluindo}
+                />
               ))}
             </div>
           </section>
         ))}
       </div>
+      )}
 
       <Modal isOpen={!!selecionada && !confirmarConclusao && !confirmarReabertura} onClose={() => setSelecionada(null)} title="Atividade">
         {selecionada && (

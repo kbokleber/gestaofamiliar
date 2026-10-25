@@ -87,7 +87,7 @@ async def list_atividades(
             query = query.filter(Atividade.aluno_id == aluno_id)
     else:
         query = query.filter(Atividade.aluno_id == current_user.id)
-    atividades = query.order_by(Atividade.data.desc(), Atividade.id.desc()).all()
+    atividades = query.order_by(Atividade.prazo_entrega.asc(), Atividade.id.asc()).all()
     return [_to_schema(item) for item in atividades]
 
 
