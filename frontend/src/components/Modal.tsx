@@ -33,28 +33,28 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+      <div className="flex h-full min-h-full items-end justify-center sm:items-center sm:p-4">
         <div
-          className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+          className="fixed inset-0 bg-gray-500/75"
           onClick={onClose}
           aria-hidden="true"
         />
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 id={titleId} className="text-lg font-medium text-gray-900">
-                {title}
-              </h3>
-              <button
-                ref={closeRef}
-                type="button"
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded"
-                aria-label="Fechar"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
+        <div className="relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white text-left shadow-xl sm:rounded-lg">
+          <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-4 sm:px-6">
+            <h3 id={titleId} className="text-lg font-semibold text-gray-900">
+              {title}
+            </h3>
+            <button
+              ref={closeRef}
+              type="button"
+              onClick={onClose}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Fechar"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          <div className="overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-6">
             {children}
           </div>
         </div>

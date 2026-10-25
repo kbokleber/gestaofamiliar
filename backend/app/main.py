@@ -61,6 +61,12 @@ def startup_create_tables():
             conn.execute(text(
                 "ALTER TABLE auth_user ADD COLUMN IF NOT EXISTS allowed_menus JSON"
             ))
+            conn.execute(text(
+                "ALTER TABLE estudo_atividade ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pendente'"
+            ))
+            conn.execute(text(
+                "ALTER TABLE estudo_atividade ADD COLUMN IF NOT EXISTS concluida_em TIMESTAMPTZ"
+            ))
         logger.info("Tabelas do banco verificadas/criadas.")
     except Exception as e:
         logger.exception("Erro ao criar tabelas: %s", e)

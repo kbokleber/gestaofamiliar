@@ -1,18 +1,6 @@
-import { ClipboardList, FileText } from 'lucide-react'
+import { FileText } from 'lucide-react'
 
-export function Atividades() {
-  return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-        <ClipboardList className="w-8 h-8 text-indigo-600" />
-        Atividades
-      </h1>
-      <p className="text-gray-600 max-w-2xl">
-        As atividades de estudo entram nesta tela.
-      </p>
-    </div>
-  )
-}
+export { default as Atividades } from './Atividades'
 
 export function Provas() {
   return (
