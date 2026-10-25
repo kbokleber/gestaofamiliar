@@ -24,6 +24,14 @@ import FinanceImportRules from './pages/finance/FinanceImportRules'
 import { Atividades, Provas, SemMenu } from './pages/estudos/Estudos'
 import { canSeeMenu, firstAllowedPath, type MenuKey } from './lib/menus'
 
+function ProfileRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((state) => state.user)
+  if (!user?.is_superuser && !user?.is_staff) {
+    return <Navigate to={firstAllowedPath(user)} replace />
+  }
+  return <>{children}</>
+}
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />
@@ -63,7 +71,7 @@ function App() {
         <Route path="/maintenance/orders" element={<MenuRoute menu="manutencao"><MaintenanceOrders /></MenuRoute>} />
         
         {/* Profile / Settings */}
-        <Route path="/profile" element={<UserProfile />} />
+        <Route path="/profile" element={<ProfileRoute><UserProfile /></ProfileRoute>} />
         
         {/* Finance Routes */}
         <Route path="/finance" element={<MenuRoute menu="financas"><FinanceDashboard /></MenuRoute>} />
