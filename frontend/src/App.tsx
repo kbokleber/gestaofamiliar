@@ -3,6 +3,8 @@ import { useAuthStore } from './stores/authStore'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import AcessoNegado from './pages/AcessoNegado'
+import { keycloakEnabled } from './lib/keycloak'
 import Dashboard from './pages/Dashboard'
 import FamilyMembers from './pages/healthcare/FamilyMembers'
 import Appointments from './pages/healthcare/Appointments'
@@ -29,7 +31,8 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/acesso-negado" element={<AcessoNegado />} />
+      <Route path="/register" element={keycloakEnabled ? <Navigate to="/login" replace /> : <Register />} />
       
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route path="/" element={<Dashboard />} />

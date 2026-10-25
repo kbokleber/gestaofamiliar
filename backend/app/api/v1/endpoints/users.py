@@ -7,6 +7,7 @@ from app.models.user import User, Profile
 from app.models.family import Family
 from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate, UserUpdate, ApiTokenResponse
 from app.api.deps import get_current_user, get_current_admin
+from app.core.config import settings
 from app.core.security import get_password_hash
 
 router = APIRouter()
@@ -209,6 +210,11 @@ async def update_user_password(
     current_user: User = Depends(get_current_admin)
 ):
     """Atualizar senha de um usuário (apenas administradores)"""
+    if settings.AUTH_KEYCLOAK_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="A senha é gerenciada no Keycloak.",
+        )
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(

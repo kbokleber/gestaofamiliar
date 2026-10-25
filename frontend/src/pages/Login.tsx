@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { authService } from '../services/authService'
+import { keycloak, keycloakEnabled } from '../lib/keycloak'
 import { Heart } from 'lucide-react'
 import { useAppVersion } from '../hooks/useAppVersion'
 
@@ -19,6 +20,11 @@ export default function Login() {
 
   // Carregar dados salvos ao montar o componente
   useEffect(() => {
+    if (keycloakEnabled) {
+      localStorage.removeItem('remembered_username')
+      localStorage.removeItem('remembered_password')
+      return
+    }
     const savedUsername = localStorage.getItem('remembered_username')
     const savedPassword = localStorage.getItem('remembered_password')
     if (savedUsername && savedPassword) {
@@ -76,6 +82,27 @@ export default function Login() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (keycloakEnabled) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
+        <div className="max-w-md w-full space-y-6 bg-white p-8 rounded-xl shadow-lg text-center">
+          <Heart className="h-12 w-12 text-indigo-600 mx-auto" />
+          <h2 className="text-3xl font-bold text-gray-900">Gestão Familiar</h2>
+          <p className="text-sm text-gray-600">O acesso é feito pelo Keycloak.</p>
+          <button
+            type="button"
+            onClick={() => {
+              void keycloak?.login()
+            }}
+            className="w-full py-3 px-4 rounded-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+          >
+            Entrar
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    # Keycloak (realm família). Desligado por padrão para não alterar produção
+    # até as variáveis serem definidas no ambiente.
+    KEYCLOAK_URL: str = ""
+    KEYCLOAK_REALM: str = ""
+    KEYCLOAK_ISSUER: str = ""
+    KEYCLOAK_CLIENT_ID: str = "gestaofamiliar"
+    KEYCLOAK_AUDIENCE: str = "gestaofamiliar"
+    AUTH_KEYCLOAK_ENABLED: bool = False
+    AUTH_LEGACY_PASSWORD_ENABLED: bool = True
+    KEYCLOAK_ALLOW_SIGNUP: bool = False
     
     # Environment
     ENVIRONMENT: str = "development"

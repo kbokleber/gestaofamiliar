@@ -1,4 +1,5 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom'
+import { keycloakEnabled, logoutKeycloak } from '../lib/keycloak'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
@@ -15,6 +16,10 @@ export default function Layout() {
 
   const handleLogout = () => {
     logout()
+    if (keycloakEnabled) {
+      logoutKeycloak()
+      return
+    }
     navigate('/login')
   }
 

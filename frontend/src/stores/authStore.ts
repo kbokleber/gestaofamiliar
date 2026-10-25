@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { keycloakEnabled } from '../lib/keycloak'
 
 interface User {
   id: number
@@ -34,6 +35,14 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      partialize: (state) =>
+        keycloakEnabled
+          ? { user: null, token: null, isAuthenticated: false }
+          : {
+              user: state.user,
+              token: state.token,
+              isAuthenticated: state.isAuthenticated,
+            },
     }
   )
 )

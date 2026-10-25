@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
+import { keycloakEnabled } from '../../lib/keycloak'
 import { useAuthStore } from '../../stores/authStore'
 import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus, Edit, Trash2 } from 'lucide-react'
 import Modal from '../../components/Modal'
@@ -330,7 +331,11 @@ export default function AdminUsers() {
           <Users className="w-5 h-5 sm:w-6 sm:h-6" />
           Administração de Usuários
         </h1>
-        <p className="text-sm sm:text-base text-gray-600 mt-1">Gerencie usuários e senhas do sistema</p>
+        <p className="text-sm sm:text-base text-gray-600 mt-1">
+          {keycloakEnabled
+            ? 'Gerencie usuários. As senhas ficam no Keycloak.'
+            : 'Gerencie usuários e senhas do sistema'}
+        </p>
       </div>
 
       {/* Barra de busca */}
@@ -450,6 +455,7 @@ export default function AdminUsers() {
                 {/* Ações do Card */}
                 <div className="flex flex-col gap-2 pt-3 border-t border-gray-200">
                   <div className="flex gap-2">
+                    {!keycloakEnabled && (
                     <button
                       onClick={() => handleOpenPasswordModal(user)}
                       className="flex-1 flex items-center justify-center px-3 py-2 bg-purple-600 text-white text-sm rounded-md hover:bg-purple-700"
@@ -457,6 +463,7 @@ export default function AdminUsers() {
                       <Lock className="h-4 w-4 mr-1" />
                       Senha
                     </button>
+                    )}
                     {user.id !== currentUser?.id && (
                       <button
                         onClick={() => {
@@ -633,6 +640,7 @@ export default function AdminUsers() {
                           <Edit className="w-4 h-4" />
                           Editar
                         </button>
+                        {!keycloakEnabled && (
                         <button
                           onClick={() => handleOpenPasswordModal(user)}
                           className="text-purple-600 hover:text-purple-900 flex items-center gap-1"
@@ -641,6 +649,7 @@ export default function AdminUsers() {
                           <Lock className="w-4 h-4" />
                           Senha
                         </button>
+                        )}
                         {user.id !== currentUser?.id && (
                           <>
                             <button

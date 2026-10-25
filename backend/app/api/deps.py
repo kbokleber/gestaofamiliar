@@ -1,8 +1,15 @@
 from fastapi import Depends, HTTPException, status, Query, Security
 from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 from app.core.config import settings
+from app.core.keycloak import (
+    KeycloakTokenError,
+    decode_keycloak_token,
+    is_keycloak_access_token,
+    sync_local_roles,
+)
 from app.core.security import decode_access_token
 from app.db.base import get_db
 from app.models.user import User
@@ -10,6 +17,71 @@ from app.models.family import Family
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Token", auto_error=False)
+
+
+def _bind_family_cache(user: User) -> User:
+    if not hasattr(user, "_cached_family_ids"):
+        if user.is_superuser:
+            family_ids = [f.id for f in user.families] if user.families else []
+            if not family_ids and user.family_id:
+                family_ids = [user.family_id]
+        else:
+            family_ids = [user.family_id] if user.family_id else []
+        user._cached_family_ids = family_ids
+    return user
+
+
+def _load_user_by_identity(db: Session, username: Optional[str], email: Optional[str]) -> Optional[User]:
+    query = db.query(User).options(joinedload(User.families))
+    if username:
+        user = query.filter(func.lower(User.username) == username.lower()).first()
+        if user:
+            return user
+    if email:
+        return query.filter(func.lower(User.email) == email.lower()).first()
+    return None
+
+
+def _user_from_keycloak_token(token: str, db: Session) -> User:
+    try:
+        payload = decode_keycloak_token(token)
+    except KeycloakTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Não foi possível validar as credenciais",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    username = payload.get("preferred_username")
+    email = payload.get("email")
+    user = _load_user_by_identity(
+        db,
+        username if isinstance(username, str) else None,
+        email if isinstance(email, str) else None,
+    )
+    if user is None:
+        # Sem criação automática de auth_user, mesmo com KEYCLOAK_ALLOW_SIGNUP.
+        detail = (
+            "Cadastro automático pelo Keycloak ainda não está habilitado"
+            if settings.KEYCLOAK_ALLOW_SIGNUP
+            else "Usuário não cadastrado neste sistema"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuário inativo",
+        )
+
+    if sync_local_roles(user, payload):
+        db.commit()
+        db.refresh(user)
+    return _bind_family_cache(user)
+
 
 async def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
@@ -30,48 +102,34 @@ async def get_current_user(
         ).filter(User.api_token == api_key, User.is_active == True).first()
         if user is None:
             raise credentials_exception
-        # Cachear family_ids
-        if not hasattr(user, '_cached_family_ids'):
-            if user.is_superuser:
-                family_ids = [f.id for f in user.families] if user.families else []
-                if not family_ids and user.family_id:
-                    family_ids = [user.family_id]
-            else:
-                family_ids = [user.family_id] if user.family_id else []
-            user._cached_family_ids = family_ids
-        return user
+        return _bind_family_cache(user)
 
-    # --- Autenticação por JWT Bearer token ---
     if not token:
         raise credentials_exception
-    
+
+    if is_keycloak_access_token(token):
+        return _user_from_keycloak_token(token, db)
+
+    if not settings.AUTH_LEGACY_PASSWORD_ENABLED:
+        raise credentials_exception
+
+    # JWT antigo emitido por POST /auth/login (transição)
     payload = decode_access_token(token)
     if payload is None:
         raise credentials_exception
-    
-    user_id: str = payload.get("sub")
+
+    user_id = payload.get("sub")
     if user_id is None:
         raise credentials_exception
-    
-    # OTIMIZAÇÃO: Carregar usuário junto com suas famílias em uma única query
+
     user = db.query(User).options(
         joinedload(User.families)
     ).filter(User.id == int(user_id)).first()
-    
+
     if user is None:
         raise credentials_exception
-    
-    # Cachear os family_ids no objeto user para evitar queries repetidas
-    if not hasattr(user, '_cached_family_ids'):
-        if user.is_superuser:
-            family_ids = [f.id for f in user.families] if user.families else []
-            if not family_ids and user.family_id:
-                family_ids = [user.family_id]
-        else:
-            family_ids = [user.family_id] if user.family_id else []
-        user._cached_family_ids = family_ids
-    
-    return user
+
+    return _bind_family_cache(user)
 
 
 async def get_current_admin(

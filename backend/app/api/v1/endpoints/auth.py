@@ -20,7 +20,12 @@ async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    """Login e geração de token JWT"""
+    """Login e geração de token JWT local. Desligado quando a transição Keycloak acaba."""
+    if not settings.AUTH_LEGACY_PASSWORD_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Login por senha desativado. Use o Keycloak.",
+        )
     user = db.query(User).filter(User.username == form_data.username).first()
     
     if not user or not verify_password(form_data.password, user.password):
@@ -48,8 +53,13 @@ async def register(
     user_data: UserCreate,
     db: Session = Depends(get_db)
 ):
-    """Registro de novo usuário"""
-    
+    """Registro de novo usuário. Desativado quando o Keycloak está ligado."""
+    if settings.AUTH_KEYCLOAK_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cadastro pelo aplicativo desativado. O acesso é feito pelo Keycloak.",
+        )
+
     # Verificar se usuário já existe
     if db.query(User).filter(User.username == user_data.username).first():
         raise HTTPException(

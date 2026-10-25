@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { rememberBlockedMessage } from '../pages/AcessoNegado'
+import { getAccessToken, keycloak, keycloakEnabled, logoutKeycloak } from './keycloak'
 import { useAuthStore } from '../stores/authStore'
 
 // URL da API - usar variável de ambiente em produção ou URL relativa
@@ -72,11 +74,30 @@ const api = axios.create({
 })
 
 // Interceptor para adicionar token em todas as requisições
+function authDetail(error: { response?: { data?: { detail?: unknown } }; message?: string }) {
+  const detail = error.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail.map((item: { msg?: string }) => item?.msg ?? String(item)).join('; ')
+  }
+  return error.message || ''
+}
+
+function isAccessBlocked(status: number | undefined, detail: string) {
+  if (status === 403 && (detail.includes('papel') || detail.includes('inativo'))) {
+    return true
+  }
+  return status === 401 && detail.includes('não cadastrado')
+}
+
 api.interceptors.request.use(
-  (config) => {
-    const token = useAuthStore.getState().token
+  async (config) => {
+    const token = keycloakEnabled ? await getAccessToken() : useAuthStore.getState().token
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+      if (keycloakEnabled) {
+        useAuthStore.setState({ token })
+      }
     }
     // Debug em desenvolvimento
     if (import.meta.env.DEV) {
@@ -92,23 +113,53 @@ api.interceptors.request.use(
 // Interceptor para lidar com erros de autenticação
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const detail = error.response?.data?.detail
-    if (detail !== undefined && detail !== null) {
-      error.message = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map((d: { msg?: string }) => d?.msg ?? String(d)).join('; ') : String(detail))
+  async (error) => {
+    const detailText = authDetail(error)
+    if (detailText) {
+      error.message = detailText
     }
     if (import.meta.env.DEV) {
       console.error('API Error:', error.response?.status, error.response?.data || error.message)
       console.error('Request URL:', error.config?.url)
       console.error('Token presente:', !!useAuthStore.getState().token)
     }
-    if (error.response?.status === 401) {
+
+    const status = error.response?.status as number | undefined
+    if (isAccessBlocked(status, detailText)) {
+      rememberBlockedMessage(detailText)
+      useAuthStore.getState().logout()
+      if (!window.location.pathname.startsWith('/acesso-negado')) {
+        window.location.replace('/acesso-negado')
+      }
+      return Promise.reject(error)
+    }
+
+    const requestConfig = error.config as { _retry?: boolean; headers: { Authorization?: string } } | undefined
+    if (status === 401 && keycloakEnabled && keycloak && requestConfig && !requestConfig._retry) {
+      requestConfig._retry = true
+      try {
+        await keycloak.updateToken(10_000)
+        if (keycloak.token) {
+          requestConfig.headers.Authorization = `Bearer ${keycloak.token}`
+          useAuthStore.setState({ token: keycloak.token })
+          return api(requestConfig)
+        }
+      } catch {
+        logoutKeycloak()
+        return Promise.reject(error)
+      }
+    }
+
+    if (status === 401) {
       console.warn('Token inválido ou expirado. Fazendo logout e redirecionando...')
       useAuthStore.getState().logout()
-      // Usar setTimeout para garantir que o logout seja processado antes do redirecionamento
-      setTimeout(() => {
-        window.location.href = '/login'
-      }, 100)
+      if (keycloakEnabled) {
+        logoutKeycloak()
+      } else {
+        setTimeout(() => {
+          window.location.href = '/login'
+        }, 100)
+      }
     }
     return Promise.reject(error)
   }
