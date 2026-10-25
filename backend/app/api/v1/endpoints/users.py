@@ -8,9 +8,28 @@ from app.models.family import Family
 from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate, UserUpdate, ApiTokenResponse
 from app.api.deps import get_current_user, get_current_admin
 from app.core.config import settings
+from app.core.keycloak_admin import (
+    KeycloakAdminError,
+    delete_user as delete_keycloak_user,
+    find_user_id,
+    reset_password as reset_keycloak_password,
+    set_enabled as set_keycloak_enabled,
+    sync_admin_role,
+    update_profile as update_keycloak_profile,
+    upsert_user,
+)
 from app.core.security import get_password_hash
 
 router = APIRouter()
+
+
+def _keycloak_or_http(action) -> None:
+    if not settings.AUTH_KEYCLOAK_ENABLED:
+        return
+    try:
+        action()
+    except KeycloakAdminError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 @router.get("/me", response_model=UserWithProfile)
 async def read_user_me(
@@ -156,7 +175,25 @@ async def create_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="É necessário fornecer family_id ou family_code"
         )
-    
+
+    created_in_keycloak = False
+    if settings.AUTH_KEYCLOAK_ENABLED:
+        def _create_remote() -> None:
+            nonlocal created_in_keycloak
+            already_there = find_user_id(user_data.username)
+            created_in_keycloak = already_there is None
+            upsert_user(
+                username=user_data.username,
+                email=user_data.email,
+                first_name=user_data.first_name,
+                last_name=user_data.last_name,
+                password=user_data.password,
+                enabled=True,
+                is_admin=False,
+            )
+
+        _keycloak_or_http(_create_remote)
+
     # Criar novo usuário
     new_user = User(
         username=user_data.username,
@@ -193,6 +230,11 @@ async def create_user(
         return new_user
     except Exception as e:
         db.rollback()
+        if created_in_keycloak:
+            try:
+                delete_keycloak_user(user_data.username)
+            except KeycloakAdminError:
+                pass
         import traceback
         print(f"Erro ao criar usuário: {e}")
         print(traceback.format_exc())
@@ -210,11 +252,6 @@ async def update_user_password(
     current_user: User = Depends(get_current_admin)
 ):
     """Atualizar senha de um usuário (apenas administradores)"""
-    if settings.AUTH_KEYCLOAK_ENABLED:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="A senha é gerenciada no Keycloak.",
-        )
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(
@@ -222,7 +259,7 @@ async def update_user_password(
             detail="Usuário não encontrado"
         )
     
-    # Atualizar senha
+    _keycloak_or_http(lambda: reset_keycloak_password(user.username, password_data.new_password))
     user.password = get_password_hash(password_data.new_password)
     db.commit()
     db.refresh(user)
@@ -250,7 +287,9 @@ async def toggle_user_active(
             detail="Você não pode desativar sua própria conta"
         )
     
-    user.is_active = not user.is_active
+    new_active = not user.is_active
+    _keycloak_or_http(lambda: set_keycloak_enabled(user.username, new_active))
+    user.is_active = new_active
     db.commit()
     db.refresh(user)
     
@@ -324,7 +363,9 @@ async def update_user_permissions(
                 user.family_id = None
             # Limpar múltiplas famílias se houver
             user.families.clear()
-    
+
+    if permissions_data.is_staff is not None or permissions_data.is_superuser is not None:
+        _keycloak_or_http(lambda: sync_admin_role(user.username, is_admin=bool(user.is_superuser)))
     db.commit()
     db.refresh(user)
     
@@ -361,7 +402,14 @@ async def update_user(
     
     if user_data.last_name is not None:
         user.last_name = user_data.last_name
-    
+
+    _keycloak_or_http(lambda: update_keycloak_profile(
+        user.username,
+        email=user.email,
+        first_name=user.first_name,
+        last_name=user.last_name,
+    ))
+
     # Nota: username não pode ser alterado por questões de segurança
     # Nota: password deve ser alterado através do endpoint específico /{user_id}/password
     
@@ -405,6 +453,8 @@ async def delete_user(
             detail="Você não pode excluir sua própria conta"
         )
     
+    _keycloak_or_http(lambda: delete_keycloak_user(user.username))
+
     # Excluir perfil primeiro (se existir)
     profile = db.query(Profile).filter(Profile.user_id == user_id).first()
     if profile:

@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     KEYCLOAK_ISSUER: str = ""
     KEYCLOAK_CLIENT_ID: str = "gestaofamiliar"
     KEYCLOAK_AUDIENCE: str = "gestaofamiliar"
+    KEYCLOAK_ADMIN_CLIENT_ID: str = ""
+    KEYCLOAK_ADMIN_CLIENT_SECRET: str = ""
     AUTH_KEYCLOAK_ENABLED: bool = False
     AUTH_LEGACY_PASSWORD_ENABLED: bool = True
     KEYCLOAK_ALLOW_SIGNUP: bool = False
