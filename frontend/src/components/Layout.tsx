@@ -3,8 +3,9 @@ import { keycloakEnabled, logoutKeycloak } from '../lib/keycloak'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter
+  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen
 } from 'lucide-react'
+import { canSeeMenu, type MenuKey } from '../lib/menus'
 import { useState } from 'react'
 import { useAppVersion } from '../hooks/useAppVersion'
 
@@ -23,11 +24,18 @@ export default function Layout() {
     navigate('/login')
   }
 
-  const navigation = [
-    { name: 'Dashboard', href: '/', icon: Home },
+  const navigation: Array<{
+    name: string
+    href?: string
+    icon: typeof Home
+    menu?: MenuKey
+    children?: Array<{ name: string; href: string; icon: typeof Home }>
+  }> = [
+    { name: 'Dashboard', href: '/', icon: Home, menu: 'dashboard' },
     { 
       name: 'Saúde', 
       icon: Heart,
+      menu: 'saude',
       children: [
         { name: 'Membros da Família', href: '/healthcare/members', icon: Users },
         { name: 'Consultas', href: '/healthcare/appointments', icon: Calendar },
@@ -38,6 +46,7 @@ export default function Layout() {
     {
       name: 'Manutenção',
       icon: Wrench,
+      menu: 'manutencao',
       children: [
         { name: 'Equipamentos', href: '/maintenance/equipment', icon: Settings },
         { name: 'Ordens de Manutenção', href: '/maintenance/orders', icon: Wrench },
@@ -46,6 +55,7 @@ export default function Layout() {
     {
       name: 'Finanças',
       icon: Wallet,
+      menu: 'financas',
       children: [
         { name: 'Painel Geral', href: '/finance', icon: TrendingUp },
         { name: 'Lançamentos', href: '/finance/entries', icon: Wallet },
@@ -54,11 +64,19 @@ export default function Layout() {
         { name: 'Regras de importação', href: '/finance/import-category-rules', icon: ListFilter },
       ]
     },
+    {
+      name: 'Estudos',
+      icon: BookOpen,
+      menu: 'estudos',
+      children: [
+        { name: 'Início', href: '/estudos', icon: BookOpen },
+      ]
+    },
   ]
 
   // Adicionar menu de admin se for superuser (apenas admins, não staff)
   const isAdmin = user?.is_superuser
-  const adminNavigation = isAdmin ? [{
+  const adminNavigation: typeof navigation = isAdmin ? [{
     name: 'Administração',
     icon: Shield,
     children: [
@@ -67,7 +85,8 @@ export default function Layout() {
     ]
   }] : []
 
-  const allNavigation = [...navigation, ...adminNavigation]
+  const visibleNavigation = navigation.filter((item) => item.menu && canSeeMenu(user, item.menu))
+  const allNavigation = [...visibleNavigation, ...adminNavigation]
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-gray-50">
@@ -144,7 +163,7 @@ export default function Layout() {
                     ))}
                   </div>
                 </div>
-              ) : (
+              ) : item.href ? (
                 <Link
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
@@ -153,7 +172,7 @@ export default function Layout() {
                   <item.icon className="mr-3 h-5 w-5" />
                   {item.name}
                 </Link>
-              )}
+              ) : null}
             </div>
           ))}
         </nav>

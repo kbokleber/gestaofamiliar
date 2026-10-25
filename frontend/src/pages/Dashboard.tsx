@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import Loading from '../components/Loading'
 import { useAuthStore } from '../stores/authStore'
+import { canSeeMenu } from '../lib/menus'
 
 interface DashboardStats {
   total_members: number
@@ -14,7 +15,8 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
-  const userId = useAuthStore((s) => s.user?.id)
+  const user = useAuthStore((s) => s.user)
+  const userId = user?.id
 
   // Cache por usuário para não mostrar dados de outra família ao trocar de usuário
   const getPlaceholderData = (): DashboardStats | undefined => {
@@ -50,6 +52,7 @@ export default function Dashboard() {
       icon: Users,
       href: '/healthcare/members',
       color: 'bg-blue-500',
+      menu: 'saude',
     },
     {
       name: 'Próximas Consultas',
@@ -57,6 +60,7 @@ export default function Dashboard() {
       icon: Calendar,
       href: '/healthcare/appointments',
       color: 'bg-green-500',
+      menu: 'saude',
     },
     {
       name: 'Equipamentos',
@@ -64,6 +68,7 @@ export default function Dashboard() {
       icon: Settings,
       href: '/maintenance/equipment',
       color: 'bg-orange-500',
+      menu: 'manutencao',
     },
     {
       name: 'Medicações Ativas',
@@ -71,6 +76,7 @@ export default function Dashboard() {
       icon: Heart,
       href: '/healthcare/medications',
       color: 'bg-red-500',
+      menu: 'saude',
     },
     {
       name: 'Ordens de Manutenção',
@@ -78,8 +84,9 @@ export default function Dashboard() {
       icon: Clock,
       href: '/maintenance/orders',
       color: 'bg-purple-500',
+      menu: 'manutencao',
     },
-  ]
+  ].filter((card) => canSeeMenu(user, card.menu as 'saude' | 'manutencao'))
 
   if (loading && !stats) {
     return <Loading message="Carregando dashboard..." />

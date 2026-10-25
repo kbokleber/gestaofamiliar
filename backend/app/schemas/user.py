@@ -35,6 +35,7 @@ class UserCreate(UserBase):
     password: str
     family_id: Optional[int] = None
     family_code: Optional[str] = None  # Código único da família (alternativa ao family_id)
+    allowed_menus: Optional[list[str]] = None
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -50,6 +51,7 @@ class PermissionsUpdate(BaseModel):
     is_superuser: Optional[bool] = None
     family_id: Optional[int] = None  # Para staff (apenas uma família)
     family_ids: Optional[list[int]] = None  # Para admins (múltiplas famílias)
+    allowed_menus: Optional[list[str]] = None
 
 class User(UserBase):
     id: int
@@ -61,6 +63,7 @@ class User(UserBase):
     family_id: Optional[int] = None
     profile: Optional[Profile] = None
     family_ids: Optional[list[int]] = None  # Para admins (múltiplas famílias)
+    allowed_menus: Optional[list[str]] = None  # None = todos os menus
     api_token: Optional[str] = None  # Token de API estático
     
     class Config:

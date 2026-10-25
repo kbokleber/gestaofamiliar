@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { keycloakEnabled } from '../../lib/keycloak'
+import { MENUS } from '../../lib/menus'
 import { useAuthStore } from '../../stores/authStore'
 import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus, Edit, Trash2 } from 'lucide-react'
 import Modal from '../../components/Modal'
@@ -22,6 +23,7 @@ interface User {
   last_login: string | null
   family_id: number | null
   family_ids?: number[]  // Para admins (múltiplas famílias)
+  allowed_menus?: string[] | null
 }
 
 interface Family {
@@ -56,7 +58,8 @@ export default function AdminUsers() {
     confirmPassword: '',
     first_name: '',
     last_name: '',
-    family_id: 0
+    family_id: 0,
+    allowed_menus: ['estudos'] as string[],
   })
   const [createUserError, setCreateUserError] = useState('')
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
@@ -152,6 +155,7 @@ export default function AdminUsers() {
       first_name: string
       last_name: string
       family_id: number
+      allowed_menus: string[]
     }) => {
       const response = await api.post('/users/', userData)
       return response.data
@@ -166,7 +170,8 @@ export default function AdminUsers() {
         confirmPassword: '',
         first_name: '',
         last_name: '',
-        family_id: 0
+        family_id: 0,
+        allowed_menus: ['estudos'],
       })
       setCreateUserError('')
       alert('Usuário criado com sucesso!')
@@ -206,10 +211,11 @@ export default function AdminUsers() {
 
   // Mutação para atualizar permissões
   const updatePermissionsMutation = useMutation({
-    mutationFn: async ({ userId, isStaff, isSuperuser, familyId, familyIds }: { userId: number; isStaff: boolean; isSuperuser: boolean; familyId?: number | null; familyIds?: number[] }) => {
+    mutationFn: async ({ userId, isStaff, isSuperuser, familyId, familyIds, allowedMenus }: { userId: number; isStaff: boolean; isSuperuser: boolean; familyId?: number | null; familyIds?: number[]; allowedMenus: string[] }) => {
       const payload: any = {
         is_staff: isStaff,
-        is_superuser: isSuperuser
+        is_superuser: isSuperuser,
+        allowed_menus: allowedMenus,
       }
       // Se for admin, enviar múltiplas famílias
       if (isSuperuser && familyIds !== undefined) {
@@ -365,7 +371,8 @@ export default function AdminUsers() {
               confirmPassword: '',
               first_name: '',
               last_name: '',
-              family_id: 0
+              family_id: 0,
+              allowed_menus: ['estudos'],
             })
           }}
           className="flex items-center gap-2 w-full sm:w-auto"
@@ -781,7 +788,8 @@ export default function AdminUsers() {
             confirmPassword: '',
             first_name: '',
             last_name: '',
-            family_id: 0
+            family_id: 0,
+            allowed_menus: ['estudos'],
           })
           setCreateUserError('')
         }}
@@ -917,6 +925,31 @@ export default function AdminUsers() {
             </p>
           </div>
 
+          <div>
+            <p className="block text-sm font-medium text-gray-700 mb-2">Menus</p>
+            <div className="space-y-2 border border-gray-300 rounded-lg p-3">
+              {MENUS.map((menu) => (
+                <label key={menu.key} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newUserData.allowed_menus.includes(menu.key)}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...newUserData.allowed_menus, menu.key]
+                        : newUserData.allowed_menus.filter((key) => key !== menu.key)
+                      setNewUserData({ ...newUserData, allowed_menus: next })
+                    }}
+                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  />
+                  <span className="text-sm text-gray-700">{menu.label}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Para estudos, deixe só Estudos marcado. Dashboard, Saúde, Manutenção e Finanças ficam ocultos.
+            </p>
+          </div>
+
           {createUserError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <p className="text-sm text-red-800">{createUserError}</p>
@@ -935,7 +968,8 @@ export default function AdminUsers() {
                   confirmPassword: '',
                   first_name: '',
                   last_name: '',
-                  family_id: 0
+                  family_id: 0,
+                  allowed_menus: ['estudos'],
                 })
                 setCreateUserError('')
               }}
@@ -970,7 +1004,8 @@ export default function AdminUsers() {
                   password: newUserData.password,
                   first_name: newUserData.first_name,
                   last_name: newUserData.last_name,
-                  family_id: newUserData.family_id
+                  family_id: newUserData.family_id,
+                  allowed_menus: newUserData.allowed_menus,
                 })
               }}
               disabled={createUserMutation.isPending}
@@ -1108,6 +1143,33 @@ export default function AdminUsers() {
                   : 'Staff pode pertencer apenas a uma família'}
               </p>
             </div>
+
+            <div>
+              <p className="block text-sm font-medium text-gray-700 mb-2">Menus</p>
+              <div className="space-y-2 border border-gray-300 rounded-lg p-3">
+                {MENUS.map((menu) => (
+                  <label key={menu.key} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={(selectedUser?.allowed_menus ?? MENUS.map((item) => item.key)).includes(menu.key)}
+                      onChange={(e) => {
+                        if (!selectedUser) return
+                        const current = selectedUser.allowed_menus ?? MENUS.map((item) => item.key)
+                        const next = e.target.checked
+                          ? [...current, menu.key]
+                          : current.filter((key) => key !== menu.key)
+                        setSelectedUser({ ...selectedUser, allowed_menus: next })
+                      }}
+                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                    />
+                    <span className="text-sm text-gray-700">{menu.label}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Admin continua vendo todos os menus. As outras pessoas só veem o que estiver marcado.
+              </p>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
@@ -1128,7 +1190,8 @@ export default function AdminUsers() {
                   isStaff: selectedUser.is_staff,
                   isSuperuser: selectedUser.is_superuser,
                   familyId: selectedUser.family_id,
-                  familyIds: selectedUser.is_superuser ? selectedFamilyIds : undefined
+                  familyIds: selectedUser.is_superuser ? selectedFamilyIds : undefined,
+                  allowedMenus: selectedUser.allowed_menus ?? MENUS.map((menu) => menu.key),
                 })
               }}
               disabled={updatePermissionsMutation.isPending}

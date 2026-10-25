@@ -56,6 +56,11 @@ def startup_create_tables():
     """Cria tabelas que não existem (ex.: family_telegram_config, family_ai_config)."""
     try:
         Base.metadata.create_all(bind=engine)
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE auth_user ADD COLUMN IF NOT EXISTS allowed_menus JSON"
+            ))
         logger.info("Tabelas do banco verificadas/criadas.")
     except Exception as e:
         logger.exception("Erro ao criar tabelas: %s", e)

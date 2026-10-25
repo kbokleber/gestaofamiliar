@@ -13,6 +13,7 @@ interface User {
   is_superuser?: boolean
   is_staff?: boolean
   is_active?: boolean
+  allowed_menus?: string[] | null
   api_token?: string | null
 }
 

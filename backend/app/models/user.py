@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
@@ -24,6 +24,7 @@ class User(Base):
     date_joined = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=True, index=True)  # Mantido para compatibilidade (família principal para staff)
     api_token = Column(String(100), unique=True, nullable=True, index=True)  # Token de API estático para acesso programático
+    allowed_menus = Column(JSON, nullable=True)  # None = todos os menus (usuários antigos)
     
     # Relacionamentos
     family = relationship("Family", back_populates="users", foreign_keys=[family_id])  # Família principal (para staff)

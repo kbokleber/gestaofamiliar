@@ -19,6 +19,22 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login
 api_key_header = APIKeyHeader(name="X-API-Token", auto_error=False)
 
 
+def require_menu(menu: str):
+    """Bloqueia a API do menu quando o usuário não tem essa área liberada."""
+
+    def _dependency(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.is_superuser or current_user.allowed_menus is None:
+            return current_user
+        if menu not in current_user.allowed_menus:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Você não tem acesso a este menu.",
+            )
+        return current_user
+
+    return _dependency
+
+
 def _bind_family_cache(user: User) -> User:
     if not hasattr(user, "_cached_family_ids"):
         if user.is_superuser:

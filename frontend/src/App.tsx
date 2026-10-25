@@ -21,10 +21,20 @@ import FinanceEntries from './pages/finance/FinanceEntries'
 import FinanceRecurrences from './pages/finance/FinanceRecurrences'
 import FinanceCategories from './pages/finance/FinanceCategories'
 import FinanceImportRules from './pages/finance/FinanceImportRules'
+import Estudos, { SemMenu } from './pages/estudos/Estudos'
+import { canSeeMenu, firstAllowedPath, type MenuKey } from './lib/menus'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" />
+}
+
+function MenuRoute({ menu, children }: { menu: MenuKey; children: React.ReactNode }) {
+  const user = useAuthStore((state) => state.user)
+  if (!canSeeMenu(user, menu)) {
+    return <Navigate to={firstAllowedPath(user)} replace />
+  }
+  return <>{children}</>
 }
 
 function App() {
@@ -35,28 +45,30 @@ function App() {
       <Route path="/register" element={keycloakEnabled ? <Navigate to="/login" replace /> : <Register />} />
       
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<MenuRoute menu="dashboard"><Dashboard /></MenuRoute>} />
+        <Route path="/sem-menu" element={<SemMenu />} />
+        <Route path="/estudos" element={<MenuRoute menu="estudos"><Estudos /></MenuRoute>} />
         
         {/* Healthcare Routes */}
-        <Route path="/healthcare/members" element={<FamilyMembers />} />
-        <Route path="/healthcare/appointments" element={<Appointments />} />
-        <Route path="/healthcare/appointments-test" element={<AppointmentsTest />} />
-        <Route path="/healthcare/procedures" element={<Procedures />} />
-        <Route path="/healthcare/medications" element={<Medications />} />
+        <Route path="/healthcare/members" element={<MenuRoute menu="saude"><FamilyMembers /></MenuRoute>} />
+        <Route path="/healthcare/appointments" element={<MenuRoute menu="saude"><Appointments /></MenuRoute>} />
+        <Route path="/healthcare/appointments-test" element={<MenuRoute menu="saude"><AppointmentsTest /></MenuRoute>} />
+        <Route path="/healthcare/procedures" element={<MenuRoute menu="saude"><Procedures /></MenuRoute>} />
+        <Route path="/healthcare/medications" element={<MenuRoute menu="saude"><Medications /></MenuRoute>} />
         
         {/* Maintenance Routes */}
-        <Route path="/maintenance/equipment" element={<Equipment />} />
-        <Route path="/maintenance/orders" element={<MaintenanceOrders />} />
+        <Route path="/maintenance/equipment" element={<MenuRoute menu="manutencao"><Equipment /></MenuRoute>} />
+        <Route path="/maintenance/orders" element={<MenuRoute menu="manutencao"><MaintenanceOrders /></MenuRoute>} />
         
         {/* Profile / Settings */}
         <Route path="/profile" element={<UserProfile />} />
         
         {/* Finance Routes */}
-        <Route path="/finance" element={<FinanceDashboard />} />
-        <Route path="/finance/entries" element={<FinanceEntries />} />
-        <Route path="/finance/recurrences" element={<FinanceRecurrences />} />
-        <Route path="/finance/categories" element={<FinanceCategories />} />
-        <Route path="/finance/import-category-rules" element={<FinanceImportRules />} />
+        <Route path="/finance" element={<MenuRoute menu="financas"><FinanceDashboard /></MenuRoute>} />
+        <Route path="/finance/entries" element={<MenuRoute menu="financas"><FinanceEntries /></MenuRoute>} />
+        <Route path="/finance/recurrences" element={<MenuRoute menu="financas"><FinanceRecurrences /></MenuRoute>} />
+        <Route path="/finance/categories" element={<MenuRoute menu="financas"><FinanceCategories /></MenuRoute>} />
+        <Route path="/finance/import-category-rules" element={<MenuRoute menu="financas"><FinanceImportRules /></MenuRoute>} />
         
         {/* Admin Routes */}
         <Route path="/admin/users" element={<AdminUsers />} />
