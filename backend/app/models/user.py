@@ -21,6 +21,7 @@ class User(Base):
     email = Column(String(254), nullable=False, default='')
     is_staff = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    is_child = Column(Boolean, default=False, nullable=False)
     date_joined = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=True, index=True)  # Mantido para compatibilidade (família principal para staff)
     api_token = Column(String(100), unique=True, nullable=True, index=True)  # Token de API estático para acesso programático

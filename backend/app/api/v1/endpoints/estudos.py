@@ -38,22 +38,32 @@ def _to_schema(atividade: Atividade) -> AtividadeSchema:
     )
 
 
-def _filho_ativo(db: Session, aluno_id: int) -> User:
+def _mesma_familia(atividade: Atividade, current_user: User) -> None:
+    if current_user.is_superuser and atividade.family_id != current_user.family_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
+
+
+def _filho_ativo(db: Session, aluno_id: int, current_user: User) -> User:
     aluno = db.query(User).filter(User.id == aluno_id).first()
     if aluno is None or not aluno.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Filho não encontrado ou inativo.",
         )
-    if aluno.is_superuser:
+    if aluno.is_superuser or not aluno.is_child:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A atividade precisa ser de um filho, não de um administrador.",
+            detail="A atividade precisa ser de um usuário marcado como filho.",
         )
     if not aluno.family_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O filho não tem família associada.",
+        )
+    if aluno.family_id != current_user.family_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Esse filho pertence a outra família.",
         )
     return aluno
 
@@ -78,11 +88,12 @@ async def list_atividades(
 ):
     """Lista atividades. Aceita Bearer ou header X-API-Token.
 
-    O filho recebe somente as próprias. O administrador recebe todas
-    e pode filtrar com o parâmetro aluno_id.
+    O filho recebe somente as próprias. O administrador recebe as da
+    própria família e pode filtrar com o parâmetro aluno_id.
     """
     query = db.query(Atividade).options(joinedload(Atividade.aluno))
     if current_user.is_superuser:
+        query = query.filter(Atividade.family_id == current_user.family_id)
         if aluno_id is not None:
             query = query.filter(Atividade.aluno_id == aluno_id)
     else:
@@ -101,6 +112,7 @@ async def read_atividade(
     atividade = _get_or_404(db, atividade_id)
     if not current_user.is_superuser and atividade.aluno_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
+    _mesma_familia(atividade, current_user)
     return _to_schema(atividade)
 
 
@@ -113,7 +125,7 @@ async def create_atividade(
     """Cria uma atividade para um filho. Somente administrador, via Bearer ou X-API-Token."""
     if not payload.titulo.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Título é obrigatório.")
-    aluno = _filho_ativo(db, payload.aluno_id)
+    aluno = _filho_ativo(db, payload.aluno_id, current_user)
     atividade = Atividade(
         aluno_id=aluno.id,
         family_id=aluno.family_id,
@@ -144,7 +156,8 @@ async def update_atividade(
     if not payload.titulo.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Título é obrigatório.")
     atividade = _get_or_404(db, atividade_id)
-    aluno = _filho_ativo(db, payload.aluno_id)
+    _mesma_familia(atividade, current_user)
+    aluno = _filho_ativo(db, payload.aluno_id, current_user)
     atividade.aluno_id = aluno.id
     atividade.family_id = aluno.family_id
     atividade.titulo = payload.titulo.strip()
@@ -191,6 +204,7 @@ async def reabrir_atividade(
 ):
     """O administrador devolve a atividade para pendente. Aceita Bearer ou X-API-Token."""
     atividade = _get_or_404(db, atividade_id)
+    _mesma_familia(atividade, current_user)
     if atividade.status != "concluida":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Esta atividade já está pendente.")
     atividade.status = "pendente"
@@ -208,6 +222,7 @@ async def delete_atividade(
 ):
     """Exclui uma atividade. Somente administrador."""
     atividade = _get_or_404(db, atividade_id)
+    _mesma_familia(atividade, current_user)
     db.delete(atividade)
     db.commit()
     return {"message": "Atividade excluída com sucesso"}

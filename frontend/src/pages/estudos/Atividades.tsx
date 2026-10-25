@@ -28,6 +28,8 @@ interface AlunoOption {
   last_name: string
   is_superuser: boolean
   is_active: boolean
+  is_child?: boolean
+  family_id?: number | null
 }
 
 interface FormState {
@@ -229,7 +231,13 @@ export default function Atividades() {
     enabled: isAdmin,
   })
 
-  const filhos = usuarios.filter((aluno) => aluno.is_active && !aluno.is_superuser)
+  const filhos = usuarios.filter((aluno) => (
+    aluno.is_active
+    && aluno.is_child
+    && !aluno.is_superuser
+    && user?.family_id != null
+    && aluno.family_id === user.family_id
+  ))
 
   const agora = new Date()
   const nomeMes = agora.toLocaleDateString('pt-BR', { month: 'long' })

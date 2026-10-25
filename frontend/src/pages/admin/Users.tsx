@@ -19,6 +19,7 @@ interface User {
   is_active: boolean
   is_staff: boolean
   is_superuser: boolean
+  is_child?: boolean
   date_joined: string
   last_login: string | null
   family_id: number | null
@@ -60,6 +61,7 @@ export default function AdminUsers() {
     last_name: '',
     family_id: 0,
     allowed_menus: ['estudos'] as string[],
+    is_child: false,
   })
   const [createUserError, setCreateUserError] = useState('')
   const [userToDelete, setUserToDelete] = useState<User | null>(null)
@@ -156,6 +158,7 @@ export default function AdminUsers() {
       last_name: string
       family_id: number
       allowed_menus: string[]
+      is_child: boolean
     }) => {
       const response = await api.post('/users/', userData)
       return response.data
@@ -172,6 +175,7 @@ export default function AdminUsers() {
         last_name: '',
         family_id: 0,
         allowed_menus: ['estudos'],
+        is_child: false,
       })
       setCreateUserError('')
       alert('Usuário criado com sucesso!')
@@ -211,10 +215,11 @@ export default function AdminUsers() {
 
   // Mutação para atualizar permissões
   const updatePermissionsMutation = useMutation({
-    mutationFn: async ({ userId, isStaff, isSuperuser, familyId, familyIds, allowedMenus }: { userId: number; isStaff: boolean; isSuperuser: boolean; familyId?: number | null; familyIds?: number[]; allowedMenus: string[] }) => {
+    mutationFn: async ({ userId, isStaff, isSuperuser, isChild, familyId, familyIds, allowedMenus }: { userId: number; isStaff: boolean; isSuperuser: boolean; isChild: boolean; familyId?: number | null; familyIds?: number[]; allowedMenus: string[] }) => {
       const payload: any = {
         is_staff: isStaff,
         is_superuser: isSuperuser,
+        is_child: isChild,
         allowed_menus: allowedMenus,
       }
       // Se for admin, enviar múltiplas famílias
@@ -373,6 +378,7 @@ export default function AdminUsers() {
               last_name: '',
               family_id: 0,
               allowed_menus: ['estudos'],
+              is_child: false,
             })
           }}
           className="flex items-center gap-2 w-full sm:w-auto"
@@ -444,7 +450,12 @@ export default function AdminUsers() {
                           Staff
                         </span>
                       )}
-                      {!user.is_superuser && !user.is_staff && (
+                      {user.is_child && (
+                        <span className="inline-block px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded">
+                          Filho
+                        </span>
+                      )}
+                      {!user.is_superuser && !user.is_staff && !user.is_child && (
                         <span className="text-gray-400 text-xs">Nenhuma</span>
                       )}
                     </div>
@@ -601,7 +612,12 @@ export default function AdminUsers() {
                             Staff
                           </span>
                         )}
-                        {!user.is_superuser && !user.is_staff && (
+                        {user.is_child && (
+                          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 rounded">
+                            Filho
+                          </span>
+                        )}
+                        {!user.is_superuser && !user.is_staff && !user.is_child && (
                           <span className="text-gray-400">-</span>
                         )}
                         <button
@@ -790,6 +806,7 @@ export default function AdminUsers() {
             last_name: '',
             family_id: 0,
             allowed_menus: ['estudos'],
+            is_child: false,
           })
           setCreateUserError('')
         }}
@@ -926,6 +943,21 @@ export default function AdminUsers() {
           </div>
 
           <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={newUserData.is_child}
+                onChange={(e) => setNewUserData({ ...newUserData, is_child: e.target.checked })}
+                className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Filho</span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1">
+              Só quem estiver marcado aparece na lista de Atividades.
+            </p>
+          </div>
+
+          <div>
             <p className="block text-sm font-medium text-gray-700 mb-2">Menus</p>
             <div className="space-y-2 border border-gray-300 rounded-lg p-3">
               {MENUS.map((menu) => (
@@ -970,6 +1002,7 @@ export default function AdminUsers() {
                   last_name: '',
                   family_id: 0,
                   allowed_menus: ['estudos'],
+                  is_child: false,
                 })
                 setCreateUserError('')
               }}
@@ -1006,6 +1039,7 @@ export default function AdminUsers() {
                   last_name: newUserData.last_name,
                   family_id: newUserData.family_id,
                   allowed_menus: newUserData.allowed_menus,
+                  is_child: newUserData.is_child,
                 })
               }}
               disabled={createUserMutation.isPending}
@@ -1049,8 +1083,8 @@ export default function AdminUsers() {
                     setSelectedUser({
                       ...selectedUser,
                       is_superuser: e.target.checked,
-                      // Se marcar Admin, automaticamente marca Staff
-                      is_staff: e.target.checked ? true : selectedUser.is_staff
+                      is_staff: e.target.checked ? true : selectedUser.is_staff,
+                      is_child: e.target.checked ? false : selectedUser.is_child,
                     })
                   }
                 }}
@@ -1080,6 +1114,27 @@ export default function AdminUsers() {
               <div>
                 <span className="text-sm font-medium text-gray-700">Staff</span>
                 <p className="text-xs text-gray-500">Acesso administrativo básico</p>
+              </div>
+            </label>
+
+            <label className={`flex items-center space-x-3 ${selectedUser?.is_superuser ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+              <input
+                type="checkbox"
+                checked={!!selectedUser?.is_child && !selectedUser?.is_superuser}
+                onChange={(e) => {
+                  if (selectedUser && !selectedUser.is_superuser) {
+                    setSelectedUser({
+                      ...selectedUser,
+                      is_child: e.target.checked,
+                    })
+                  }
+                }}
+                disabled={selectedUser?.is_superuser || false}
+                className="w-5 h-5 text-amber-600 border-gray-300 rounded focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <div>
+                <span className="text-sm font-medium text-gray-700">Filho</span>
+                <p className="text-xs text-gray-500">Aparece na lista de Atividades</p>
               </div>
             </label>
 
@@ -1189,6 +1244,7 @@ export default function AdminUsers() {
                   userId: selectedUser.id,
                   isStaff: selectedUser.is_staff,
                   isSuperuser: selectedUser.is_superuser,
+                  isChild: !!selectedUser.is_child && !selectedUser.is_superuser,
                   familyId: selectedUser.family_id,
                   familyIds: selectedUser.is_superuser ? selectedFamilyIds : undefined,
                   allowedMenus: selectedUser.allowed_menus ?? MENUS.map((menu) => menu.key),

@@ -36,6 +36,7 @@ class UserCreate(UserBase):
     family_id: Optional[int] = None
     family_code: Optional[str] = None  # Código único da família (alternativa ao family_id)
     allowed_menus: Optional[list[str]] = None
+    is_child: bool = False
 
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
@@ -52,12 +53,14 @@ class PermissionsUpdate(BaseModel):
     family_id: Optional[int] = None  # Para staff (apenas uma família)
     family_ids: Optional[list[int]] = None  # Para admins (múltiplas famílias)
     allowed_menus: Optional[list[str]] = None
+    is_child: Optional[bool] = None
 
 class User(UserBase):
     id: int
     is_active: bool
     is_staff: bool
     is_superuser: bool
+    is_child: bool = False
     date_joined: datetime
     last_login: Optional[datetime] = None
     family_id: Optional[int] = None

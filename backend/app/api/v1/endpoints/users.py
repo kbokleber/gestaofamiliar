@@ -127,6 +127,7 @@ async def list_users(
             "is_active": user.is_active,
             "is_staff": user.is_staff,
             "is_superuser": user.is_superuser,
+            "is_child": bool(user.is_child),
             "date_joined": user.date_joined,
             "last_login": user.last_login,
             "family_id": user.family_id,
@@ -213,6 +214,7 @@ async def create_user(
         is_active=True,
         is_staff=False,
         is_superuser=False,
+        is_child=bool(user_data.is_child),
         family_id=family_id,
         allowed_menus=menus,
         date_joined=datetime.now(timezone.utc)
@@ -329,6 +331,10 @@ async def update_user_permissions(
         # Se for superuser, automaticamente é staff também
         if user.is_superuser:
             user.is_staff = True
+            user.is_child = False
+
+    if permissions_data.is_child is not None and not user.is_superuser:
+        user.is_child = permissions_data.is_child
     
     # Atualizar famílias
     # Se for admin (superuser), pode ter múltiplas famílias
