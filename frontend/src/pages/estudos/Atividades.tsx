@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText } from 'lucide-react'
+import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText, X } from 'lucide-react'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+
+GlobalWorkerOptions.workerSrc = pdfWorker
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Button from '../../components/Button'
@@ -198,6 +203,71 @@ function CartaoAtividade({
   )
 }
 
+function PaginasPdf({ url }: { url: string }) {
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [falha, setFalha] = useState('')
+  const [carregando, setCarregando] = useState(true)
+
+  useEffect(() => {
+    let cancelado = false
+    const host = hostRef.current
+    if (!host) return
+    host.replaceChildren()
+    setCarregando(true)
+    setFalha('')
+    let destruir = () => undefined as void
+    fetch(url)
+      .then((resposta) => resposta.arrayBuffer())
+      .then((buffer) => getDocument({ data: new Uint8Array(buffer) }))
+      .then((carregado) => {
+        destruir = () => {
+          carregado.destroy()
+        }
+        return carregado.promise
+      })
+      .then(async (pdf) => {
+        for (let numero = 1; numero <= pdf.numPages; numero += 1) {
+          if (cancelado) return
+          const pagina = await pdf.getPage(numero)
+          const base = pagina.getViewport({ scale: 1 })
+          const largura = host.clientWidth || window.innerWidth
+          const escala = (largura / base.width) * Math.min(2, window.devicePixelRatio || 1)
+          const viewport = pagina.getViewport({ scale: escala })
+          const canvas = document.createElement('canvas')
+          const contexto = canvas.getContext('2d')
+          if (!contexto) continue
+          canvas.width = viewport.width
+          canvas.height = viewport.height
+          canvas.className = 'mb-3 w-full bg-white'
+          canvas.style.width = '100%'
+          canvas.style.height = 'auto'
+          await pagina.render({ canvasContext: contexto, viewport }).promise
+          if (!cancelado) host.appendChild(canvas)
+          if (numero === 1) setCarregando(false)
+        }
+        if (!cancelado) setCarregando(false)
+      })
+      .catch(() => {
+        if (!cancelado) {
+          setCarregando(false)
+          setFalha('Não foi possível mostrar o PDF.')
+        }
+      })
+    return () => {
+      cancelado = true
+      destruir()
+    }
+  }, [url])
+
+  return (
+    <div className="min-h-0 flex-1 overflow-auto bg-neutral-800 px-2 py-3">
+      {carregando && <p className="mb-3 text-center text-sm text-white">Abrindo PDF...</p>}
+      {falha && <p className="text-center text-sm text-red-200">{falha}</p>}
+      <div ref={hostRef} />
+    </div>
+  )
+}
+
 function GaleriaAnexos({
   atividade,
   isAdmin,
@@ -210,6 +280,7 @@ function GaleriaAnexos({
   const [urls, setUrls] = useState<string[]>([])
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
+  const [aberto, setAberto] = useState<number | null>(null)
   const anexos = atividade.anexos ?? []
   const chaveAnexos = anexos.map((item, indice) => `${indice}:${item.name}:${item.size}`).join('|')
 
@@ -274,20 +345,12 @@ function GaleriaAnexos({
   }
 
   const visualizar = (indice: number) => {
-    const atual = urls[indice]
-    if (!atual) return
-    const tipo = anexos[indice]?.type || 'application/octet-stream'
-    fetch(atual)
-      .then((resposta) => resposta.blob())
-      .then((conteudo) => {
-        const endereco = URL.createObjectURL(new Blob([conteudo], { type: tipo }))
-        const janela = window.open(endereco, '_blank')
-        if (!janela) {
-          URL.revokeObjectURL(endereco)
-          setErro('O navegador bloqueou a visualização. Permita abrir novas abas.')
-        }
-      })
-      .catch(() => setErro('Não foi possível visualizar o arquivo.'))
+    if (!urls[indice]) {
+      setErro('O arquivo ainda está carregando.')
+      return
+    }
+    setErro('')
+    setAberto(indice)
   }
 
   return (
@@ -316,7 +379,7 @@ function GaleriaAnexos({
                     className="flex min-h-12 items-center justify-center gap-2 text-base text-indigo-700 active:bg-indigo-50 disabled:text-gray-400"
                   >
                     <Eye className="h-5 w-5" />
-                    Visualizar
+                    {url ? 'Visualizar' : 'Carregando...'}
                   </button>
                   {isAdmin && (
                     <button
@@ -352,6 +415,29 @@ function GaleriaAnexos({
         </label>
       )}
       {erro && <p className="text-sm text-red-700">{erro}</p>}
+      {aberto !== null && urls[aberto] && createPortal(
+        <div className="fixed inset-0 z-[80] flex flex-col bg-neutral-900">
+          <div className="flex items-center justify-between gap-3 bg-white px-3 py-2">
+            <p className="truncate text-base font-medium text-gray-900">{anexos[aberto]?.name}</p>
+            <button
+              type="button"
+              onClick={() => setAberto(null)}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-600"
+              aria-label="Fechar visualização"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          {anexos[aberto]?.type.startsWith('image/') ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-800 p-2">
+              <img src={urls[aberto]} alt={anexos[aberto]?.name || 'Imagem'} className="max-h-full max-w-full object-contain" />
+            </div>
+          ) : (
+            <PaginasPdf url={urls[aberto]} />
+          )}
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }
