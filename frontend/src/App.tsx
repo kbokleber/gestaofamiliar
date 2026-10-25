@@ -21,7 +21,7 @@ import FinanceEntries from './pages/finance/FinanceEntries'
 import FinanceRecurrences from './pages/finance/FinanceRecurrences'
 import FinanceCategories from './pages/finance/FinanceCategories'
 import FinanceImportRules from './pages/finance/FinanceImportRules'
-import Estudos, { SemMenu } from './pages/estudos/Estudos'
+import { Atividades, Provas, SemMenu } from './pages/estudos/Estudos'
 import { canSeeMenu, firstAllowedPath, type MenuKey } from './lib/menus'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -47,7 +47,9 @@ function App() {
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route path="/" element={<MenuRoute menu="dashboard"><Dashboard /></MenuRoute>} />
         <Route path="/sem-menu" element={<SemMenu />} />
-        <Route path="/estudos" element={<MenuRoute menu="estudos"><Estudos /></MenuRoute>} />
+        <Route path="/estudos" element={<Navigate to="/estudos/atividades" replace />} />
+        <Route path="/estudos/atividades" element={<MenuRoute menu="estudos"><Atividades /></MenuRoute>} />
+        <Route path="/estudos/provas" element={<MenuRoute menu="estudos"><Provas /></MenuRoute>} />
         
         {/* Healthcare Routes */}
         <Route path="/healthcare/members" element={<MenuRoute menu="saude"><FamilyMembers /></MenuRoute>} />

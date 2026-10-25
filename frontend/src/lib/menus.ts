@@ -3,7 +3,7 @@ export const MENUS = [
   { key: 'saude', label: 'Saúde', href: '/healthcare/members' },
   { key: 'manutencao', label: 'Manutenção', href: '/maintenance/equipment' },
   { key: 'financas', label: 'Finanças', href: '/finance' },
-  { key: 'estudos', label: 'Estudos', href: '/estudos' },
+  { key: 'estudos', label: 'Estudos', href: '/estudos/atividades' },
 ] as const
 
 export type MenuKey = (typeof MENUS)[number]['key']

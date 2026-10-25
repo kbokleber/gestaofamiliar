@@ -3,7 +3,7 @@ import { keycloakEnabled, logoutKeycloak } from '../lib/keycloak'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen
+  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen, ClipboardList, FileText
 } from 'lucide-react'
 import { canSeeMenu, type MenuKey } from '../lib/menus'
 import { useState } from 'react'
@@ -69,7 +69,8 @@ export default function Layout() {
       icon: BookOpen,
       menu: 'estudos',
       children: [
-        { name: 'Início', href: '/estudos', icon: BookOpen },
+        { name: 'Atividades', href: '/estudos/atividades', icon: ClipboardList },
+        { name: 'Provas', href: '/estudos/provas', icon: FileText },
       ]
     },
   ]

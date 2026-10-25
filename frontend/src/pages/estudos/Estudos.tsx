@@ -1,14 +1,28 @@
-import { BookOpen } from 'lucide-react'
+import { ClipboardList, FileText } from 'lucide-react'
 
-export default function Estudos() {
+export function Atividades() {
   return (
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-        <BookOpen className="w-8 h-8 text-indigo-600" />
-        Estudos
+        <ClipboardList className="w-8 h-8 text-indigo-600" />
+        Atividades
       </h1>
       <p className="text-gray-600 max-w-2xl">
-        Esta área fica reservada para o sistema de estudos. O conteúdo entra aqui depois.
+        As atividades de estudo entram nesta tela.
+      </p>
+    </div>
+  )
+}
+
+export function Provas() {
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-gray-900 mb-3 flex items-center gap-2">
+        <FileText className="w-8 h-8 text-indigo-600" />
+        Provas
+      </h1>
+      <p className="text-gray-600 max-w-2xl">
+        As provas entram nesta tela.
       </p>
     </div>
   )
