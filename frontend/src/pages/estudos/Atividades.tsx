@@ -258,38 +258,38 @@ function GaleriaAnexos({
     }
   }
 
+  const fechar = () => {
+    setUrlAberta((atual) => {
+      if (atual.startsWith('blob:')) URL.revokeObjectURL(atual)
+      return ''
+    })
+    setAberto(null)
+  }
+
   const visualizar = async (indice: number) => {
     const anexo = anexos[indice]
     if (!anexo) return
+    const imagem = anexo.type.startsWith('image/')
+    const janela = imagem ? null : window.open('', '_blank')
     setErro('')
-    if (!anexo.type.startsWith('image/')) {
-      const janela = window.open('', '_blank')
-      try {
-        const resposta = await api.get(
-          `/estudos/atividades/${atividade.id}/anexos/${indice}/download`,
-          { params: { inline: 1 }, responseType: 'blob' },
-        )
-        const endereco = URL.createObjectURL(new Blob([resposta.data], { type: 'application/pdf' }))
-        if (janela) {
-          janela.location.href = endereco
-          return
-        }
-        setAberto(indice)
-        setUrlAberta(endereco)
-      } catch (error: any) {
-        janela?.close()
-        setErro(error.response?.data?.detail || 'Não foi possível abrir o PDF.')
-      }
-      return
-    }
-    setAberto(indice)
+    setAberto(imagem ? indice : null)
     setUrlAberta('')
     try {
-      const resposta = await api.get<{ url: string }>(`/estudos/atividades/${atividade.id}/anexos/${indice}/link`)
-      setUrlAberta(resposta.data.url)
+      const resposta = await api.get(
+        `/estudos/atividades/${atividade.id}/anexos/${indice}/download`,
+        { params: { inline: 1 }, responseType: 'blob' },
+      )
+      const endereco = URL.createObjectURL(new Blob([resposta.data], { type: anexo.type || 'application/octet-stream' }))
+      if (janela) {
+        janela.location.href = endereco
+        return
+      }
+      if (!imagem) setAberto(indice)
+      setUrlAberta(endereco)
     } catch (error: any) {
-      setErro(error.response?.data?.detail || 'Não foi possível abrir o arquivo.')
+      janela?.close()
       setAberto(null)
+      setErro(error.response?.data?.detail || 'Não foi possível abrir o arquivo.')
     }
   }
 
@@ -357,7 +357,7 @@ function GaleriaAnexos({
             <p className="truncate text-base font-medium text-gray-900">{anexos[aberto]?.name}</p>
             <button
               type="button"
-              onClick={() => { setAberto(null); setUrlAberta('') }}
+              onClick={fechar}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-gray-600"
               aria-label="Fechar visualização"
             >
