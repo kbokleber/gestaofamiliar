@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, X } from 'lucide-react'
+import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Button from '../../components/Button'
@@ -224,11 +224,13 @@ function GaleriaAnexos({
             { responseType: 'blob' },
           )
           if (!ativo) return
-          criadas.push(URL.createObjectURL(resposta.data))
+          const tipo = anexos[indice]?.type || resposta.data.type || 'application/octet-stream'
+          const arquivo = resposta.data.type === tipo ? resposta.data : new Blob([resposta.data], { type: tipo })
+          criadas.push(URL.createObjectURL(arquivo))
         }
         if (ativo) setUrls([...criadas])
       } catch {
-        if (ativo) setErro('Não foi possível abrir as imagens.')
+        if (ativo) setErro('Não foi possível abrir os anexos.')
       }
     }
     setUrls([])
@@ -255,7 +257,7 @@ function GaleriaAnexos({
       })
       onChange({ ...resposta.data, anexos: resposta.data.anexos ?? [] })
     } catch (error: any) {
-      setErro(error.response?.data?.detail || 'Não foi possível enviar a imagem.')
+      setErro(error.response?.data?.detail || 'Não foi possível enviar o arquivo.')
     } finally {
       setEnviando(false)
     }
@@ -267,42 +269,78 @@ function GaleriaAnexos({
       const resposta = await api.delete<Atividade>(`/estudos/atividades/${atividade.id}/anexos/${indice}`)
       onChange({ ...resposta.data, anexos: resposta.data.anexos ?? [] })
     } catch (error: any) {
-      setErro(error.response?.data?.detail || 'Não foi possível excluir a imagem.')
+      setErro(error.response?.data?.detail || 'Não foi possível excluir o anexo.')
     }
+  }
+
+  const visualizar = (indice: number) => {
+    const atual = urls[indice]
+    if (!atual) return
+    const tipo = anexos[indice]?.type || 'application/octet-stream'
+    fetch(atual)
+      .then((resposta) => resposta.blob())
+      .then((conteudo) => {
+        const endereco = URL.createObjectURL(new Blob([conteudo], { type: tipo }))
+        const janela = window.open(endereco, '_blank')
+        if (!janela) {
+          URL.revokeObjectURL(endereco)
+          setErro('O navegador bloqueou a visualização. Permita abrir novas abas.')
+        }
+      })
+      .catch(() => setErro('Não foi possível visualizar o arquivo.'))
   }
 
   return (
     <div className="space-y-3">
-      {urls.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
-          {urls.map((url, indice) => (
-            <div key={`${anexos[indice]?.name ?? 'imagem'}-${indice}`} className="relative">
-              <img
-                src={url}
-                alt={anexos[indice]?.name || 'Imagem da atividade'}
-                className="h-40 w-full rounded-xl border border-gray-200 object-cover"
-              />
-              {isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => remover(indice)}
-                  className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-red-700 shadow"
-                  aria-label={`Excluir ${anexos[indice]?.name || 'imagem'}`}
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
-            </div>
-          ))}
+      {anexos.length > 0 && (
+        <div className="space-y-3">
+          {anexos.map((anexo, indice) => {
+            const url = urls[indice]
+            const imagem = anexo.type.startsWith('image/')
+            return (
+              <article key={`${anexo.name}-${indice}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                {imagem && url && (
+                  <img src={url} alt={anexo.name} className="h-44 w-full object-cover" />
+                )}
+                {!imagem && (
+                  <div className="flex items-center gap-3 px-4 py-4">
+                    <FileText className="h-6 w-6 shrink-0 text-red-600" />
+                    <p className="truncate text-base text-gray-800">{anexo.name}</p>
+                  </div>
+                )}
+                <div className={isAdmin ? 'grid grid-cols-2 border-t border-gray-100' : 'border-t border-gray-100'}>
+                  <button
+                    type="button"
+                    onClick={() => visualizar(indice)}
+                    disabled={!url}
+                    className="flex min-h-12 items-center justify-center gap-2 text-base text-indigo-700 active:bg-indigo-50 disabled:text-gray-400"
+                  >
+                    <Eye className="h-5 w-5" />
+                    Visualizar
+                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => remover(indice)}
+                      className="flex min-h-12 items-center justify-center gap-2 border-l border-gray-100 text-base text-red-700 active:bg-red-50"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                      Remover
+                    </button>
+                  )}
+                </div>
+              </article>
+            )
+          })}
         </div>
       )}
       {isAdmin && (
         <label className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 px-3 text-base text-gray-700">
           <ImagePlus className="h-5 w-5" />
-          {enviando ? 'Enviando...' : 'Adicionar imagem'}
+          {enviando ? 'Enviando...' : 'Adicionar imagem ou PDF'}
           <input
             type="file"
-            accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+            accept="image/png,image/jpeg,.png,.jpg,.jpeg,application/pdf,.pdf"
             className="hidden"
             disabled={enviando}
             onChange={(evento) => {

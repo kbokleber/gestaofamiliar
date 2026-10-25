@@ -15,12 +15,13 @@ from app.schemas.estudo import Anexo, Atividade as AtividadeSchema
 from app.schemas.estudo import AtividadeCreate, AtividadeUpdate
 from app.utils.file_response import get_document_response
 
-TAMANHO_MAXIMO = 10 * 1024 * 1024
+TAMANHO_MAXIMO = 25 * 1024 * 1024
 LIMITE_ANEXOS = 10
-TIPOS_IMAGEM = {
+TIPOS_ANEXO = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".png": "image/png",
+    ".pdf": "application/pdf",
 }
 
 router = APIRouter()
@@ -82,28 +83,31 @@ def _pode_ver(atividade: Atividade, current_user: User) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
 
 
-def _imagem_valida(nome: str, conteudo: bytes, content_type: str) -> str:
+def _anexo_valido(nome: str, conteudo: bytes, content_type: str) -> str:
     extensao = PurePath(nome).suffix.lower()
-    tipo = TIPOS_IMAGEM.get(extensao)
+    tipo = TIPOS_ANEXO.get(extensao)
     if tipo is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Envie uma imagem PNG ou JPG.",
+            detail="Envie uma imagem PNG, JPG ou um PDF.",
         )
     informado = (content_type or "").split(";")[0].strip().lower()
     if informado in {"image/jpg", "image/pjpeg"}:
         informado = "image/jpeg"
-    if informado and informado != tipo:
+    if informado and informado not in {"application/octet-stream", "binary/octet-stream"} and informado != tipo:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Envie uma imagem PNG ou JPG.",
+            detail="Envie uma imagem PNG, JPG ou um PDF.",
         )
     png = conteudo.startswith(b"\x89PNG\r\n\x1a\n")
     jpeg = conteudo.startswith(b"\xff\xd8\xff")
+    pdf = conteudo.startswith(b"%PDF")
     if tipo == "image/png" and not png:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo não é um PNG válido.")
     if tipo == "image/jpeg" and not jpeg:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo não é um JPG válido.")
+    if tipo == "application/pdf" and not pdf:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo não é um PDF válido.")
     return tipo
 
 
@@ -197,18 +201,18 @@ async def adicionar_anexo(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    """Anexa uma imagem PNG ou JPG. Somente administrador, via multipart no campo file."""
+    """Anexa uma imagem PNG, JPG ou um PDF. Somente administrador, via multipart no campo file."""
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
     conteudo = await file.read()
     if not conteudo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo está vazio.")
     if len(conteudo) > TAMANHO_MAXIMO:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A imagem passa de 10 MB.")
-    tipo = _imagem_valida(file.filename or "", conteudo, file.content_type or "")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo passa de 25 MB.")
+    tipo = _anexo_valido(file.filename or "", conteudo, file.content_type or "")
     anexos = _carregar_anexos(atividade)
     if len(anexos) >= LIMITE_ANEXOS:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Essa atividade já tem 10 imagens.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Essa atividade já tem 10 anexos.")
     anexos.append({
         "name": _nome_arquivo(file.filename or "imagem"),
         "type": tipo,
