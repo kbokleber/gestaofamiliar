@@ -1,20 +1,26 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+TipoEstudo = Literal["atividade", "comunicado"]
 
 
 class AtividadeBase(BaseModel):
     titulo: str = Field(..., max_length=200, examples=["LIÇÃO DE CASA"])
     descricao: str = ""
-    disciplina: str = Field("", max_length=120, examples=["Língua Portuguesa"])
+    disciplina: Optional[str] = Field(None, max_length=120, examples=["Língua Portuguesa"])
     professor: str = Field("", max_length=150)
     data: date
-    prazo_entrega: datetime
+    prazo_entrega: Optional[datetime] = None
+    tipo: TipoEstudo = "atividade"
+    autor: Optional[str] = Field(None, max_length=150, examples=["Secretaria CAdG"])
+    numero: Optional[str] = Field(None, max_length=40, examples=["2626"])
 
 
 class AtividadeCreate(AtividadeBase):
-    aluno_id: int
+    aluno_id: Optional[int] = None
+    aluno_ids: Optional[list[int]] = None
 
 
 class AtividadeUpdate(AtividadeBase):
@@ -32,7 +38,7 @@ class Atividade(AtividadeBase):
     aluno_id: int
     family_id: int
     aluno_nome: str
-    status: str
+    status: Optional[str] = None
     anexos: list[Anexo] = []
     concluida_em: Optional[datetime] = None
     created_by_id: Optional[int] = None

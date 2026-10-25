@@ -13,6 +13,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Security, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, defer, joinedload
 
 from app.api.deps import api_key_header, get_current_admin, get_current_user, oauth2_scheme
@@ -22,6 +23,8 @@ from app.models.estudo import Atividade
 from app.models.user import User
 from app.schemas.estudo import Anexo, Atividade as AtividadeSchema
 from app.schemas.estudo import AtividadeCreate, AtividadeUpdate
+
+TIPOS_ESTUDO = {"atividade", "comunicado"}
 
 PASTA_ANEXOS = Path(__file__).resolve().parents[4] / "var" / "anexo_cache"
 LINK_SEGUNDOS = 600
@@ -150,11 +153,14 @@ def _to_schema(atividade: Atividade, incluir_anexos: bool = True, resumo: Option
         aluno_nome=_aluno_nome(atividade.aluno) if atividade.aluno else "",
         titulo=atividade.titulo,
         descricao=atividade.descricao or "",
-        disciplina=atividade.disciplina or "",
+        disciplina=atividade.disciplina or None,
         professor=atividade.professor or "",
         data=atividade.data,
         prazo_entrega=atividade.prazo_entrega,
-        status=atividade.status or "pendente",
+        tipo=atividade.tipo or "atividade",
+        autor=atividade.autor,
+        numero=atividade.numero,
+        status=None if (atividade.tipo or "atividade") == "comunicado" else (atividade.status or "pendente"),
         anexos=_publico(resumo if resumo is not None else _ler_resumo(atividade)) if incluir_anexos else [],
         concluida_em=atividade.concluida_em,
         created_by_id=atividade.created_by_id,
@@ -166,8 +172,63 @@ def _pode_ver(atividade: Atividade, current_user: User) -> None:
     if current_user.is_superuser:
         _mesma_familia(atividade, current_user)
         return
-    if atividade.aluno_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
+    if atividade.aluno_id == current_user.id:
+        return
+    if (
+        (atividade.tipo or "atividade") == "comunicado"
+        and not current_user.is_child
+        and current_user.family_id is not None
+        and atividade.family_id == current_user.family_id
+    ):
+        return
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
+
+
+def _tipo_valido(tipo: Optional[str]) -> str:
+    valor = tipo or "atividade"
+    if valor not in TIPOS_ESTUDO:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo deve ser atividade ou comunicado.")
+    return valor
+
+
+def _aplicar_conteudo(atividade: Atividade, payload: AtividadeCreate | AtividadeUpdate, aluno: User) -> None:
+    tipo = _tipo_valido(payload.tipo)
+    if tipo == "atividade" and payload.prazo_entrega is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Prazo de entrega é obrigatório.")
+    atividade.aluno_id = aluno.id
+    atividade.family_id = aluno.family_id
+    atividade.titulo = payload.titulo.strip()
+    atividade.descricao = payload.descricao or ""
+    atividade.professor = (payload.professor or "").strip()
+    atividade.data = payload.data
+    atividade.tipo = tipo
+    atividade.autor = (payload.autor or "").strip() or None
+    atividade.numero = (payload.numero or "").strip() or None
+    atividade.aluno = aluno
+    if tipo == "comunicado":
+        atividade.prazo_entrega = None
+        atividade.disciplina = None
+        atividade.status = None
+        atividade.concluida_em = None
+        return
+    atividade.prazo_entrega = payload.prazo_entrega
+    atividade.disciplina = (payload.disciplina or "").strip()
+    if atividade.status not in {"pendente", "concluida"}:
+        atividade.status = "pendente"
+
+
+def _destinatarios(db: Session, payload: AtividadeCreate, current_user: User) -> list[User]:
+    ids: list[int] = []
+    if payload.aluno_ids:
+        ids.extend(payload.aluno_ids)
+    if payload.aluno_id:
+        ids.append(payload.aluno_id)
+    unicos = list(dict.fromkeys(ids))
+    if not unicos:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selecione ao menos um filho.")
+    if _tipo_valido(payload.tipo) == "atividade" and len(unicos) > 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Atividade é de um filho só.")
+    return [_filho_ativo(db, aluno_id, current_user) for aluno_id in unicos]
 
 
 def _anexo_valido(nome: str, conteudo: bytes, content_type: str) -> str:
@@ -329,6 +390,7 @@ def _get_or_404(db: Session, atividade_id: int) -> Atividade:
 @router.get("/atividades", response_model=List[AtividadeSchema])
 async def list_atividades(
     aluno_id: Optional[int] = None,
+    tipo: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -337,13 +399,22 @@ async def list_atividades(
     O filho recebe somente as próprias. O administrador recebe as da
     própria família e pode filtrar com o parâmetro aluno_id.
     """
+    if tipo is not None:
+        tipo = _tipo_valido(tipo)
     query = db.query(Atividade).options(joinedload(Atividade.aluno), defer(Atividade.anexos))
     if current_user.is_superuser:
         query = query.filter(Atividade.family_id == current_user.family_id)
         if aluno_id is not None:
             query = query.filter(Atividade.aluno_id == aluno_id)
-    else:
+    elif current_user.is_child:
         query = query.filter(Atividade.aluno_id == current_user.id)
+    else:
+        query = query.filter(or_(
+            Atividade.aluno_id == current_user.id,
+            and_(Atividade.tipo == "comunicado", Atividade.family_id == current_user.family_id),
+        ))
+    if tipo is not None:
+        query = query.filter(Atividade.tipo == tipo)
     atividades = query.order_by(Atividade.prazo_entrega.asc(), Atividade.id.asc()).all()
     return [_to_schema(item, incluir_anexos=False) for item in atividades]
 
@@ -354,11 +425,9 @@ async def read_atividade(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Detalhe de uma atividade. O filho só abre a própria."""
+    """Detalhe de uma atividade. O filho só abre a própria. Comunicado também abre para os pais da família."""
     atividade = _get_or_404(db, atividade_id)
-    if not current_user.is_superuser and atividade.aluno_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
-    _mesma_familia(atividade, current_user)
+    _pode_ver(atividade, current_user)
     return _to_schema(atividade, resumo=_garantir_arquivos(atividade, db))
 
 
@@ -484,24 +553,17 @@ async def create_atividade(
     """Cria uma atividade para um filho. Somente administrador, via Bearer ou X-API-Token."""
     if not payload.titulo.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Título é obrigatório.")
-    aluno = _filho_ativo(db, payload.aluno_id, current_user)
-    atividade = Atividade(
-        aluno_id=aluno.id,
-        family_id=aluno.family_id,
-        titulo=payload.titulo.strip(),
-        descricao=payload.descricao or "",
-        disciplina=payload.disciplina or "",
-        professor=payload.professor or "",
-        data=payload.data,
-        prazo_entrega=payload.prazo_entrega,
-        status="pendente",
-        created_by_id=current_user.id,
-    )
-    db.add(atividade)
+    alunos = _destinatarios(db, payload, current_user)
+    criadas = []
+    for aluno in alunos:
+        atividade = Atividade(created_by_id=current_user.id, status="pendente")
+        _aplicar_conteudo(atividade, payload, aluno)
+        db.add(atividade)
+        criadas.append(atividade)
     db.commit()
-    db.refresh(atividade)
-    atividade.aluno = aluno
-    return _to_schema(atividade)
+    for atividade in criadas:
+        db.refresh(atividade)
+    return _to_schema(criadas[0])
 
 
 @router.put("/atividades/{atividade_id}", response_model=AtividadeSchema)
@@ -517,15 +579,7 @@ async def update_atividade(
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
     aluno = _filho_ativo(db, payload.aluno_id, current_user)
-    atividade.aluno_id = aluno.id
-    atividade.family_id = aluno.family_id
-    atividade.titulo = payload.titulo.strip()
-    atividade.descricao = payload.descricao or ""
-    atividade.disciplina = payload.disciplina or ""
-    atividade.professor = payload.professor or ""
-    atividade.data = payload.data
-    atividade.prazo_entrega = payload.prazo_entrega
-    atividade.aluno = aluno
+    _aplicar_conteudo(atividade, payload, aluno)
     db.commit()
     db.refresh(atividade)
     return _to_schema(atividade)
@@ -539,6 +593,8 @@ async def concluir_atividade(
 ):
     """O filho marca a própria atividade como concluída. Aceita Bearer ou X-API-Token."""
     atividade = _get_or_404(db, atividade_id)
+    if (atividade.tipo or "atividade") == "comunicado":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comunicado não tem conclusão.")
     if not current_user.is_superuser and atividade.aluno_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
     if current_user.is_superuser:
@@ -564,6 +620,8 @@ async def reabrir_atividade(
     """O administrador devolve a atividade para pendente. Aceita Bearer ou X-API-Token."""
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
+    if (atividade.tipo or "atividade") == "comunicado":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Comunicado não pode voltar para pendente.")
     if atividade.status != "concluida":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Esta atividade já está pendente.")
     atividade.status = "pendente"

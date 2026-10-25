@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText, X } from 'lucide-react'
+import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText, X, Megaphone } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Button from '../../components/Button'
@@ -14,11 +14,14 @@ interface Atividade {
   aluno_nome: string
   titulo: string
   descricao: string
-  disciplina: string
+  disciplina: string | null
   professor: string
   data: string
-  prazo_entrega: string
-  status: 'pendente' | 'concluida'
+  prazo_entrega: string | null
+  tipo: 'atividade' | 'comunicado'
+  autor: string | null
+  numero: string | null
+  status: 'pendente' | 'concluida' | null
   anexos: Anexo[]
   concluida_em: string | null
 }
@@ -41,23 +44,31 @@ interface AlunoOption {
 }
 
 interface FormState {
+  tipo: 'atividade' | 'comunicado'
   aluno_id: number
+  aluno_ids: number[]
   titulo: string
   descricao: string
   disciplina: string
   professor: string
   data: string
   prazo: string
+  autor: string
+  numero: string
 }
 
 const emptyForm: FormState = {
+  tipo: 'atividade',
   aluno_id: 0,
+  aluno_ids: [],
   titulo: '',
   descricao: '',
   disciplina: '',
   professor: '',
   data: '',
   prazo: '',
+  autor: '',
+  numero: '',
 }
 
 function semAcento(valor: string) {
@@ -126,14 +137,33 @@ function diaDoPrazo(iso: string) {
   return `${data.getFullYear()}-${pad(data.getMonth() + 1)}-${pad(data.getDate())}`
 }
 
+function ehComunicado(item: Atividade) {
+  return item.tipo === 'comunicado'
+}
+
+function diaDoItem(item: Atividade) {
+  if (ehComunicado(item)) return item.data
+  return diaDoPrazo(item.prazo_entrega || item.data)
+}
+
+function rotuloDia(dia: string, itens: Atividade[]) {
+  const texto = formatDia(dia)
+  return itens.every(ehComunicado) ? texto : `Prazo ${texto}`
+}
+
 function agruparPorPrazo(itens: Atividade[]) {
   const ordenados = [...itens].sort((a, b) => {
-    const diferenca = new Date(a.prazo_entrega).getTime() - new Date(b.prazo_entrega).getTime()
+    const momento = (item: Atividade) => (
+      ehComunicado(item)
+        ? new Date(`${item.data}T12:00:00`).getTime()
+        : new Date(item.prazo_entrega || item.data).getTime()
+    )
+    const diferenca = momento(a) - momento(b)
     return diferenca !== 0 ? diferenca : a.id - b.id
   })
   const mapa = new Map<string, Atividade[]>()
   for (const item of ordenados) {
-    const chave = diaDoPrazo(item.prazo_entrega)
+    const chave = diaDoItem(item)
     const lista = mapa.get(chave) ?? []
     lista.push(item)
     mapa.set(chave, lista)
@@ -162,16 +192,30 @@ function CartaoAtividade({
         className="w-full px-4 py-4 text-left active:bg-indigo-50"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${atividade.status === 'concluida' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-            {atividade.status === 'concluida' ? 'Concluída' : 'Pendente'}
-          </span>
+          {ehComunicado(atividade) ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-800">
+              <Megaphone className="h-3.5 w-3.5" />
+              Comunicado
+            </span>
+          ) : (
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${atividade.status === 'concluida' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+              {atividade.status === 'concluida' ? 'Concluída' : 'Pendente'}
+            </span>
+          )}
           {atividade.disciplina && (
             <span className="text-sm text-gray-500">{atividade.disciplina}</span>
           )}
         </div>
         <p className="mt-2 text-lg font-semibold leading-snug text-gray-900">{atividade.titulo}</p>
-        <p className="mt-1 text-base text-gray-700">Prazo: {formatPrazoCurto(atividade.prazo_entrega)}</p>
-        {atividade.status === 'concluida' && atividade.concluida_em && (
+        {!ehComunicado(atividade) && atividade.prazo_entrega && (
+          <p className="mt-1 text-base text-gray-700">Prazo: {formatPrazoCurto(atividade.prazo_entrega)}</p>
+        )}
+        {ehComunicado(atividade) && (atividade.autor || atividade.numero) && (
+          <p className="mt-1 text-sm text-gray-600">
+            {[atividade.numero ? `nº ${atividade.numero}` : '', atividade.autor].filter(Boolean).join(' · ')}
+          </p>
+        )}
+        {!ehComunicado(atividade) && atividade.status === 'concluida' && atividade.concluida_em && (
           <p className="mt-1 text-sm font-medium text-emerald-800">
             Concluída em {formatDataHora(atividade.concluida_em)}
           </p>
@@ -447,18 +491,18 @@ export default function Atividades() {
   const nomeMes = agora.toLocaleDateString('pt-BR', { month: 'long' })
 
   const concluidaNesteMes = (item: Atividade) => {
-    if (item.status !== 'concluida') return false
+    if (ehComunicado(item) || item.status !== 'concluida') return false
     const data = item.concluida_em ? new Date(item.concluida_em) : new Date(`${item.data}T12:00:00`)
     return data.getMonth() === agora.getMonth() && data.getFullYear() === agora.getFullYear()
   }
 
-  const totalPendentes = atividades.filter((item) => item.status !== 'concluida').length
+  const totalPendentes = atividades.filter((item) => !ehComunicado(item) && item.status !== 'concluida').length
   const totalConcluidasMes = atividades.filter(concluidaNesteMes).length
 
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return atividades.filter((item) => {
-      if (recorte === 'pendentes' && item.status === 'concluida') return false
+      if (recorte === 'pendentes' && (ehComunicado(item) || item.status === 'concluida')) return false
       if (recorte === 'mes' && !concluidaNesteMes(item)) return false
       if (!termo) return true
       const texto = semAcento([
@@ -466,8 +510,10 @@ export default function Atividades() {
         item.disciplina,
         item.descricao,
         item.professor,
+        item.autor,
+        item.numero,
         item.aluno_nome,
-        ...textosData(item.data, item.prazo_entrega),
+        ...textosData(item.data, item.prazo_entrega || undefined),
       ].join(' '))
       return texto.includes(semAcento(termo))
     })
@@ -496,7 +542,7 @@ export default function Atividades() {
         return {
           id,
           nome,
-          pendentes: itens.filter((item) => item.status !== 'concluida').length,
+          pendentes: itens.filter((item) => !ehComunicado(item) && item.status !== 'concluida').length,
           dias: agruparPorPrazo(itens),
         }
       })
@@ -505,14 +551,19 @@ export default function Atividades() {
 
   const salvar = useMutation({
     mutationFn: async () => {
+      const comunicado = form.tipo === 'comunicado'
       const payload = {
-        aluno_id: form.aluno_id,
+        tipo: form.tipo,
+        aluno_id: editando || !comunicado ? form.aluno_id : undefined,
+        aluno_ids: !editando && comunicado ? form.aluno_ids : undefined,
         titulo: form.titulo.trim(),
         descricao: form.descricao.trim(),
-        disciplina: form.disciplina.trim(),
-        professor: form.professor.trim(),
+        disciplina: comunicado ? null : form.disciplina.trim(),
+        professor: comunicado ? '' : form.professor.trim(),
         data: form.data,
-        prazo_entrega: new Date(form.prazo).toISOString(),
+        prazo_entrega: comunicado ? null : new Date(form.prazo).toISOString(),
+        autor: comunicado ? form.autor.trim() || null : null,
+        numero: comunicado ? form.numero.trim() || null : null,
       }
       if (editando) {
         await api.put(`/estudos/atividades/${editando.id}`, payload)
@@ -577,13 +628,17 @@ export default function Atividades() {
   const abrirEdicao = (atividade: Atividade) => {
     setEditando(atividade)
     setForm({
+      tipo: atividade.tipo || 'atividade',
       aluno_id: atividade.aluno_id,
+      aluno_ids: [atividade.aluno_id],
       titulo: atividade.titulo,
       descricao: atividade.descricao,
-      disciplina: atividade.disciplina,
+      disciplina: atividade.disciplina || '',
       professor: atividade.professor,
       data: atividade.data,
-      prazo: toDateTimeLocal(atividade.prazo_entrega),
+      prazo: atividade.prazo_entrega ? toDateTimeLocal(atividade.prazo_entrega) : '',
+      autor: atividade.autor || '',
+      numero: atividade.numero || '',
     })
     setErro('')
     setSelecionada(null)
@@ -591,8 +646,10 @@ export default function Atividades() {
   }
 
   const enviar = () => {
-    if (!form.aluno_id || !form.titulo.trim() || !form.data || !form.prazo) {
-      setErro('Preencha filho, título, data e prazo de entrega.')
+    const comunicado = form.tipo === 'comunicado'
+    const temFilho = comunicado ? form.aluno_ids.length > 0 : !!form.aluno_id
+    if (!temFilho || !form.titulo.trim() || !form.data || (!comunicado && !form.prazo)) {
+      setErro(comunicado ? 'Preencha ao menos um filho, o título e a data.' : 'Preencha filho, título, data e prazo de entrega.')
       return
     }
     salvar.mutate()
@@ -696,7 +753,7 @@ export default function Atividades() {
                 {filho.dias.map(([dia, itens]) => (
                   <div key={dia}>
                     <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                      Prazo {formatDia(dia)}
+                      {rotuloDia(dia, itens)}
                     </h3>
                     <div className="space-y-2">
                       {itens.map((atividade) => (
@@ -723,7 +780,7 @@ export default function Atividades() {
         {grupos.map(([dia, itens]) => (
           <section key={dia}>
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Prazo {formatDia(dia)}
+              {rotuloDia(dia, itens)}
             </h2>
             <div className="space-y-2">
               {itens.map((atividade) => (
@@ -742,38 +799,49 @@ export default function Atividades() {
       </div>
       )}
 
-      <Modal isOpen={!!selecionada && !confirmarConclusao && !confirmarReabertura} onClose={() => setSelecionada(null)} title="Atividade">
+      <Modal isOpen={!!selecionada && !confirmarConclusao && !confirmarReabertura} onClose={() => setSelecionada(null)} title={atividadeAberta && ehComunicado(atividadeAberta) ? 'Comunicado' : 'Atividade'}>
         {atividadeAberta && (
           <div className="space-y-4 text-left">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">{atividadeAberta.titulo}</h3>
-                <p className="text-sm text-gray-500">Data: {formatDataHora(`${atividadeAberta.data}T00:00:00`)}</p>
-                <p className="mt-2 text-sm text-gray-700">
-                  Prazo: {formatPrazoCurto(atividadeAberta.prazo_entrega)}
-                  {atividadeAberta.disciplina ? ` · ${atividadeAberta.disciplina}` : ''}
-                  {atividadeAberta.professor ? ` · ${atividadeAberta.professor}` : ''}
-                </p>
+                <p className="text-sm text-gray-500">Data: {new Date(`${atividadeAberta.data}T12:00:00`).toLocaleDateString('pt-BR')}</p>
+                {!ehComunicado(atividadeAberta) && (
+                  <p className="mt-2 text-sm text-gray-700">
+                    {atividadeAberta.prazo_entrega ? `Prazo: ${formatPrazoCurto(atividadeAberta.prazo_entrega)}` : ''}
+                    {atividadeAberta.disciplina ? ` · ${atividadeAberta.disciplina}` : ''}
+                    {atividadeAberta.professor ? ` · ${atividadeAberta.professor}` : ''}
+                  </p>
+                )}
+                {ehComunicado(atividadeAberta) && (atividadeAberta.autor || atividadeAberta.numero) && (
+                  <p className="mt-2 text-sm text-orange-800">
+                    {[atividadeAberta.numero ? `nº ${atividadeAberta.numero}` : '', atividadeAberta.autor].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 {isAdmin && <p className="mt-1 text-sm text-indigo-700">{atividadeAberta.aluno_nome}</p>}
-                <p className={`mt-2 text-sm font-medium ${atividadeAberta.status === 'concluida' ? 'text-emerald-800' : 'text-amber-800'}`}>
-                  {atividadeAberta.status === 'concluida'
-                    ? `Concluída em ${atividadeAberta.concluida_em ? formatDataHora(atividadeAberta.concluida_em) : 'data não registrada'}`
-                    : 'Pendente'}
-                </p>
+                {!ehComunicado(atividadeAberta) && (
+                  <p className={`mt-2 text-sm font-medium ${atividadeAberta.status === 'concluida' ? 'text-emerald-800' : 'text-amber-800'}`}>
+                    {atividadeAberta.status === 'concluida'
+                      ? `Concluída em ${atividadeAberta.concluida_em ? formatDataHora(atividadeAberta.concluida_em) : 'data não registrada'}`
+                      : 'Pendente'}
+                  </p>
+                )}
               </div>
+              {!ehComunicado(atividadeAberta) && atividadeAberta.prazo_entrega && (
               <div className="rounded-lg border border-indigo-200 px-3 py-2 text-sm text-indigo-800">
                 <p className="text-xs uppercase tracking-wide">Prazo de entrega</p>
                 <p className="font-medium">{formatPrazoLongo(atividadeAberta.prazo_entrega)}</p>
               </div>
+              )}
             </div>
             <p className="whitespace-pre-wrap text-base leading-relaxed text-gray-800">{atividadeAberta.descricao || 'Sem descrição.'}</p>
             <GaleriaAnexos atividade={atividadeAberta} isAdmin={isAdmin} onChange={atualizarAnexos} />
-            {!isAdmin && atividadeAberta.status !== 'concluida' && (
+            {!isAdmin && !ehComunicado(atividadeAberta) && atividadeAberta.status !== 'concluida' && (
               <Button onClick={() => setConfirmarConclusao(true)} className="min-h-12 w-full text-base">
                 Marcar como concluída
               </Button>
             )}
-            {isAdmin && atividadeAberta.status === 'concluida' && (
+            {isAdmin && !ehComunicado(atividadeAberta) && atividadeAberta.status === 'concluida' && (
               <Button variant="outline" onClick={() => setConfirmarReabertura(true)} className="min-h-12 w-full text-base">
                 Voltar para pendente
               </Button>
@@ -829,22 +897,59 @@ export default function Atividades() {
       <Modal
         isOpen={formAberto}
         onClose={() => setFormAberto(false)}
-        title={editando ? 'Editar atividade' : 'Nova atividade'}
+        title={editando
+          ? (form.tipo === 'comunicado' ? 'Editar comunicado' : 'Editar atividade')
+          : (form.tipo === 'comunicado' ? 'Novo comunicado' : 'Nova atividade')}
       >
         <div className="space-y-3 text-left">
           <label className="block text-sm font-medium text-gray-700">
-            Filho
+            Tipo
             <select
-              value={form.aluno_id || ''}
-              onChange={(event) => setForm({ ...form, aluno_id: Number(event.target.value) })}
+              value={form.tipo}
+              onChange={(event) => setForm({ ...form, tipo: event.target.value as FormState['tipo'] })}
               className={campo}
             >
-              <option value="">Selecione</option>
-              {filhos.map((aluno) => (
-                <option key={aluno.id} value={aluno.id}>{nomeAluno(aluno)}</option>
-              ))}
+              <option value="atividade">Atividade</option>
+              <option value="comunicado">Comunicado</option>
             </select>
           </label>
+          {form.tipo === 'comunicado' && !editando ? (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium text-gray-700">Filhos</legend>
+              {filhos.map((aluno) => (
+                <label key={aluno.id} className="flex min-h-11 items-center gap-2 text-base text-gray-800">
+                  <input
+                    type="checkbox"
+                    checked={form.aluno_ids.includes(aluno.id)}
+                    onChange={() => {
+                      const marcado = form.aluno_ids.includes(aluno.id)
+                      setForm({
+                        ...form,
+                        aluno_ids: marcado
+                          ? form.aluno_ids.filter((id) => id !== aluno.id)
+                          : [...form.aluno_ids, aluno.id],
+                      })
+                    }}
+                  />
+                  {nomeAluno(aluno)}
+                </label>
+              ))}
+            </fieldset>
+          ) : (
+            <label className="block text-sm font-medium text-gray-700">
+              Filho
+              <select
+                value={form.aluno_id || ''}
+                onChange={(event) => setForm({ ...form, aluno_id: Number(event.target.value) })}
+                className={campo}
+              >
+                <option value="">Selecione</option>
+                {filhos.map((aluno) => (
+                  <option key={aluno.id} value={aluno.id}>{nomeAluno(aluno)}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="block text-sm font-medium text-gray-700">
             Título
             <input
@@ -863,22 +968,47 @@ export default function Atividades() {
             />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Disciplina
-              <input
-                value={form.disciplina}
-                onChange={(event) => setForm({ ...form, disciplina: event.target.value })}
-                className={campo}
-              />
-            </label>
-            <label className="block text-sm font-medium text-gray-700">
-              Professor
-              <input
-                value={form.professor}
-                onChange={(event) => setForm({ ...form, professor: event.target.value })}
-                className={campo}
-              />
-            </label>
+            {form.tipo === 'comunicado' ? (
+              <>
+                <label className="block text-sm font-medium text-gray-700">
+                  Autor
+                  <input
+                    value={form.autor}
+                    onChange={(event) => setForm({ ...form, autor: event.target.value })}
+                    placeholder="Secretaria CAdG"
+                    className={campo}
+                  />
+                </label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Número
+                  <input
+                    value={form.numero}
+                    onChange={(event) => setForm({ ...form, numero: event.target.value })}
+                    placeholder="2626"
+                    className={campo}
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <label className="block text-sm font-medium text-gray-700">
+                  Disciplina
+                  <input
+                    value={form.disciplina}
+                    onChange={(event) => setForm({ ...form, disciplina: event.target.value })}
+                    className={campo}
+                  />
+                </label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Professor
+                  <input
+                    value={form.professor}
+                    onChange={(event) => setForm({ ...form, professor: event.target.value })}
+                    className={campo}
+                  />
+                </label>
+              </>
+            )}
             <label className="block text-sm font-medium text-gray-700">
               Data
               <input
@@ -888,15 +1018,17 @@ export default function Atividades() {
                 className={campo}
               />
             </label>
-            <label className="block text-sm font-medium text-gray-700">
-              Prazo de entrega
-              <input
-                type="datetime-local"
-                value={form.prazo}
-                onChange={(event) => setForm({ ...form, prazo: event.target.value })}
-                className={campo}
-              />
-            </label>
+            {form.tipo !== 'comunicado' && (
+              <label className="block text-sm font-medium text-gray-700">
+                Prazo de entrega
+                <input
+                  type="datetime-local"
+                  value={form.prazo}
+                  onChange={(event) => setForm({ ...form, prazo: event.target.value })}
+                  className={campo}
+                />
+              </label>
+            )}
           </div>
           {erro && <p className="text-sm text-red-700">{erro}</p>}
           <div className="flex flex-col gap-2 pt-2">
@@ -913,7 +1045,7 @@ export default function Atividades() {
       <ConfirmDeleteModal
         isOpen={!!excluindo}
         onClose={() => setExcluindo(null)}
-        message={excluindo ? `Excluir a atividade "${excluindo.titulo}"?` : ''}
+        message={excluindo ? `Excluir ${ehComunicado(excluindo) ? 'o comunicado' : 'a atividade'} "${excluindo.titulo}"?` : ''}
         onConfirm={() => excluindo && excluir.mutate(excluindo.id)}
         isLoading={excluir.isPending}
       />
