@@ -171,6 +171,11 @@ function CartaoAtividade({
         </div>
         <p className="mt-2 text-lg font-semibold leading-snug text-gray-900">{atividade.titulo}</p>
         <p className="mt-1 text-base text-gray-700">Prazo: {formatPrazoCurto(atividade.prazo_entrega)}</p>
+        {atividade.status === 'concluida' && atividade.concluida_em && (
+          <p className="mt-1 text-sm font-medium text-emerald-800">
+            Concluída em {formatDataHora(atividade.concluida_em)}
+          </p>
+        )}
         {atividade.professor && (
           <p className="mt-0.5 text-sm text-gray-500">{atividade.professor}</p>
         )}
@@ -750,6 +755,11 @@ export default function Atividades() {
                   {atividadeAberta.professor ? ` · ${atividadeAberta.professor}` : ''}
                 </p>
                 {isAdmin && <p className="mt-1 text-sm text-indigo-700">{atividadeAberta.aluno_nome}</p>}
+                <p className={`mt-2 text-sm font-medium ${atividadeAberta.status === 'concluida' ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {atividadeAberta.status === 'concluida'
+                    ? `Concluída em ${atividadeAberta.concluida_em ? formatDataHora(atividadeAberta.concluida_em) : 'data não registrada'}`
+                    : 'Pendente'}
+                </p>
               </div>
               <div className="rounded-lg border border-indigo-200 px-3 py-2 text-sm text-indigo-800">
                 <p className="text-xs uppercase tracking-wide">Prazo de entrega</p>
@@ -758,10 +768,6 @@ export default function Atividades() {
             </div>
             <p className="whitespace-pre-wrap text-base leading-relaxed text-gray-800">{atividadeAberta.descricao || 'Sem descrição.'}</p>
             <GaleriaAnexos atividade={atividadeAberta} isAdmin={isAdmin} onChange={atualizarAnexos} />
-            <p className="text-base font-medium text-gray-700">
-              {atividadeAberta.status === 'concluida' ? 'Concluída' : 'Pendente'}
-              {atividadeAberta.concluida_em ? ` em ${formatDataHora(atividadeAberta.concluida_em)}` : ''}
-            </p>
             {!isAdmin && atividadeAberta.status !== 'concluida' && (
               <Button onClick={() => setConfirmarConclusao(true)} className="min-h-12 w-full text-base">
                 Marcar como concluída
