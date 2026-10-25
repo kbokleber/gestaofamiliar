@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, X } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Button from '../../components/Button'
@@ -18,7 +18,14 @@ interface Atividade {
   data: string
   prazo_entrega: string
   status: 'pendente' | 'concluida'
+  anexos: Anexo[]
   concluida_em: string | null
+}
+
+interface Anexo {
+  name: string
+  type: string
+  size: number
 }
 
 interface AlunoOption {
@@ -191,6 +198,126 @@ function CartaoAtividade({
   )
 }
 
+function GaleriaAnexos({
+  atividade,
+  isAdmin,
+  onChange,
+}: {
+  atividade: Atividade
+  isAdmin: boolean
+  onChange: (atividade: Atividade) => void
+}) {
+  const [urls, setUrls] = useState<string[]>([])
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState('')
+  const anexos = atividade.anexos ?? []
+  const chaveAnexos = anexos.map((item, indice) => `${indice}:${item.name}:${item.size}`).join('|')
+
+  useEffect(() => {
+    let ativo = true
+    const criadas: string[] = []
+    const carregar = async () => {
+      try {
+        for (let indice = 0; indice < anexos.length; indice += 1) {
+          const resposta = await api.get(
+            `/estudos/atividades/${atividade.id}/anexos/${indice}/download`,
+            { responseType: 'blob' },
+          )
+          if (!ativo) return
+          criadas.push(URL.createObjectURL(resposta.data))
+        }
+        if (ativo) setUrls([...criadas])
+      } catch {
+        if (ativo) setErro('Não foi possível abrir as imagens.')
+      }
+    }
+    setUrls([])
+    setErro('')
+    if (anexos.length > 0) carregar()
+    return () => {
+      ativo = false
+      criadas.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [atividade.id, chaveAnexos])
+
+  const enviar = async (arquivo: File) => {
+    const corpo = new FormData()
+    corpo.append('file', arquivo)
+    setEnviando(true)
+    setErro('')
+    try {
+      const resposta = await api.post<Atividade>(`/estudos/atividades/${atividade.id}/anexos`, corpo, {
+        transformRequest: [(dados, headers) => {
+          if (typeof headers.delete === 'function') headers.delete('Content-Type')
+          else delete headers['Content-Type']
+          return dados
+        }],
+      })
+      onChange({ ...resposta.data, anexos: resposta.data.anexos ?? [] })
+    } catch (error: any) {
+      setErro(error.response?.data?.detail || 'Não foi possível enviar a imagem.')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  const remover = async (indice: number) => {
+    setErro('')
+    try {
+      const resposta = await api.delete<Atividade>(`/estudos/atividades/${atividade.id}/anexos/${indice}`)
+      onChange({ ...resposta.data, anexos: resposta.data.anexos ?? [] })
+    } catch (error: any) {
+      setErro(error.response?.data?.detail || 'Não foi possível excluir a imagem.')
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      {urls.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          {urls.map((url, indice) => (
+            <div key={`${anexos[indice]?.name ?? 'imagem'}-${indice}`} className="relative">
+              <img
+                src={url}
+                alt={anexos[indice]?.name || 'Imagem da atividade'}
+                className="h-40 w-full rounded-xl border border-gray-200 object-cover"
+              />
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => remover(indice)}
+                  className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-red-700 shadow"
+                  aria-label={`Excluir ${anexos[indice]?.name || 'imagem'}`}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {isAdmin && (
+        <label className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 px-3 text-base text-gray-700">
+          <ImagePlus className="h-5 w-5" />
+          {enviando ? 'Enviando...' : 'Adicionar imagem'}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+            className="hidden"
+            disabled={enviando}
+            onChange={(evento) => {
+              const arquivo = evento.target.files?.[0]
+              evento.target.value = ''
+              if (arquivo) enviar(arquivo)
+            }}
+          />
+        </label>
+      )}
+      {erro && <p className="text-sm text-red-700">{erro}</p>}
+    </div>
+  )
+}
+
 function toDateTimeLocal(iso: string) {
   const data = new Date(iso)
   const pad = (value: number) => String(value).padStart(2, '0')
@@ -212,6 +339,12 @@ export default function Atividades() {
   const [confirmarReabertura, setConfirmarReabertura] = useState(false)
   const [busca, setBusca] = useState('')
   const [recorte, setRecorte] = useState<'todas' | 'pendentes' | 'mes'>('todas')
+
+  const { data: detalhe } = useQuery<Atividade>({
+    queryKey: ['atividade', selecionada?.id],
+    queryFn: async () => (await api.get<Atividade>(`/estudos/atividades/${selecionada!.id}`)).data,
+    enabled: !!selecionada,
+  })
 
   const { data: atividades = [], isError } = useQuery<Atividade[]>({
     queryKey: ['atividades', isAdmin ? alunoFiltro : 'minhas'],
@@ -394,6 +527,12 @@ export default function Atividades() {
     salvar.mutate()
   }
 
+  const atividadeAberta = selecionada && detalhe?.id === selecionada.id ? detalhe : selecionada
+  const atualizarAnexos = (atividade: Atividade) => {
+    setSelecionada(atividade)
+    queryClient.setQueryData(['atividade', atividade.id], atividade)
+  }
+
   const campo = 'mt-1 w-full rounded-xl border border-gray-300 px-3 py-3 text-base'
 
   return (
@@ -533,35 +672,36 @@ export default function Atividades() {
       )}
 
       <Modal isOpen={!!selecionada && !confirmarConclusao && !confirmarReabertura} onClose={() => setSelecionada(null)} title="Atividade">
-        {selecionada && (
+        {atividadeAberta && (
           <div className="space-y-4 text-left">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{selecionada.titulo}</h3>
-                <p className="text-sm text-gray-500">Data: {formatDataHora(`${selecionada.data}T00:00:00`)}</p>
+                <h3 className="text-lg font-semibold text-gray-900">{atividadeAberta.titulo}</h3>
+                <p className="text-sm text-gray-500">Data: {formatDataHora(`${atividadeAberta.data}T00:00:00`)}</p>
                 <p className="mt-2 text-sm text-gray-700">
-                  Prazo: {formatPrazoCurto(selecionada.prazo_entrega)}
-                  {selecionada.disciplina ? ` · ${selecionada.disciplina}` : ''}
-                  {selecionada.professor ? ` · ${selecionada.professor}` : ''}
+                  Prazo: {formatPrazoCurto(atividadeAberta.prazo_entrega)}
+                  {atividadeAberta.disciplina ? ` · ${atividadeAberta.disciplina}` : ''}
+                  {atividadeAberta.professor ? ` · ${atividadeAberta.professor}` : ''}
                 </p>
-                {isAdmin && <p className="mt-1 text-sm text-indigo-700">{selecionada.aluno_nome}</p>}
+                {isAdmin && <p className="mt-1 text-sm text-indigo-700">{atividadeAberta.aluno_nome}</p>}
               </div>
               <div className="rounded-lg border border-indigo-200 px-3 py-2 text-sm text-indigo-800">
                 <p className="text-xs uppercase tracking-wide">Prazo de entrega</p>
-                <p className="font-medium">{formatPrazoLongo(selecionada.prazo_entrega)}</p>
+                <p className="font-medium">{formatPrazoLongo(atividadeAberta.prazo_entrega)}</p>
               </div>
             </div>
-            <p className="whitespace-pre-wrap text-base leading-relaxed text-gray-800">{selecionada.descricao || 'Sem descrição.'}</p>
+            <p className="whitespace-pre-wrap text-base leading-relaxed text-gray-800">{atividadeAberta.descricao || 'Sem descrição.'}</p>
+            <GaleriaAnexos atividade={atividadeAberta} isAdmin={isAdmin} onChange={atualizarAnexos} />
             <p className="text-base font-medium text-gray-700">
-              {selecionada.status === 'concluida' ? 'Concluída' : 'Pendente'}
-              {selecionada.concluida_em ? ` em ${formatDataHora(selecionada.concluida_em)}` : ''}
+              {atividadeAberta.status === 'concluida' ? 'Concluída' : 'Pendente'}
+              {atividadeAberta.concluida_em ? ` em ${formatDataHora(atividadeAberta.concluida_em)}` : ''}
             </p>
-            {!isAdmin && selecionada.status !== 'concluida' && (
+            {!isAdmin && atividadeAberta.status !== 'concluida' && (
               <Button onClick={() => setConfirmarConclusao(true)} className="min-h-12 w-full text-base">
                 Marcar como concluída
               </Button>
             )}
-            {isAdmin && selecionada.status === 'concluida' && (
+            {isAdmin && atividadeAberta.status === 'concluida' && (
               <Button variant="outline" onClick={() => setConfirmarReabertura(true)} className="min-h-12 w-full text-base">
                 Voltar para pendente
               </Button>

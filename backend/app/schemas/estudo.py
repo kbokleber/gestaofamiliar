@@ -21,12 +21,19 @@ class AtividadeUpdate(AtividadeBase):
     aluno_id: int
 
 
+class Anexo(BaseModel):
+    name: str
+    type: str
+    size: int
+
+
 class Atividade(AtividadeBase):
     id: int
     aluno_id: int
     family_id: int
     aluno_nome: str
     status: str
+    anexos: list[Anexo] = []
     concluida_em: Optional[datetime] = None
     created_by_id: Optional[int] = None
     created_at: datetime

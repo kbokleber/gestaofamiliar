@@ -1,15 +1,27 @@
+import base64
+import json
 from datetime import datetime, timezone
+from pathlib import PurePath
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy.orm import Session, defer, joinedload
 
 from app.api.deps import get_current_admin, get_current_user
 from app.db.base import get_db
 from app.models.estudo import Atividade
 from app.models.user import User
-from app.schemas.estudo import Atividade as AtividadeSchema
+from app.schemas.estudo import Anexo, Atividade as AtividadeSchema
 from app.schemas.estudo import AtividadeCreate, AtividadeUpdate
+from app.utils.file_response import get_document_response
+
+TAMANHO_MAXIMO = 10 * 1024 * 1024
+LIMITE_ANEXOS = 10
+TIPOS_IMAGEM = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+}
 
 router = APIRouter()
 
@@ -19,7 +31,30 @@ def _aluno_nome(user: User) -> str:
     return nome or user.username
 
 
-def _to_schema(atividade: Atividade) -> AtividadeSchema:
+def _carregar_anexos(atividade: Atividade) -> list[dict]:
+    if not atividade.anexos:
+        return []
+    try:
+        dados = json.loads(atividade.anexos)
+    except json.JSONDecodeError:
+        return []
+    return dados if isinstance(dados, list) else []
+
+
+def _anexos_publicos(atividade: Atividade) -> list[Anexo]:
+    publicos = []
+    for item in _carregar_anexos(atividade):
+        if not isinstance(item, dict):
+            continue
+        publicos.append(Anexo(
+            name=str(item.get("name") or "imagem"),
+            type=str(item.get("type") or "application/octet-stream"),
+            size=int(item.get("size") or 0),
+        ))
+    return publicos
+
+
+def _to_schema(atividade: Atividade, incluir_anexos: bool = True) -> AtividadeSchema:
     return AtividadeSchema(
         id=atividade.id,
         aluno_id=atividade.aluno_id,
@@ -32,10 +67,49 @@ def _to_schema(atividade: Atividade) -> AtividadeSchema:
         data=atividade.data,
         prazo_entrega=atividade.prazo_entrega,
         status=atividade.status or "pendente",
+        anexos=_anexos_publicos(atividade) if incluir_anexos else [],
         concluida_em=atividade.concluida_em,
         created_by_id=atividade.created_by_id,
         created_at=atividade.created_at,
     )
+
+
+def _pode_ver(atividade: Atividade, current_user: User) -> None:
+    if current_user.is_superuser:
+        _mesma_familia(atividade, current_user)
+        return
+    if atividade.aluno_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
+
+
+def _imagem_valida(nome: str, conteudo: bytes, content_type: str) -> str:
+    extensao = PurePath(nome).suffix.lower()
+    tipo = TIPOS_IMAGEM.get(extensao)
+    if tipo is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Envie uma imagem PNG ou JPG.",
+        )
+    informado = (content_type or "").split(";")[0].strip().lower()
+    if informado in {"image/jpg", "image/pjpeg"}:
+        informado = "image/jpeg"
+    if informado and informado != tipo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Envie uma imagem PNG ou JPG.",
+        )
+    png = conteudo.startswith(b"\x89PNG\r\n\x1a\n")
+    jpeg = conteudo.startswith(b"\xff\xd8\xff")
+    if tipo == "image/png" and not png:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo não é um PNG válido.")
+    if tipo == "image/jpeg" and not jpeg:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo não é um JPG válido.")
+    return tipo
+
+
+def _nome_arquivo(nome: str) -> str:
+    limpo = PurePath(nome or "imagem").name.replace('"', "").strip()
+    return (limpo or "imagem")[:150]
 
 
 def _mesma_familia(atividade: Atividade, current_user: User) -> None:
@@ -91,7 +165,7 @@ async def list_atividades(
     O filho recebe somente as próprias. O administrador recebe as da
     própria família e pode filtrar com o parâmetro aluno_id.
     """
-    query = db.query(Atividade).options(joinedload(Atividade.aluno))
+    query = db.query(Atividade).options(joinedload(Atividade.aluno), defer(Atividade.anexos))
     if current_user.is_superuser:
         query = query.filter(Atividade.family_id == current_user.family_id)
         if aluno_id is not None:
@@ -99,7 +173,7 @@ async def list_atividades(
     else:
         query = query.filter(Atividade.aluno_id == current_user.id)
     atividades = query.order_by(Atividade.prazo_entrega.asc(), Atividade.id.asc()).all()
-    return [_to_schema(item) for item in atividades]
+    return [_to_schema(item, incluir_anexos=False) for item in atividades]
 
 
 @router.get("/atividades/{atividade_id}", response_model=AtividadeSchema)
@@ -113,6 +187,70 @@ async def read_atividade(
     if not current_user.is_superuser and atividade.aluno_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Atividade não encontrada.")
     _mesma_familia(atividade, current_user)
+    return _to_schema(atividade)
+
+
+@router.post("/atividades/{atividade_id}/anexos", response_model=AtividadeSchema)
+async def adicionar_anexo(
+    atividade_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+):
+    """Anexa uma imagem PNG ou JPG. Somente administrador, via multipart no campo file."""
+    atividade = _get_or_404(db, atividade_id)
+    _mesma_familia(atividade, current_user)
+    conteudo = await file.read()
+    if not conteudo:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo está vazio.")
+    if len(conteudo) > TAMANHO_MAXIMO:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A imagem passa de 10 MB.")
+    tipo = _imagem_valida(file.filename or "", conteudo, file.content_type or "")
+    anexos = _carregar_anexos(atividade)
+    if len(anexos) >= LIMITE_ANEXOS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Essa atividade já tem 10 imagens.")
+    anexos.append({
+        "name": _nome_arquivo(file.filename or "imagem"),
+        "type": tipo,
+        "size": len(conteudo),
+        "data": base64.b64encode(conteudo).decode("ascii"),
+    })
+    atividade.anexos = json.dumps(anexos)
+    db.commit()
+    db.refresh(atividade)
+    return _to_schema(atividade)
+
+
+@router.get("/atividades/{atividade_id}/anexos/{idx}/download")
+async def baixar_anexo(
+    atividade_id: int,
+    idx: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Baixa uma imagem da atividade. O filho baixa as próprias; o administrador, as da família."""
+    atividade = _get_or_404(db, atividade_id)
+    _pode_ver(atividade, current_user)
+    return get_document_response(atividade.anexos or "", idx, "Atividade")
+
+
+@router.delete("/atividades/{atividade_id}/anexos/{idx}", response_model=AtividadeSchema)
+async def excluir_anexo(
+    atividade_id: int,
+    idx: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+):
+    """Remove uma imagem da atividade. Somente administrador."""
+    atividade = _get_or_404(db, atividade_id)
+    _mesma_familia(atividade, current_user)
+    anexos = _carregar_anexos(atividade)
+    if idx < 0 or idx >= len(anexos):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Anexo {idx} não encontrado.")
+    del anexos[idx]
+    atividade.anexos = json.dumps(anexos) if anexos else None
+    db.commit()
+    db.refresh(atividade)
     return _to_schema(atividade)
 
 

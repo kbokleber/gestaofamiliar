@@ -18,6 +18,7 @@ class Atividade(Base):
     professor = Column(String(150), nullable=False, default="")
     data = Column(Date, nullable=False, index=True)
     prazo_entrega = Column(DateTime(timezone=True), nullable=False)
+    anexos = Column(Text, nullable=True)
     status = Column(String(20), nullable=False, default="pendente", server_default="pendente")
     concluida_em = Column(DateTime(timezone=True), nullable=True)
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
