@@ -32,6 +32,14 @@ services:
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       TZ: America/Sao_Paulo
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-https://auth.kbosolucoes.com.br}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-família}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-https://auth.kbosolucoes.com.br/realms/fam%C3%ADlia}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-gestaofamiliar}
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-gestaofamiliar}
+      AUTH_KEYCLOAK_ENABLED: ${AUTH_KEYCLOAK_ENABLED:-true}
+      AUTH_LEGACY_PASSWORD_ENABLED: ${AUTH_LEGACY_PASSWORD_ENABLED:-true}
+      KEYCLOAK_ALLOW_SIGNUP: ${KEYCLOAK_ALLOW_SIGNUP:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,6 +51,9 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-https://auth.kbosolucoes.com.br}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-família}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-gestaofamiliar}
     container_name: sistema-familiar-frontend
     environment:
       TZ: America/Sao_Paulo
