@@ -7,11 +7,11 @@ import shutil
 import subprocess
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path, PurePath
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Security, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Security, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, defer, joinedload
@@ -25,6 +25,7 @@ from app.schemas.estudo import Anexo, Atividade as AtividadeSchema
 from app.schemas.estudo import AtividadeCreate, AtividadeUpdate
 
 TIPOS_ESTUDO = {"atividade", "comunicado"}
+DIAS_COMUNICADO_RECENTE = 14
 
 PASTA_ANEXOS = Path(__file__).resolve().parents[4] / "var" / "anexo_cache"
 LINK_SEGUNDOS = 600
@@ -387,10 +388,44 @@ def _get_or_404(db: Session, atividade_id: int) -> Atividade:
     return atividade
 
 
+def _hoje_local() -> date:
+    return datetime.now(timezone(timedelta(hours=-3))).date()
+
+
+def _filtrar_texto(query, termo: str):
+    like = f"%{termo.strip()}%"
+    return query.filter(or_(
+        Atividade.titulo.ilike(like),
+        Atividade.descricao.ilike(like),
+        Atividade.autor.ilike(like),
+        Atividade.numero.ilike(like),
+        Atividade.aluno.has(or_(
+            User.first_name.ilike(like),
+            User.last_name.ilike(like),
+            User.username.ilike(like),
+        )),
+    ))
+
+
+def _pagina_anterior(query, antes_de: Optional[date], antes_id: Optional[int]):
+    if antes_de is None or antes_id is None:
+        return query
+    return query.filter(or_(
+        Atividade.data < antes_de,
+        and_(Atividade.data == antes_de, Atividade.id < antes_id),
+    ))
+
+
 @router.get("/atividades", response_model=List[AtividadeSchema])
 async def list_atividades(
+    response: Response,
     aluno_id: Optional[int] = None,
     tipo: Optional[str] = None,
+    anteriores: int = Query(0),
+    q: Optional[str] = None,
+    limite: int = Query(20, ge=1, le=50),
+    antes_de: Optional[date] = None,
+    antes_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -398,6 +433,8 @@ async def list_atividades(
 
     O filho recebe somente as próprias. O administrador recebe as da
     própria família e pode filtrar com o parâmetro aluno_id.
+    Comunicado recente volta só das últimas duas semanas. Os mais antigos
+    e a pesquisa vêm em páginas.
     """
     if tipo is not None:
         tipo = _tipo_valido(tipo)
@@ -415,7 +452,31 @@ async def list_atividades(
         ))
     if tipo is not None:
         query = query.filter(Atividade.tipo == tipo)
-    atividades = query.order_by(Atividade.prazo_entrega.asc(), Atividade.id.asc()).all()
+    if tipo != "comunicado":
+        atividades = query.order_by(Atividade.prazo_entrega.asc(), Atividade.id.asc()).all()
+        return [_to_schema(item, incluir_anexos=False) for item in atividades]
+
+    termo = (q or "").strip()
+    corte = _hoje_local() - timedelta(days=DIAS_COMUNICADO_RECENTE)
+    if termo:
+        query = _filtrar_texto(query, termo)
+        response.headers["X-Tem-Anteriores"] = "0"
+    elif anteriores:
+        query = query.filter(Atividade.data < corte)
+        response.headers["X-Tem-Anteriores"] = "1"
+    else:
+        tem_anteriores = query.filter(Atividade.data < corte).first() is not None
+        response.headers["X-Tem-Anteriores"] = "1" if tem_anteriores else "0"
+        query = query.filter(Atividade.data >= corte)
+    query = _pagina_anterior(query, antes_de, antes_id)
+    query = query.order_by(Atividade.data.desc(), Atividade.id.desc())
+    if termo or anteriores:
+        linhas = query.limit(limite + 1).all()
+        response.headers["X-Tem-Mais"] = "1" if len(linhas) > limite else "0"
+        atividades = linhas[:limite]
+    else:
+        response.headers["X-Tem-Mais"] = "0"
+        atividades = query.all()
     return [_to_schema(item, incluir_anexos=False) for item in atividades]
 
 

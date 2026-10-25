@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText, X, Megaphone } from 'lucide-react'
@@ -147,28 +147,35 @@ function diaDoItem(item: Atividade) {
 }
 
 function rotuloDia(dia: string, itens: Atividade[]) {
-  const texto = formatDia(dia)
+  const texto = formatDia(dia.split('#')[0])
   return itens.every(ehComunicado) ? texto : `Prazo ${texto}`
 }
 
-function agruparPorPrazo(itens: Atividade[]) {
-  const ordenados = [...itens].sort((a, b) => {
-    const momento = (item: Atividade) => (
-      ehComunicado(item)
-        ? new Date(`${item.data}T12:00:00`).getTime()
-        : new Date(item.prazo_entrega || item.data).getTime()
-    )
-    const diferenca = momento(a) - momento(b)
-    return diferenca !== 0 ? diferenca : a.id - b.id
-  })
-  const mapa = new Map<string, Atividade[]>()
-  for (const item of ordenados) {
-    const chave = diaDoItem(item)
-    const lista = mapa.get(chave) ?? []
-    lista.push(item)
-    mapa.set(chave, lista)
+function agruparPorPrazo(itens: Atividade[], maisNovosPrimeiro = false) {
+  const montar = (grupo: Atividade[], sufixo = '') => {
+    const ordenados = [...grupo].sort((a, b) => {
+      const momento = (item: Atividade) => (
+        ehComunicado(item)
+          ? new Date(`${item.data}T12:00:00`).getTime()
+          : new Date(item.prazo_entrega || item.data).getTime()
+      )
+      const diferenca = maisNovosPrimeiro ? momento(b) - momento(a) : momento(a) - momento(b)
+      if (diferenca !== 0) return diferenca
+      return maisNovosPrimeiro ? b.id - a.id : a.id - b.id
+    })
+    const mapa = new Map<string, Atividade[]>()
+    for (const item of ordenados) {
+      const chave = `${diaDoItem(item)}${sufixo}`
+      const lista = mapa.get(chave) ?? []
+      lista.push(item)
+      mapa.set(chave, lista)
+    }
+    return Array.from(mapa.entries())
   }
-  return Array.from(mapa.entries())
+  if (maisNovosPrimeiro) return montar(itens)
+  const abertas = itens.filter((item) => item.status !== 'concluida')
+  const feitas = itens.filter((item) => item.status === 'concluida')
+  return [...montar(abertas), ...montar(feitas, '#concluida')]
 }
 
 function CartaoAtividade({
@@ -439,7 +446,8 @@ function toDateTimeLocal(iso: string) {
   return `${data.getFullYear()}-${pad(data.getMonth() + 1)}-${pad(data.getDate())}T${pad(data.getHours())}:${pad(data.getMinutes())}`
 }
 
-export default function Atividades() {
+export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' | 'comunicado' }) {
+  const telaComunicado = modo === 'comunicado'
   const user = useAuthStore((state) => state.user)
   const isAdmin = !!user?.is_superuser
   const queryClient = useQueryClient()
@@ -454,6 +462,10 @@ export default function Atividades() {
   const [confirmarReabertura, setConfirmarReabertura] = useState(false)
   const [busca, setBusca] = useState('')
   const [recorte, setRecorte] = useState<'todas' | 'pendentes' | 'mes'>('todas')
+  const [buscaServidor, setBuscaServidor] = useState('')
+  const [extras, setExtras] = useState<Atividade[]>([])
+  const [temMaisExtras, setTemMaisExtras] = useState(false)
+  const [carregandoExtras, setCarregandoExtras] = useState(false)
 
   const { data: detalhe } = useQuery<Atividade>({
     queryKey: ['atividade', selecionada?.id],
@@ -461,17 +473,38 @@ export default function Atividades() {
     enabled: !!selecionada,
   })
 
-  const { data: atividades = [], isError } = useQuery<Atividade[]>({
-    queryKey: ['atividades', isAdmin ? alunoFiltro : 'minhas'],
+  useEffect(() => {
+    if (!telaComunicado) return
+    const agendar = window.setTimeout(() => setBuscaServidor(busca.trim()), 300)
+    return () => window.clearTimeout(agendar)
+  }, [busca, telaComunicado])
+
+  useEffect(() => {
+    setExtras([])
+    setTemMaisExtras(false)
+  }, [modo, alunoFiltro, buscaServidor])
+
+  const { data: lista, isError } = useQuery<{ itens: Atividade[], temAnteriores: boolean, temMais: boolean }>({
+    queryKey: ['atividades', modo, isAdmin ? alunoFiltro : 'minhas', telaComunicado ? buscaServidor : ''],
     queryFn: async () => {
-      const response = await api.get('/estudos/atividades', {
-        params: isAdmin && alunoFiltro ? { aluno_id: alunoFiltro } : undefined,
+      const response = await api.get<Atividade[]>('/estudos/atividades', {
+        params: {
+          tipo: modo,
+          ...(isAdmin && alunoFiltro ? { aluno_id: alunoFiltro } : {}),
+          ...(telaComunicado && buscaServidor ? { q: buscaServidor } : {}),
+        },
       })
-      return response.data
+      return {
+        itens: response.data,
+        temAnteriores: response.headers['x-tem-anteriores'] === '1',
+        temMais: response.headers['x-tem-mais'] === '1',
+      }
     },
-    placeholderData: [],
+    placeholderData: { itens: [], temAnteriores: false, temMais: false },
     retry: false,
   })
+
+  const atividades = lista?.itens ?? []
 
   const { data: usuarios = [] } = useQuery<AlunoOption[]>({
     queryKey: ['users'],
@@ -500,6 +533,7 @@ export default function Atividades() {
   const totalConcluidasMes = atividades.filter(concluidaNesteMes).length
 
   const visiveis = useMemo(() => {
+    if (telaComunicado) return atividades
     const termo = busca.trim().toLowerCase()
     return atividades.filter((item) => {
       if (recorte === 'pendentes' && (ehComunicado(item) || item.status === 'concluida')) return false
@@ -517,14 +551,42 @@ export default function Atividades() {
       ].join(' '))
       return texto.includes(semAcento(termo))
     })
-  }, [atividades, busca, recorte])
+  }, [atividades, busca, recorte, telaComunicado])
 
-  const grupos = useMemo(() => agruparPorPrazo(visiveis), [visiveis])
+  const listaAtual = telaComunicado ? [...atividades, ...extras] : visiveis
+  const podeCarregarMais = telaComunicado && (
+    buscaServidor
+      ? (extras.length > 0 ? temMaisExtras : !!lista?.temMais)
+      : (extras.length > 0 ? temMaisExtras : !!lista?.temAnteriores)
+  )
+  const podeOcultar = telaComunicado && !buscaServidor && extras.length > 0 && !temMaisExtras
+
+  const carregarMais = async () => {
+    const ultimo = listaAtual[listaAtual.length - 1]
+    setCarregandoExtras(true)
+    try {
+      const resposta = await api.get<Atividade[]>('/estudos/atividades', {
+        params: {
+          tipo: 'comunicado',
+          limite: 20,
+          ...(isAdmin && alunoFiltro ? { aluno_id: alunoFiltro } : {}),
+          ...(buscaServidor ? { q: buscaServidor } : { anteriores: 1 }),
+          ...(ultimo && (buscaServidor || extras.length > 0) ? { antes_de: ultimo.data, antes_id: ultimo.id } : {}),
+        },
+      })
+      setExtras((atual) => [...atual, ...resposta.data])
+      setTemMaisExtras(resposta.headers['x-tem-mais'] === '1')
+    } finally {
+      setCarregandoExtras(false)
+    }
+  }
+
+  const grupos = useMemo(() => agruparPorPrazo(listaAtual, telaComunicado), [listaAtual, telaComunicado])
 
   const porFilho = useMemo(() => {
     if (!isAdmin) return []
     const mapa = new Map<number, Atividade[]>()
-    for (const item of visiveis) {
+    for (const item of listaAtual) {
       const lista = mapa.get(item.aluno_id) ?? []
       lista.push(item)
       mapa.set(item.aluno_id, lista)
@@ -542,12 +604,13 @@ export default function Atividades() {
         return {
           id,
           nome,
+          total: itens.length,
           pendentes: itens.filter((item) => !ehComunicado(item) && item.status !== 'concluida').length,
-          dias: agruparPorPrazo(itens),
+          dias: agruparPorPrazo(itens, telaComunicado),
         }
       })
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [isAdmin, visiveis, filhos, busca, recorte, alunoFiltro])
+  }, [isAdmin, listaAtual, filhos, busca, recorte, alunoFiltro, telaComunicado])
 
   const salvar = useMutation({
     mutationFn: async () => {
@@ -589,9 +652,10 @@ export default function Atividades() {
       return response.data
     },
     onSuccess: (atividade) => {
+      queryClient.setQueryData(['atividade', atividade.id], atividade)
       queryClient.invalidateQueries({ queryKey: ['atividades'] })
-      setSelecionada(atividade)
       setConfirmarConclusao(false)
+      setSelecionada(null)
     },
   })
 
@@ -620,7 +684,7 @@ export default function Atividades() {
 
   const abrirNova = () => {
     setEditando(null)
-    setForm(emptyForm)
+    setForm({ ...emptyForm, tipo: modo })
     setErro('')
     setFormAberto(true)
   }
@@ -667,8 +731,10 @@ export default function Atividades() {
     <div className="mx-auto w-full max-w-lg lg:max-w-3xl">
       <div className="mb-4 flex flex-col gap-3">
         <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900 sm:text-2xl">
-          <ClipboardList className="h-7 w-7 shrink-0 text-indigo-600" />
-          Atividades
+          {telaComunicado
+            ? <Megaphone className="h-7 w-7 shrink-0 text-orange-600" />
+            : <ClipboardList className="h-7 w-7 shrink-0 text-indigo-600" />}
+          {telaComunicado ? 'Comunicados' : 'Atividades'}
         </h1>
         {isAdmin && (
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -685,12 +751,13 @@ export default function Atividades() {
             </select>
             <Button onClick={abrirNova} className="flex min-h-12 w-full items-center justify-center gap-2 text-base sm:w-auto">
               <Plus className="h-5 w-5" />
-              Nova atividade
+              {telaComunicado ? 'Novo comunicado' : 'Nova atividade'}
             </Button>
           </div>
         )}
       </div>
 
+      {!telaComunicado && (
       <div className="mb-3 grid grid-cols-2 gap-3">
         <button
           type="button"
@@ -711,28 +778,35 @@ export default function Atividades() {
           <p className="mt-1 text-sm font-medium capitalize leading-tight text-gray-700">Concluídas em {nomeMes}</p>
         </button>
       </div>
+      )}
 
       <div className="relative mb-4">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
         <input
           value={busca}
           onChange={(event) => setBusca(event.target.value)}
-          placeholder="Data, matéria ou descrição"
+          placeholder={telaComunicado ? 'Buscar também nos anteriores' : 'Data, matéria ou descrição'}
           aria-label="Pesquisar tarefas"
           className="w-full rounded-xl border border-gray-300 py-3 pl-10 pr-3 text-base"
         />
       </div>
 
       {isError && (
-        <p className="mb-4 text-sm text-red-700">Não foi possível carregar as atividades.</p>
+        <p className="mb-4 text-sm text-red-700">Não foi possível carregar {telaComunicado ? 'os comunicados' : 'as atividades'}.</p>
       )}
 
-      {!isError && atividades.length === 0 && (
-        <p className="text-gray-600">Nenhuma atividade por aqui.</p>
-      )}
-
-      {!isError && atividades.length > 0 && (isAdmin ? porFilho.length === 0 : grupos.length === 0) && (
-        <p className="text-gray-600">Nenhuma tarefa encontrada.</p>
+      {!isError && listaAtual.length === 0 && (
+        <p className="text-gray-600">
+          {telaComunicado && buscaServidor
+            ? 'Nenhum comunicado encontrado.'
+            : telaComunicado && lista?.temAnteriores
+              ? 'Nenhum comunicado das últimas duas semanas.'
+              : telaComunicado
+                ? 'Nenhum comunicado por aqui.'
+                : busca.trim()
+                  ? 'Nenhuma tarefa encontrada.'
+                  : 'Nenhuma atividade por aqui.'}
+        </p>
       )}
 
       {isAdmin && (
@@ -742,13 +816,16 @@ export default function Atividades() {
               <header className="bg-indigo-50 px-4 py-3">
                 <h2 className="text-lg font-bold text-indigo-950">{filho.nome}</h2>
                 <p className="text-sm text-indigo-800">
-                  {filho.pendentes} {filho.pendentes === 1 ? 'pendente' : 'pendentes'}
-                  {filho.dias.length === 0 ? ' · nenhuma tarefa' : ''}
+                  {telaComunicado
+                    ? `${filho.total} ${filho.total === 1 ? 'comunicado' : 'comunicados'}`
+                    : `${filho.pendentes} ${filho.pendentes === 1 ? 'pendente' : 'pendentes'}${filho.dias.length === 0 ? ' · nenhuma tarefa' : ''}`}
                 </p>
               </header>
               <div className="space-y-4 bg-gray-50 px-3 py-3">
                 {filho.dias.length === 0 && (
-                  <p className="text-sm text-gray-600">Nenhuma tarefa deste filho.</p>
+                  <p className="text-sm text-gray-600">
+                    {telaComunicado ? 'Nenhum comunicado recente deste filho.' : 'Nenhuma tarefa deste filho.'}
+                  </p>
                 )}
                 {filho.dias.map(([dia, itens]) => (
                   <div key={dia}>
@@ -797,6 +874,32 @@ export default function Atividades() {
           </section>
         ))}
       </div>
+      )}
+
+      {telaComunicado && (podeCarregarMais || podeOcultar) && (
+        <button
+          type="button"
+          onClick={() => {
+            if (!buscaServidor && extras.length > 0 && !temMaisExtras) {
+              setExtras([])
+              setTemMaisExtras(false)
+              return
+            }
+            carregarMais()
+          }}
+          disabled={carregandoExtras}
+          className="mt-4 flex min-h-12 w-full items-center justify-center rounded-xl border border-orange-200 bg-white text-base font-medium text-orange-800 active:bg-orange-50 disabled:opacity-60"
+        >
+          {carregandoExtras
+            ? 'Carregando...'
+            : buscaServidor
+              ? 'Mostrar mais resultados'
+              : extras.length === 0
+                ? 'Mostrar anteriores'
+                : temMaisExtras
+                  ? 'Mostrar mais anteriores'
+                  : 'Ocultar anteriores'}
+        </button>
       )}
 
       <Modal isOpen={!!selecionada && !confirmarConclusao && !confirmarReabertura} onClose={() => setSelecionada(null)} title={atividadeAberta && ehComunicado(atividadeAberta) ? 'Comunicado' : 'Atividade'}>
@@ -902,17 +1005,6 @@ export default function Atividades() {
           : (form.tipo === 'comunicado' ? 'Novo comunicado' : 'Nova atividade')}
       >
         <div className="space-y-3 text-left">
-          <label className="block text-sm font-medium text-gray-700">
-            Tipo
-            <select
-              value={form.tipo}
-              onChange={(event) => setForm({ ...form, tipo: event.target.value as FormState['tipo'] })}
-              className={campo}
-            >
-              <option value="atividade">Atividade</option>
-              <option value="comunicado">Comunicado</option>
-            </select>
-          </label>
           {form.tipo === 'comunicado' && !editando ? (
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium text-gray-700">Filhos</legend>

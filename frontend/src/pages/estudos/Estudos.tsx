@@ -1,6 +1,13 @@
 import { FileText } from 'lucide-react'
+import AtividadesPage from './Atividades'
 
-export { default as Atividades } from './Atividades'
+export function Atividades() {
+  return <AtividadesPage modo="atividade" />
+}
+
+export function Comunicados() {
+  return <AtividadesPage modo="comunicado" />
+}
 
 export function Provas() {
   return (
