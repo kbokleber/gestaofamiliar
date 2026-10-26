@@ -461,7 +461,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   const [confirmarConclusao, setConfirmarConclusao] = useState(false)
   const [confirmarReabertura, setConfirmarReabertura] = useState(false)
   const [busca, setBusca] = useState('')
-  const [recorte, setRecorte] = useState<'todas' | 'pendentes' | 'mes'>('todas')
+  const [recorte, setRecorte] = useState<'todas' | 'pendentes' | 'mes'>('pendentes')
   const [buscaServidor, setBuscaServidor] = useState('')
   const [extras, setExtras] = useState<Atividade[]>([])
   const [temMaisExtras, setTemMaisExtras] = useState(false)
@@ -761,7 +761,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
       <div className="mb-3 grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => setRecorte((atual) => (atual === 'pendentes' ? 'todas' : 'pendentes'))}
+          onClick={() => setRecorte('pendentes')}
           className={`rounded-2xl border px-4 py-3 text-left shadow-sm active:scale-[0.98] ${recorte === 'pendentes' ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-white'}`}
           aria-pressed={recorte === 'pendentes'}
         >
@@ -770,7 +770,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
         </button>
         <button
           type="button"
-          onClick={() => setRecorte((atual) => (atual === 'mes' ? 'todas' : 'mes'))}
+          onClick={() => setRecorte('mes')}
           className={`rounded-2xl border px-4 py-3 text-left shadow-sm active:scale-[0.98] ${recorte === 'mes' ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'}`}
           aria-pressed={recorte === 'mes'}
         >
@@ -818,7 +818,9 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
                 <p className="text-sm text-indigo-800">
                   {telaComunicado
                     ? `${filho.total} ${filho.total === 1 ? 'comunicado' : 'comunicados'}`
-                    : `${filho.pendentes} ${filho.pendentes === 1 ? 'pendente' : 'pendentes'}${filho.dias.length === 0 ? ' · nenhuma tarefa' : ''}`}
+                    : recorte === 'mes'
+                      ? `${filho.total} ${filho.total === 1 ? 'concluída' : 'concluídas'} em ${nomeMes}`
+                      : `${filho.pendentes} ${filho.pendentes === 1 ? 'pendente' : 'pendentes'}${filho.dias.length === 0 ? ' · nenhuma tarefa' : ''}`}
                 </p>
               </header>
               <div className="space-y-4 bg-gray-50 px-3 py-3">
