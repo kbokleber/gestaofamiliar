@@ -1,10 +1,10 @@
-import { Heart, Users, Calendar, Settings, Clock, ClipboardList, Megaphone } from 'lucide-react'
+import { Heart, Users, Calendar, Settings, Clock, ClipboardList, Megaphone, Wrench, BookOpen } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
 import Loading from '../components/Loading'
 import { useAuthStore } from '../stores/authStore'
-import { canSeeMenu } from '../lib/menus'
+import { canSeeMenu, type MenuKey } from '../lib/menus'
 
 interface DashboardStats {
   total_members: number
@@ -47,64 +47,84 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const dashboardCards = [
+  const grupos: Array<{
+    menu: MenuKey
+    name: string
+    icon: typeof Heart
+    cards: Array<{ name: string; value: string; icon: typeof Heart; href: string; color: string }>
+  }> = [
     {
-      name: 'Membros da Família',
-      value: stats?.total_members?.toString() ?? '...',
-      icon: Users,
-      href: '/healthcare/members',
-      color: 'bg-blue-500',
       menu: 'saude',
-    },
-    {
-      name: 'Próximas Consultas',
-      value: stats?.total_appointments?.toString() ?? '...',
-      icon: Calendar,
-      href: '/healthcare/appointments',
-      color: 'bg-green-500',
-      menu: 'saude',
-    },
-    {
-      name: 'Equipamentos',
-      value: stats?.total_equipment?.toString() ?? '...',
-      icon: Settings,
-      href: '/maintenance/equipment',
-      color: 'bg-orange-500',
-      menu: 'manutencao',
-    },
-    {
-      name: 'Medicações Ativas',
-      value: stats?.active_medications?.toString() ?? '...',
+      name: 'Saúde',
       icon: Heart,
-      href: '/healthcare/medications',
-      color: 'bg-red-500',
-      menu: 'saude',
+      cards: [
+        {
+          name: 'Membros da Família',
+          value: stats?.total_members?.toString() ?? '...',
+          icon: Users,
+          href: '/healthcare/members',
+          color: 'bg-blue-500',
+        },
+        {
+          name: 'Próximas Consultas',
+          value: stats?.total_appointments?.toString() ?? '...',
+          icon: Calendar,
+          href: '/healthcare/appointments',
+          color: 'bg-green-500',
+        },
+        {
+          name: 'Medicações Ativas',
+          value: stats?.active_medications?.toString() ?? '...',
+          icon: Heart,
+          href: '/healthcare/medications',
+          color: 'bg-red-500',
+        },
+      ],
     },
     {
-      name: 'Ordens de Manutenção',
-      value: stats?.total_orders?.toString() ?? '...',
-      icon: Clock,
-      href: '/maintenance/orders',
-      color: 'bg-purple-500',
       menu: 'manutencao',
+      name: 'Manutenção',
+      icon: Wrench,
+      cards: [
+        {
+          name: 'Equipamentos',
+          value: stats?.total_equipment?.toString() ?? '...',
+          icon: Settings,
+          href: '/maintenance/equipment',
+          color: 'bg-orange-500',
+        },
+        {
+          name: 'Ordens de Manutenção',
+          value: stats?.total_orders?.toString() ?? '...',
+          icon: Clock,
+          href: '/maintenance/orders',
+          color: 'bg-purple-500',
+        },
+      ],
     },
     {
-      name: 'Atividades pendentes',
-      value: stats?.atividades_pendentes?.toString() ?? '...',
-      icon: ClipboardList,
-      href: '/estudos/atividades?recorte=pendentes',
-      color: 'bg-amber-500',
       menu: 'estudos',
+      name: 'Estudos',
+      icon: BookOpen,
+      cards: [
+        {
+          name: 'Atividades pendentes',
+          value: stats?.atividades_pendentes?.toString() ?? '...',
+          icon: ClipboardList,
+          href: '/estudos/atividades?recorte=pendentes',
+          color: 'bg-amber-500',
+        },
+        {
+          name: 'Comunicados da semana',
+          value: stats?.comunicados_semana?.toString() ?? '...',
+          icon: Megaphone,
+          href: '/estudos/comunicados?semana=atual',
+          color: 'bg-orange-500',
+        },
+      ],
     },
-    {
-      name: 'Comunicados da semana',
-      value: stats?.comunicados_semana?.toString() ?? '...',
-      icon: Megaphone,
-      href: '/estudos/comunicados?semana=atual',
-      color: 'bg-orange-500',
-      menu: 'estudos',
-    },
-  ].filter((card) => canSeeMenu(user, card.menu as 'saude' | 'manutencao' | 'estudos'))
+  ]
+  const gruposVisiveis = grupos.filter((grupo) => canSeeMenu(user, grupo.menu))
 
   if (loading && !stats) {
     return <Loading message="Carregando dashboard..." />
@@ -133,31 +153,41 @@ export default function Dashboard() {
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {dashboardCards.map((stat) => (
-          <Link
-            key={stat.name}
-            to={stat.href}
-            className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow"
-          >
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className={`flex-shrink-0 rounded-md p-3 ${stat.color}`}>
-                  <stat.icon className="h-6 w-6 text-white" />
-                </div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
-                      {stat.name}
-                    </dt>
-                    <dd className="text-lg font-semibold text-gray-900">
-                      {stat.value}
-                    </dd>
-                  </dl>
-                </div>
-              </div>
+      <div className="space-y-8">
+        {gruposVisiveis.map((grupo) => (
+          <section key={grupo.menu}>
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
+              <grupo.icon className="h-5 w-5 text-gray-500" />
+              {grupo.name}
+            </h2>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {grupo.cards.map((stat) => (
+                <Link
+                  key={stat.name}
+                  to={stat.href}
+                  className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow"
+                >
+                  <div className="p-5">
+                    <div className="flex items-center">
+                      <div className={`flex-shrink-0 rounded-md p-3 ${stat.color}`}>
+                        <stat.icon className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="ml-5 w-0 flex-1">
+                        <dl>
+                          <dt className="text-sm font-medium text-gray-500 truncate">
+                            {stat.name}
+                          </dt>
+                          <dd className="text-lg font-semibold text-gray-900">
+                            {stat.value}
+                          </dd>
+                        </dl>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
-          </Link>
+          </section>
         ))}
       </div>
     </div>
