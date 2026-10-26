@@ -90,7 +90,7 @@ export default function Dashboard() {
           name: 'Equipamentos',
           value: stats?.total_equipment?.toString() ?? '...',
           icon: Settings,
-          href: '/maintenance/equipment',
+          href: '/maintenance/equipment?status=operacional',
           color: 'bg-orange-500',
         },
         {

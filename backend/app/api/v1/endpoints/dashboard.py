@@ -41,9 +41,10 @@ async def get_dashboard_stats(
         MedicalAppointment.appointment_date >= now
     ).scalar() or 0
     
-    # Contar equipamentos
+    # No painel, equipamentos são só os operacionais
     total_equipment = db.query(func.count(Equipment.id)).filter(
-        Equipment.family_id == family_id
+        Equipment.family_id == family_id,
+        func.upper(Equipment.status) == "OPERACIONAL",
     ).scalar() or 0
     
     # Contar medicações ativas (sem end_date ou com end_date no futuro)

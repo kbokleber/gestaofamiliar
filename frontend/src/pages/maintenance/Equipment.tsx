@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Settings, Plus, Edit2, Trash2, Save, Paperclip, ArrowLeft, Filter } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
@@ -41,7 +42,13 @@ const TYPE_OPTIONS = [
 
 const EMPTY_EQUIPMENT: Equipment[] = []
 
+function statusDaUrl(valor: string | null) {
+  const normalizado = (valor || '').toUpperCase()
+  return STATUS_OPTIONS.some((opcao) => opcao.value === normalizado) ? normalizado : ''
+}
+
 export default function Equipment() {
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
@@ -49,7 +56,7 @@ export default function Equipment() {
   const [filteredEquipment, setFilteredEquipment] = useState<Equipment[]>([])
   const [filters, setFilters] = useState({
     type: '',
-    status: '',
+    status: statusDaUrl(searchParams.get('status')),
     search: ''
   })
   const [formData, setFormData] = useState({
@@ -102,7 +109,7 @@ export default function Equipment() {
       filtered = filtered.filter(e => e.type === filters.type)
     }
     if (filters.status) {
-      filtered = filtered.filter(e => e.status === filters.status)
+      filtered = filtered.filter(e => (e.status || '').toUpperCase().trim() === filters.status)
     }
     if (filters.search.trim()) {
       const term = filters.search.trim().toLowerCase()
@@ -117,12 +124,16 @@ export default function Equipment() {
   }
 
   useEffect(() => {
+    setFilters((atual) => ({ ...atual, status: statusDaUrl(searchParams.get('status')) }))
+  }, [searchParams])
+
+  useEffect(() => {
     let filtered = [...equipment]
     if (filters.type) {
       filtered = filtered.filter(e => e.type === filters.type)
     }
     if (filters.status) {
-      filtered = filtered.filter(e => e.status === filters.status)
+      filtered = filtered.filter(e => (e.status || '').toUpperCase().trim() === filters.status)
     }
     if (filters.search.trim()) {
       const term = filters.search.trim().toLowerCase()
