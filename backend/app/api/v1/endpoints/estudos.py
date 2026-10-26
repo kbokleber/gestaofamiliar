@@ -704,3 +704,8 @@ async def delete_atividade(
     db.delete(atividade)
     db.commit()
     return {"message": "Atividade excluída com sucesso"}
+
+
+from app.api.v1.endpoints.provas import router as provas_router
+
+router.include_router(provas_router)

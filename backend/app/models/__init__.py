@@ -11,6 +11,15 @@ from app.models.telegram import (
     TelegramLinkCode,
 )
 from app.models.estudo import Atividade
+from app.models.prova import (
+    Avaliacao,
+    AvaliacaoHistorico,
+    AvaliacaoItem,
+    AvaliacaoOcorrencia,
+    Cronograma,
+    CronogramaAluno,
+    EventoEscolar,
+)
 from app.models.finance import (
     FinanceCategory,
     FinanceEntry,
@@ -41,4 +50,11 @@ __all__ = [
     "FinanceRecurrence",
     "FinanceImportCategoryRule",
     "Atividade",
+    "Cronograma",
+    "CronogramaAluno",
+    "Avaliacao",
+    "AvaliacaoOcorrencia",
+    "AvaliacaoItem",
+    "EventoEscolar",
+    "AvaliacaoHistorico",
 ]

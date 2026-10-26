@@ -1,5 +1,5 @@
-import { FileText } from 'lucide-react'
 import AtividadesPage from './Atividades'
+import ProvasPage from './Provas'
 
 export function Atividades() {
   return <AtividadesPage modo="atividade" />
@@ -10,17 +10,7 @@ export function Comunicados() {
 }
 
 export function Provas() {
-  return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-        <FileText className="w-8 h-8 text-indigo-600" />
-        Provas
-      </h1>
-      <p className="text-gray-600 max-w-2xl">
-        As provas entram nesta tela.
-      </p>
-    </div>
-  )
+  return <ProvasPage />
 }
 
 export function SemMenu() {

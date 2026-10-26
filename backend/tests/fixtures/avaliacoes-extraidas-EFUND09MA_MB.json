@@ -1,0 +1,1987 @@
+{
+  "documento": {
+    "aluno_ids": [
+      16
+    ],
+    "comunicado_id": 18,
+    "anexo_idx": 0,
+    "anexo_nome": "Critérios Avaliativos e Cronograma das Atividades_4º bimestre_ EFUND09MA_MB.pdf",
+    "titulo": "CRITÉRIOS AVALIATIVOS E CRONOGRAMA DAS ATIVIDADES",
+    "subtitulo": "ENSINO FUNDAMENTAL I - EFUND09MA/MB",
+    "turma": "EFUND09MA/MB",
+    "turmas": [
+      "9º MA",
+      "9º MB"
+    ],
+    "serie": "9º ano",
+    "bimestre": 4,
+    "ano_letivo": 2026,
+    "escola": "Colégio Adventista de Guarujá",
+    "data_publicacao": "2026-10-15",
+    "autor": "COORDENAÇÃO PEDAGÓGICA",
+    "aviso": "Calendário sujeito a alterações, que serão sempre informadas na plataforma do E-class.",
+    "introducao": "Prezadas famílias, com o objetivo de garantir transparência, organização e acompanhamento do processo de ensino-aprendizagem, informamos abaixo o cronograma de avaliações e atividades avaliativas referentes ao bimestre. Este comunicado é elaborado pela equipe pedagógica e professores responsáveis, podendo sofrer ajustes, os quais serão previamente comunicados pelo E-Class (plataforma oficial do colégio).",
+    "orientacoes": [
+      {
+        "titulo": "Orientações Importantes – Produtividades:",
+        "texto": "Fiquem atentos às datas de entrega das atividades avaliativas que irão compor a nota de produtividade. As atividades entregues na data estipulada poderão valer até 100% da nota atribuída. Após esse prazo, o valor máximo da atividade passa a ser de 70% da nota atribuída, devendo ser entregue na aula subsequente da respectiva disciplina. As atividades de produtividade e as tarefas de casa serão solicitadas por meio da plataforma E-Class. Ressaltamos que essas atividades são extremamente importantes para a composição da média bimestral."
+      },
+      {
+        "titulo": "Orientações Importantes – Recuperação Única:",
+        "texto": "Reforçamos que, em caso de ausência em dias de Avaliações (AV1 e AV2), devidamente justificada por atestado médico nominal ao aluno, o documento deverá ser encaminhado imediatamente ao SOE. Nessas situações, o aluno será avaliado na semana de recuperação, mesmo mediante a apresentação do atestado.\n\nApós esse período, caso haja necessidade, o SOE realizará o agendamento da Avaliação Substitutiva.\n\nRessaltamos ainda que o aluno deverá realizar a Recuperação Única ao final do bimestre nos seguintes casos:\n● ausência em AV1 ou AV2;\n● obtenção de nota inferior a 6,0 em qualquer um dos instrumentos avaliativos (AV1 ou AV2)."
+      }
+    ],
+    "eventos_escolares": [
+      {
+        "tipo": "INICIO_BIMESTRE",
+        "legenda": "Início e término do bimestre",
+        "data_inicio": "2026-10-05",
+        "data_fim": "2026-10-05"
+      },
+      {
+        "tipo": "TERMINO_BIMESTRE",
+        "legenda": "Início e término do bimestre",
+        "data_inicio": "2026-12-11",
+        "data_fim": "2026-12-11"
+      },
+      {
+        "tipo": "RECESSO",
+        "legenda": "Recesso ou feriado",
+        "data_inicio": "2026-10-12",
+        "data_fim": "2026-10-12"
+      },
+      {
+        "tipo": "RECESSO",
+        "legenda": "Recesso ou feriado",
+        "data_inicio": "2026-10-13",
+        "data_fim": "2026-10-13"
+      },
+      {
+        "tipo": "RECESSO",
+        "legenda": "Recesso ou feriado",
+        "data_inicio": "2026-11-02",
+        "data_fim": "2026-11-02"
+      },
+      {
+        "tipo": "RECESSO",
+        "legenda": "Recesso ou feriado",
+        "data_inicio": "2026-11-20",
+        "data_fim": "2026-11-20"
+      },
+      {
+        "tipo": "SEMANA_AV1",
+        "legenda": "Semana de AV1 (atividades em sala de aula)",
+        "data_inicio": "2026-10-22",
+        "data_fim": "2026-10-22"
+      },
+      {
+        "tipo": "SEMANA_AV1",
+        "legenda": "Semana de AV1 (atividades em sala de aula)",
+        "data_inicio": "2026-10-23",
+        "data_fim": "2026-10-23"
+      },
+      {
+        "tipo": "SEMANA_AV1",
+        "legenda": "Semana de AV1 (atividades em sala de aula)",
+        "data_inicio": "2026-10-26",
+        "data_fim": "2026-10-26"
+      },
+      {
+        "tipo": "SEMANA_AV1",
+        "legenda": "Semana de AV1 (atividades em sala de aula)",
+        "data_inicio": "2026-10-27",
+        "data_fim": "2026-10-27"
+      },
+      {
+        "tipo": "SEMANA_AV1",
+        "legenda": "Semana de AV1 (atividades em sala de aula)",
+        "data_inicio": "2026-10-28",
+        "data_fim": "2026-10-28"
+      },
+      {
+        "tipo": "SEMANA_AV2",
+        "legenda": "Semana de AV2",
+        "data_inicio": "2026-11-19",
+        "data_fim": "2026-11-19"
+      },
+      {
+        "tipo": "SEMANA_AV2",
+        "legenda": "Semana de AV2",
+        "data_inicio": "2026-11-23",
+        "data_fim": "2026-11-23"
+      },
+      {
+        "tipo": "SEMANA_AV2",
+        "legenda": "Semana de AV2",
+        "data_inicio": "2026-11-24",
+        "data_fim": "2026-11-24"
+      },
+      {
+        "tipo": "SEMANA_AV2",
+        "legenda": "Semana de AV2",
+        "data_inicio": "2026-11-25",
+        "data_fim": "2026-11-25"
+      },
+      {
+        "tipo": "SEMANA_AV2",
+        "legenda": "Semana de AV2",
+        "data_inicio": "2026-11-26",
+        "data_fim": "2026-11-26"
+      },
+      {
+        "tipo": "SEMANA_RECUPERACAO",
+        "legenda": "Semana de Recuperação Única",
+        "data_inicio": "2026-12-01",
+        "data_fim": "2026-12-01"
+      },
+      {
+        "tipo": "SEMANA_RECUPERACAO",
+        "legenda": "Semana de Recuperação Única",
+        "data_inicio": "2026-12-02",
+        "data_fim": "2026-12-02"
+      },
+      {
+        "tipo": "SEMANA_RECUPERACAO",
+        "legenda": "Semana de Recuperação Única",
+        "data_inicio": "2026-12-03",
+        "data_fim": "2026-12-03"
+      },
+      {
+        "tipo": "SEMANA_RECUPERACAO",
+        "legenda": "Semana de Recuperação Única",
+        "data_inicio": "2026-12-04",
+        "data_fim": "2026-12-04"
+      },
+      {
+        "tipo": "SEMANA_RECUPERACAO",
+        "legenda": "Semana de Recuperação Única",
+        "data_inicio": "2026-12-07",
+        "data_fim": "2026-12-07"
+      },
+      {
+        "tipo": "DIVULGACAO_RESULTADO",
+        "legenda": "Divulgação Resultado Final",
+        "data_inicio": "2026-12-14",
+        "data_fim": "2026-12-14"
+      },
+      {
+        "tipo": "PROVAS_SUBSTITUTIVAS",
+        "legenda": "Provas Substitutivas (agendamento SOE)",
+        "data_inicio": "2026-12-08",
+        "data_fim": "2026-12-08"
+      }
+    ],
+    "calendario_organizacional": [
+      {
+        "categoria": "AV1",
+        "disciplina": "Língua Portuguesa",
+        "data_texto": "23/10 a 28/10",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-10-23",
+            "data_fim": "2026-10-28",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "AV1",
+        "disciplina": "Geografia",
+        "data_texto": "22/10 e 27/10",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-10-22",
+            "data_fim": "2026-10-22",
+            "turma": null
+          },
+          {
+            "data_inicio": "2026-10-27",
+            "data_fim": "2026-10-27",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "AV1",
+        "disciplina": "História",
+        "data_texto": "9º MB 26/10 / 9º MA 27/10",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-10-26",
+            "data_fim": "2026-10-26",
+            "turma": "9º MB"
+          },
+          {
+            "data_inicio": "2026-10-27",
+            "data_fim": "2026-10-27",
+            "turma": "9º MA"
+          }
+        ]
+      },
+      {
+        "categoria": "AV1",
+        "disciplina": "Ciências",
+        "data_texto": "22/10, 23/10, 26/10",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-10-22",
+            "data_fim": "2026-10-22",
+            "turma": null
+          },
+          {
+            "data_inicio": "2026-10-23",
+            "data_fim": "2026-10-23",
+            "turma": null
+          },
+          {
+            "data_inicio": "2026-10-26",
+            "data_fim": "2026-10-26",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "AV1",
+        "disciplina": "Matemática",
+        "data_texto": "22/10 e 27/10",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-10-22",
+            "data_fim": "2026-10-22",
+            "turma": null
+          },
+          {
+            "data_inicio": "2026-10-27",
+            "data_fim": "2026-10-27",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "AV2",
+        "disciplina": "Língua Portuguesa",
+        "data_texto": "19/11",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-11-19",
+            "data_fim": "2026-11-19",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "AV2",
+        "disciplina": "Geografia",
+        "data_texto": "23/11",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-11-23",
+            "data_fim": "2026-11-23",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "AV2",
+        "disciplina": "História",
+        "data_texto": "24/11",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-11-24",
+            "data_fim": "2026-11-24",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "AV2",
+        "disciplina": "Ciências",
+        "data_texto": "25/11",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-11-25",
+            "data_fim": "2026-11-25",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "AV2",
+        "disciplina": "Matemática",
+        "data_texto": "26/11",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-11-26",
+            "data_fim": "2026-11-26",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "RECUPERACAO",
+        "disciplina": "Língua Portuguesa",
+        "data_texto": "01/12",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-12-01",
+            "data_fim": "2026-12-01",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "RECUPERACAO",
+        "disciplina": "Geografia",
+        "data_texto": "02/12",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-12-02",
+            "data_fim": "2026-12-02",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "RECUPERACAO",
+        "disciplina": "História",
+        "data_texto": "03/12",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-12-03",
+            "data_fim": "2026-12-03",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "RECUPERACAO",
+        "disciplina": "Ciências",
+        "data_texto": "04/12",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-12-04",
+            "data_fim": "2026-12-04",
+            "turma": null
+          }
+        ]
+      },
+      {
+        "categoria": "RECUPERACAO",
+        "disciplina": "Matemática",
+        "data_texto": "07/12",
+        "ocorrencias": [
+          {
+            "data_inicio": "2026-12-07",
+            "data_fim": "2026-12-07",
+            "turma": null
+          }
+        ]
+      }
+    ],
+    "chave_origem": "2026-B4-EFUND09MA_MB"
+  },
+  "avaliacoes": [
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-portuguesa-av1-1",
+      "disciplina": "Língua Portuguesa",
+      "categoria": "AV1",
+      "categoria_rotulo": "AV.1",
+      "titulo": "MAPA MENTAL",
+      "data_texto": "23/10 a 28/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-23",
+          "data_fim": "2026-10-28",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 8 - Contar e recontar a vida\nOrações Subordinadas substantivas desenvolvidas e reduzidas\nPáginas 11 a 15",
+      "criterio_correcao": "MAPA MENTAL:\n\nEm sala de aula, os alunos elaborarão um mapa mental sobre as orações subordinadas substantivas, organizando e sintetizando as informações estudadas. Deverão apresentar os tipos de orações, suas características e exemplos, estabelecendo relações entre os conceitos de forma clara e organizada.\n1. Clareza e organização na elaboração do mapa mental. (2,0)\n2. Abordagem correta do conteúdo, contemplando os tipos e as características das orações subordinadas substantivas. (2,0)\n3. Estabelecimento de conexões e relações entre os conceitos apresentados. (2,0)\n4. Uso de recursos visuais que facilitem a compreensão do conteúdo. (2,0)\n5. Criatividade e originalidade na elaboração do mapa mental. (2,0)\n\nMATERIAL NECESSÁRIO: 1 Folha A4 tipo Canson",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Clareza e organização na elaboração do mapa mental.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Abordagem correta do conteúdo, contemplando os tipos e as características das orações subordinadas substantivas.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Estabelecimento de conexões e relações entre os conceitos apresentados.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 4,
+          "descricao": "Uso de recursos visuais que facilitem a compreensão do conteúdo.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 5,
+          "descricao": "Criatividade e originalidade na elaboração do mapa mental.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": "1 Folha A4 tipo Canson",
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-portuguesa-av2-1",
+      "disciplina": "Língua Portuguesa",
+      "categoria": "AV2",
+      "categoria_rotulo": "AV.2",
+      "titulo": "AVALIAÇÃO IMPRESSA",
+      "data_texto": "19/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-19",
+          "data_fim": "2026-11-19",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 7 - Contar, recontar a vida\nCapítulo 8 - De tudo, ficam as lembranças\nInterpretação textual\nFiguras de linguagem no conto literário\nVerossimilhança e identidade narrativa nos falares\nPáginas 27 a 30 e 44 a 45",
+      "criterio_correcao": "AVALIAÇÃO IMPRESSA:\n\nExecução da avaliação em sala de aula, sem consulta ao material didático, a correção considerará o desempenho do aluno, observando a compreensão das propostas, as tentativas de resposta, os acertos e erros.\n1. A avaliação será composta por 10 questões. (1,0 cada)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "A avaliação será composta por 10 questões.",
+          "pontos": 1.0,
+          "por_unidade": true,
+          "quantidade": 10
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Pontos do item são '(1,0 cada)' — pontos=1.0 por questão, total 10,0."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-portuguesa-redacao-1",
+      "disciplina": "Língua Portuguesa",
+      "categoria": "REDACAO",
+      "categoria_rotulo": "REDAÇÃO",
+      "titulo": "REDAÇÃO",
+      "data_texto": "14/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-14",
+          "data_fim": "2026-10-14",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Conto literário\nPágina 32",
+      "criterio_correcao": "REDAÇÃO:\n\nA pontuação da redação será distribuída de forma progressiva, permitindo uma análise justa, clara e formativa do desenvolvimento da escrita com base em cinco competências .\n1. Escrita de acordo com a norma formal da língua portuguesa. (2,0)\n2. Abordagem completa ao gênero textual. (2,0)\n3. Aplicação e desenvolvimento completo do tema proposto. (2,0)\n4. Organização textual e coesão. (2,0)\n5. Em todo texto originalidade, criatividade e informatividade. (2,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Escrita de acordo com a norma formal da língua portuguesa.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Abordagem completa ao gênero textual.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Aplicação e desenvolvimento completo do tema proposto.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 4,
+          "descricao": "Organização textual e coesão.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 5,
+          "descricao": "Em todo texto originalidade, criatividade e informatividade.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-portuguesa-redacao-2",
+      "disciplina": "Língua Portuguesa",
+      "categoria": "REDACAO",
+      "categoria_rotulo": "REDAÇÃO",
+      "titulo": "REDAÇÃO",
+      "data_texto": "03/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-03",
+          "data_fim": "2026-11-03",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Memória literária",
+      "criterio_correcao": "REDAÇÃO:\n\nA pontuação da redação será distribuída de forma progressiva, permitindo uma análise justa, clara e formativa do desenvolvimento da escrita com base em cinco competências .\n1. Escrita de acordo com a norma formal da língua portuguesa. (2,0)\n2. Abordagem completa ao gênero textual. (2,0)\n3. Aplicação e desenvolvimento completo do tema proposto. (2,0)\n4. Organização textual e coesão. (2,0)\n5. Em todo texto originalidade, criatividade e informatividade. (2,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Escrita de acordo com a norma formal da língua portuguesa.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Abordagem completa ao gênero textual.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Aplicação e desenvolvimento completo do tema proposto.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 4,
+          "descricao": "Organização textual e coesão.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 5,
+          "descricao": "Em todo texto originalidade, criatividade e informatividade.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Linha no topo da página 4 sem rótulo de categoria: continuação da célula mesclada REDAÇÃO da página 3."
+      ],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-portuguesa-produtividade-1",
+      "disciplina": "Língua Portuguesa",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "PROJETO LEITURA",
+      "data_texto": "19/10 a 02/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-19",
+          "data_fim": "2026-12-02",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Ler é uma descoberta\nFichas 16, 17, 18, 19 e 20",
+      "criterio_correcao": "PROJETO LEITURA\n\nO projeto é desenvolvido ao longo do bimestre. As fichas devem ser preenchidas com coerência, considerando, letra legível, capricho na organização e cumprimento dos prazos.\n1. Cada ficha completa. (2,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Cada ficha completa.",
+          "pontos": 2.0,
+          "por_unidade": true,
+          "quantidade": 5
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "'Cada ficha completa. (2,0)' × 5 fichas (16 a 20) = 10,0."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-portuguesa-produtividade-2",
+      "disciplina": "Língua Portuguesa",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS",
+      "data_texto": "23/11 a 07/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-23",
+          "data_fim": "2026-12-07",
+          "turma": null
+        }
+      ],
+      "valor": 5.0,
+      "valor_texto": "5,0",
+      "objeto_conhecimento": "Livro didático e caderno",
+      "criterio_correcao": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS:\n\nSerão avaliadas a execução das atividades em classe e em casa, considerando participação, registros compatíveis, organização e cumprimento dos prazos.\n1. Em classe. (2,5)\n2. Em casa. (2,5)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Em classe.",
+          "pontos": 2.5,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Em casa.",
+          "pontos": 2.5,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Célula DATA contém um '.' isolado acima da data (sobra de formatação do PDF); ignorado."
+      ],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-portuguesa-recuperacao-1",
+      "disciplina": "Língua Portuguesa",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO ÚNICA",
+      "data_texto": "01/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-12-01",
+          "data_fim": "2026-12-01",
+          "turma": null
+        }
+      ],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "criterio_correcao": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-geografia-av1-1",
+      "disciplina": "Geografia",
+      "categoria": "AV1",
+      "categoria_rotulo": "AV.1",
+      "titulo": "BODY ART - EXPRESSÃO EM MÚLTIPLAS LINGUAGENS",
+      "data_texto": "22/10 e 27/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-22",
+          "data_fim": "2026-10-22",
+          "turma": null
+        },
+        {
+          "data_inicio": "2026-10-27",
+          "data_fim": "2026-10-27",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Oceania",
+      "criterio_correcao": "BODY ART - EXPRESSÃO EM MÚLTIPLAS LINGUAGENS:\n\nOs alunos participarão de uma atividade interdisciplinar envolvendo as disciplinas de Arte, Geografia, História, Ciências e Matemática. A proposta será desenvolvida em três etapas:\n1) Pesquisa: os alunos deverão pesquisar referências e planejar a composição corporal, contemplando os requisitos das disciplinas envolvidas.\n2) Prática artística: em duplas, realizarão uma pintura corporal que integre os elementos pesquisados e comunique uma ideia por meio de cores, formas e símbolos.\n3) Memorial Descritivo: cada aluno responderá individualmente ao Memorial Descritivo de cada disciplina, demonstrando a compreensão dos conteúdos abordados.\n1. Pesquisa e seleção de uma referência relacionada à Oceania para a composição corporal. (3,0)\n2. Aplicação e relação da referência escolhida com as características geográficas estudadas. (3,0)\n3. Memorial Descritivo de Geografia: identificação, localização e explicação da referência escolhida, de acordo com o conteúdo estudado sobre a Oceania. (4,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Pesquisa e seleção de uma referência relacionada à Oceania para a composição corporal.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Aplicação e relação da referência escolhida com as características geográficas estudadas.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Memorial Descritivo de Geografia: identificação, localização e explicação da referência escolhida, de acordo com o conteúdo estudado sobre a Oceania.",
+          "pontos": 4.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-geografia-av2-1",
+      "disciplina": "Geografia",
+      "categoria": "AV2",
+      "categoria_rotulo": "AV.2",
+      "titulo": "AVALIAÇÃO IMPRESSA",
+      "data_texto": "23/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-23",
+          "data_fim": "2026-11-23",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 11 - Questões Atuais: Europa, Ásia, Oceania e Brasil\nPáginas 22 a 31",
+      "criterio_correcao": "AVALIAÇÃO IMPRESSA:\n\nExecução da avaliação em sala de aula, sem consulta ao material didático, a correção considerará o desempenho do aluno, observando a compreensão das propostas, as tentativas de resposta, os acertos e erros.\n1. A avaliação será composta por 10 questões (1,0 cada).",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "A avaliação será composta por 10 questões",
+          "pontos": 1.0,
+          "por_unidade": true,
+          "quantidade": 10
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-geografia-produtividade-1",
+      "disciplina": "Geografia",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "ARTIGO DE OPINIÃO",
+      "data_texto": "17/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-17",
+          "data_fim": "2026-11-17",
+          "turma": null
+        }
+      ],
+      "valor": 7.0,
+      "valor_texto": "7,0",
+      "objeto_conhecimento": "Questões Atuais: Europa, Ásia, Oceania e Brasil",
+      "criterio_correcao": "ARTIGO DE OPINIÃO:\n\nEm casa os alunos deverão elaborar em uma folha avulsa e timbrada do colégio um artigo de opinião de pelo menos 25 linhas expressando sua visão sobre a globalização moderna.\n1. Elaboração de um artigo de opinião sobre a globalização e industrialização assumindo uma posição a favor ou contra. (3,0)\n2. Apresentação de argumentos coerentes e fatos reais para embasamentos do texto. (2,0)\n3. Estrutura textual coerente com 3 parágrafos e mínimo de 30 linhas. (2,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Elaboração de um artigo de opinião sobre a globalização e industrialização assumindo uma posição a favor ou contra.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Apresentação de argumentos coerentes e fatos reais para embasamentos do texto.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Estrutura textual coerente com 3 parágrafos e mínimo de 30 linhas.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Linha quebrada entre páginas 5 e 6 (itens 2 e 3 na página seguinte).",
+        "Texto pede 'pelo menos 25 linhas' e o item 3 exige 'mínimo de 30 linhas' — contradição do próprio PDF, mantida."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-geografia-produtividade-2",
+      "disciplina": "Geografia",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS",
+      "data_texto": "17/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-17",
+          "data_fim": "2026-11-17",
+          "turma": null
+        }
+      ],
+      "valor": 3.0,
+      "valor_texto": "3,0",
+      "objeto_conhecimento": "Livro didático e caderno",
+      "criterio_correcao": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS:\n\nSerão avaliadas a execução das atividades em classe e em casa, considerando participação, registros compatíveis, organização e cumprimento dos prazos.\n1. Em classe. (1,5)\n2. Em casa. (1,5)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Em classe.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Em casa.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Célula DATA contém um '.' isolado acima da data (sobra de formatação do PDF); ignorado."
+      ],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-geografia-recuperacao-1",
+      "disciplina": "Geografia",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO ÚNICA",
+      "data_texto": "02/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-12-02",
+          "data_fim": "2026-12-02",
+          "turma": null
+        }
+      ],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "criterio_correcao": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-historia-av1-1",
+      "disciplina": "História",
+      "categoria": "AV1",
+      "categoria_rotulo": "AV.1",
+      "titulo": "BODY ART: EXPRESSÃO EM MÚLTIPLAS LINGUAGENS",
+      "data_texto": "9º MB 22/10 e 26/10 / 9º MA 22/10 e 27/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-22",
+          "data_fim": "2026-10-22",
+          "turma": "9º MB"
+        },
+        {
+          "data_inicio": "2026-10-26",
+          "data_fim": "2026-10-26",
+          "turma": "9º MB"
+        },
+        {
+          "data_inicio": "2026-10-22",
+          "data_fim": "2026-10-22",
+          "turma": "9º MA"
+        },
+        {
+          "data_inicio": "2026-10-27",
+          "data_fim": "2026-10-27",
+          "turma": "9º MA"
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Regime Militar",
+      "criterio_correcao": "BODY ART: EXPRESSÃO EM MÚLTIPLAS LINGUAGENS\n\nOs alunos participarão de uma atividade interdisciplinar envolvendo as disciplinas de Arte, Geografia, História, Ciências e Matemática. A proposta será desenvolvida em três etapas:\n1) Pesquisa: os alunos deverão pesquisar referências e planejar a composição corporal, contemplando os requisitos das disciplinas envolvidas.\n2) Prática artística: em duplas, realizarão uma pintura corporal que integre os elementos pesquisados e comunique uma ideia por meio de cores, formas e símbolos.\n3) Memorial Descritivo: ao final da aula prática, cada aluno responderá individualmente ao Memorial Descritivo de cada disciplina, demonstrando a compreensão dos conteúdos abordados.\n1. Pesquisa e planejamento da mensagem de protesto ou conscientização. (3,0)\n2. Representação visual da mensagem por meio de cores, formas, palavras ou símbolos. (3,0)\n3. Memorial Descritivo de História: compreensão da mensagem escolhida e sua relação com o contexto histórico do Brasil durante os governos militares, considerando os conteúdos estudados. (4,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Pesquisa e planejamento da mensagem de protesto ou conscientização.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Representação visual da mensagem por meio de cores, formas, palavras ou símbolos.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Memorial Descritivo de História: compreensão da mensagem escolhida e sua relação com o contexto histórico do Brasil durante os governos militares, considerando os conteúdos estudados.",
+          "pontos": 4.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Datas diferentes por turma (9º MA / 9º MB).",
+        "Calendário Organizacional AV.1 (pág. 2) traz História 9º MB 26/10 e 9º MA 27/10 (sem o 22/10 da tabela)."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-historia-av2-1",
+      "disciplina": "História",
+      "categoria": "AV2",
+      "categoria_rotulo": "AV.2",
+      "titulo": "AVALIAÇÃO IMPRESSA",
+      "data_texto": "24/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-24",
+          "data_fim": "2026-11-24",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 12 - Política e Sociedade no Brasil contemporâneo\nRevisar:\nResumo página 63 e 64\nAtividades páginas 50, 51, 52, 56, 57, 62 e 63\nSerá disponibilizado no E-class slide e vídeos para estudo e revisão",
+      "criterio_correcao": "AVALIAÇÃO IMPRESSA:\n\nExecução da avaliação em sala de aula, sem consulta ao material didático, a correção considerará o desempenho do aluno, observando a compreensão das propostas, os acertos e erros.\n1. A avaliação será composta por 10 questões (1,0 cada).",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "A avaliação será composta por 10 questões",
+          "pontos": 1.0,
+          "por_unidade": true,
+          "quantidade": 10
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-historia-produtividade-1",
+      "disciplina": "História",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "QUESTIONÁRIO",
+      "data_texto": "11/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-11",
+          "data_fim": "2026-11-11",
+          "turma": null
+        }
+      ],
+      "valor": 7.0,
+      "valor_texto": "7,0",
+      "objeto_conhecimento": "Fim da Guerra Fria",
+      "criterio_correcao": "QUESTIONÁRIO:\nEm sala de aula os alunos responderão individualmente a um questionário sobre os conteúdos estudados no capítulo 11 do livro didático: Fim de Guerra Fria.\nSerá permitida a consulta às anotações manuscritas no caderno. Não será permitido utilizar o livro didático ou outros materiais impressos durante a realização da atividade.\n1. Respostas corretas e coerentes com os conteúdos estudados, demonstrando compreensão dos temas abordados. (10,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Respostas corretas e coerentes com os conteúdos estudados, demonstrando compreensão dos temas abordados.",
+          "pontos": 10.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Valor da linha é 7,0 mas o único item do critério vale (10,0) — inconsistência do PDF, mantida."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-historia-produtividade-2",
+      "disciplina": "História",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS",
+      "data_texto": "20.11.26",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-20",
+          "data_fim": "2026-11-20",
+          "turma": null
+        }
+      ],
+      "valor": 3.0,
+      "valor_texto": "3,0",
+      "objeto_conhecimento": "Livro didático e caderno",
+      "criterio_correcao": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS:\n\nSerão avaliadas a execução das atividades em classe e em casa, considerando participação, registros compatíveis, organização e cumprimento dos prazos.\n1. Em classe. (1,5)\n2. Em casa. (1,5)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Em classe.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Em casa.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Data escrita no formato '20.11.26' (diferente do padrão dd/mm) = 20/11/2026.",
+        "Célula DATA contém um '.' isolado acima da data (sobra de formatação do PDF); ignorado."
+      ],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-historia-recuperacao-1",
+      "disciplina": "História",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO ÚNICA",
+      "data_texto": "03/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-12-03",
+          "data_fim": "2026-12-03",
+          "turma": null
+        }
+      ],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "criterio_correcao": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ciencias-av1-1",
+      "disciplina": "Ciências",
+      "categoria": "AV1",
+      "categoria_rotulo": "AV.1",
+      "titulo": "BODY ART - EXPRESSÃO EM MÚLTIPLAS LINGUAGENS",
+      "data_texto": "22/10 e 26/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-22",
+          "data_fim": "2026-10-22",
+          "turma": null
+        },
+        {
+          "data_inicio": "2026-10-26",
+          "data_fim": "2026-10-26",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "A União Faz a Ligação",
+      "criterio_correcao": "BODY ART - EXPRESSÃO EM MÚLTIPLAS LINGUAGENS:\n\nOs alunos participarão de uma atividade interdisciplinar envolvendo as disciplinas de Arte, Geografia, História, Ciências e Matemática. A proposta será desenvolvida em três etapas:\n1)Pesquisa: os alunos deverão pesquisar referências e planejar a composição corporal, contemplando os requisitos das disciplinas envolvidas.\n2) Prática artística: em duplas, realizarão uma pintura corporal que integre os elementos pesquisados e comunique uma ideia por meio de cores, formas e símbolos.\n3) Memorial Descritivo: ao final da aula prática, cada aluno responderá individualmente ao Memorial Descritivo de cada disciplina, demonstrando a compreensão dos conteúdos abordados.\n1. Participação na atividade prática e observação das características da tinta durante a aplicação e a secagem. (3,0)\n2. Relação entre as observações realizadas e os conceitos científicos estudados sobre a matéria e suas transformações. (3,0)\n3. Memorial Descritivo de Ciências: compreensão e explicação dos conceitos científicos abordados no capítulo estudado. (4,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Participação na atividade prática e observação das características da tinta durante a aplicação e a secagem.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Relação entre as observações realizadas e os conceitos científicos estudados sobre a matéria e suas transformações.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Memorial Descritivo de Ciências: compreensão e explicação dos conceitos científicos abordados no capítulo estudado.",
+          "pontos": 4.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Calendário Organizacional AV.1 (pág. 2) traz Ciências '22/10, 23/10, 26/10'; a tabela traz '22/10 e 26/10'.",
+        "Comunicado de 22/10 'AUSÊNCIA DA PROFESSORA NATHÁLIA (CIÊNCIAS)' informa que a AV1 prevista foi cancelada e será reagendada — data a ser atualizada quando a escola informar."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ciencias-av2-1",
+      "disciplina": "Ciências",
+      "categoria": "AV2",
+      "categoria_rotulo": "AV.2",
+      "titulo": "AVALIAÇÃO IMPRESSA",
+      "data_texto": "25/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-25",
+          "data_fim": "2026-11-25",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 11: Qualificando e Quantificando\nPáginas 20 a 38",
+      "criterio_correcao": "AVALIAÇÃO IMPRESSA:\n\nExecução da avaliação em sala de aula, sem consulta ao material didático, a correção considerará o desempenho do aluno, observando a compreensão das propostas, os acertos e erros.\n1. A avaliação será composta por 10 questões. (1,0 cada)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "A avaliação será composta por 10 questões.",
+          "pontos": 1.0,
+          "por_unidade": true,
+          "quantidade": 10
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ciencias-produtividade-1",
+      "disciplina": "Ciências",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "PESQUISA",
+      "data_texto": "09/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-09",
+          "data_fim": "2026-11-09",
+          "turma": null
+        }
+      ],
+      "valor": 7.0,
+      "valor_texto": "7,0",
+      "objeto_conhecimento": "Biodiversidade: Conservação e uso sustentável\nPágina 53",
+      "criterio_correcao": "PESQUISA:\n\nEm casa os alunos deverão criar uma representação de um ambiente com diferentes seres vivos, destacando a importância da biodiversidade, da conservação e do uso sustentável dos recursos naturais.\n\n1. Realização de uma pesquisa manuscrita (6,0);\n2. Entrega em folha de papel almaço com capa seguindo as normas (1,0).\n● Nome da Instituição\n● Nome do Aluno e série\n● Título: Biodiversidade\nConservação e uso sustentável\n● Cidade\n● Ano",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Realização de uma pesquisa manuscrita",
+          "pontos": 6.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Entrega em folha de papel almaço com capa seguindo as normas",
+          "pontos": 1.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Linha quebrada entre páginas 9 e 10: rótulo/critério começa na pág. 9 e DATA (09/11), VALOR (7,0) e conteúdo aparecem na pág. 10."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ciencias-produtividade-2",
+      "disciplina": "Ciências",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS",
+      "data_texto": "16/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-16",
+          "data_fim": "2026-11-16",
+          "turma": null
+        }
+      ],
+      "valor": 3.0,
+      "valor_texto": "3,0",
+      "objeto_conhecimento": "Livro didático e caderno",
+      "criterio_correcao": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS:\n\nSerão avaliadas a execução das atividades em classe e em casa, considerando participação, registros compatíveis, organização e cumprimento dos prazos.\n1. Em classe (1,5)\n2. Em casa (1,5)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Em classe",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Em casa",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Célula DATA contém um '.' isolado acima da data (sobra de formatação do PDF); ignorado."
+      ],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ciencias-recuperacao-1",
+      "disciplina": "Ciências",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO ÚNICA",
+      "data_texto": "04/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-12-04",
+          "data_fim": "2026-12-04",
+          "turma": null
+        }
+      ],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "criterio_correcao": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-matematica-av1-1",
+      "disciplina": "Matemática",
+      "categoria": "AV1",
+      "categoria_rotulo": "AV.1",
+      "titulo": "BODY ART - EXPRESSÃO EM MÚLTIPLAS LINGUAGENS",
+      "data_texto": "22/10 e 27/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-22",
+          "data_fim": "2026-10-22",
+          "turma": null
+        },
+        {
+          "data_inicio": "2026-10-27",
+          "data_fim": "2026-10-27",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 9 - Grandezas e Medidas\nPáginas 2 a 20",
+      "criterio_correcao": "BODY ART - EXPRESSÃO EM MÚLTIPLAS LINGUAGENS\n\nOs alunos participarão de uma atividade interdisciplinar envolvendo as disciplinas de Arte, Geografia, História, Ciências e Matemática. A proposta será desenvolvida em três etapas:\n1) Pesquisa: os alunos deverão pesquisar referências e planejar a composição corporal, contemplando os requisitos das disciplinas envolvidas.\n2) Prática artística: em duplas, realizarão uma pintura corporal que integre os elementos pesquisados e comunique uma ideia por meio de cores, formas e símbolos\n3) Memorial Descritivo: ao final da aula prática, cada aluno responderá individualmente ao Memorial Descritivo de cada disciplina, demonstrando a compreensão dos conteúdos abordados.\n1. Pesquisa e seleção de formas geométricas para a composição corporal. (3,0)\n2. Aplicação e organização das formas geométricas na composição artística. (3,0)\n3. Memorial Descritivo de Matemática: identificação das formas utilizadas e aplicação dos conceitos matemáticos estudados. (4,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Pesquisa e seleção de formas geométricas para a composição corporal.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Aplicação e organização das formas geométricas na composição artística.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Memorial Descritivo de Matemática: identificação das formas utilizadas e aplicação dos conceitos matemáticos estudados.",
+          "pontos": 4.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-matematica-av2-1",
+      "disciplina": "Matemática",
+      "categoria": "AV2",
+      "categoria_rotulo": "AV.2",
+      "titulo": "AVALIAÇÃO IMPRESSA",
+      "data_texto": "26/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-26",
+          "data_fim": "2026-11-26",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 11 - Trigonometria\nPáginas 52 a 60",
+      "criterio_correcao": "AVALIAÇÃO IMPRESSA:\n\nExecução da avaliação em sala de aula, sem consulta ao material didático, a correção considerará o desempenho do aluno, observando a compreensão das propostas, os acertos e erros.\n1. A avaliação será composta por 10 questões. (1,0 cada)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "A avaliação será composta por 10 questões.",
+          "pontos": 1.0,
+          "por_unidade": true,
+          "quantidade": 10
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-matematica-produtividade-1",
+      "disciplina": "Matemática",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "LISTA DE EXERCÍCIOS",
+      "data_texto": "01/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-12-01",
+          "data_fim": "2026-12-01",
+          "turma": null
+        }
+      ],
+      "valor": 7.0,
+      "valor_texto": "7,0",
+      "objeto_conhecimento": "Capítulo 9 - Grandezas e Medidas\nCapítulo 11 - Trigonometria",
+      "criterio_correcao": "LISTA DE EXERCÍCIOS:\n\nOs alunos deverão realizar a resolução de exercícios, registrando os cálculos na folha entregue pelo professor e respondendo às questões na plataforma E-class.\n1. Resolução correta dos exercícios, com registro completo dos cálculos e respostas na plataforma E-class (7,0).\n\nOBSERVAÇÃO: A não entrega dos cálculos implicará na atribuição de apenas 50% da nota.",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Resolução correta dos exercícios, com registro completo dos cálculos e respostas na plataforma E-class",
+          "pontos": 7.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": "OBSERVAÇÃO: A não entrega dos cálculos implicará na atribuição de apenas 50% da nota.",
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-matematica-produtividade-2",
+      "disciplina": "Matemática",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS",
+      "data_texto": "02/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-12-02",
+          "data_fim": "2026-12-02",
+          "turma": null
+        }
+      ],
+      "valor": 3.0,
+      "valor_texto": "3,0",
+      "objeto_conhecimento": "Livro didático e caderno",
+      "criterio_correcao": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS:\n\nSerão avaliadas a execução das atividades em classe e em casa, considerando participação, registros compatíveis, organização e cumprimento dos prazos.\n1. Em classe. (1,5)\n2. Em casa. (1,5)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Em classe.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Em casa.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Célula DATA contém um '.' isolado acima da data (sobra de formatação do PDF); ignorado."
+      ],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-matematica-recuperacao-1",
+      "disciplina": "Matemática",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO ÚNICA",
+      "data_texto": "07/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-12-07",
+          "data_fim": "2026-12-07",
+          "turma": null
+        }
+      ],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "criterio_correcao": "RECUPERAÇÃO ÚNICA CONTEMPLA O CONTEÚDO DA AV1 E AV2",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-inglesa-produtividade-1",
+      "disciplina": "Língua Inglesa",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "CARTAZ",
+      "data_texto": "20/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-20",
+          "data_fim": "2026-10-20",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 7 - Multicultural life\nPáginas 127 e 128",
+      "criterio_correcao": "CARTAZ:\n\nEm sala de aula os alunos deverão escolher um país para fazer intercâmbio e confeccionar um cartaz listando razões para estudar lá.\n1. Capricho na execução do cartaz. (5,0)\n2. Ortografia e vocabulário corretos. (5,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Capricho na execução do cartaz.",
+          "pontos": 5.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Ortografia e vocabulário corretos.",
+          "pontos": 5.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-inglesa-produtividade-2",
+      "disciplina": "Língua Inglesa",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "QUESTIONÁRIO",
+      "data_texto": "10/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-10",
+          "data_fim": "2026-11-10",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 7 - Multicultural life\nPáginas 132 e 133",
+      "criterio_correcao": "QUESTIONÁRIO:\n\nO questionário será aplicado de forma simples e orientado, com leitura das questões pela professora. Os alunos responderão individualmente, demonstrando o que compreenderam sobre o conteúdo trabalhado. Durante a aplicação, a professora poderá esclarecer dúvidas de vocabulário, sem indicar as respostas, garantindo que a atividade avalie a aprendizagem real de cada aluno.\n1. Acertos nas questões propostas (1,0 cada).",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Acertos nas questões propostas",
+          "pontos": 1.0,
+          "por_unidade": true,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Item '(1,0 cada)' sem número de questões informado (valor total 10,0 sugere 10 questões)."
+      ],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-lingua-inglesa-recuperacao-1",
+      "disciplina": "Língua Inglesa",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO CONTÍNUA",
+      "data_texto": "CONTÍNUA",
+      "ocorrencias": [],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "AS ATIVIDADES DE RECUPERAÇÃO ACONTECERÃO DURANTE AS AULAS",
+      "criterio_correcao": "AS ATIVIDADES DE RECUPERAÇÃO ACONTECERÃO DURANTE AS AULAS",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-arte-produtividade-1",
+      "disciplina": "Arte",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "BODY ART - EXPRESSÃO EM MÚLTIPLAS LINGUAGENS",
+      "data_texto": "22/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-22",
+          "data_fim": "2026-10-22",
+          "turma": null
+        }
+      ],
+      "valor": 7.0,
+      "valor_texto": "7,0",
+      "objeto_conhecimento": "Capítulo 10 - Arte Contemporânea",
+      "criterio_correcao": "BODY ART - EXPRESSÃO EM MÚLTIPLAS LINGUAGENS:\n\nOs alunos participarão de uma atividade interdisciplinar envolvendo as disciplinas de Arte, Matemática, Ciências, Geografia e História. A proposta será desenvolvida em duas etapas:\n1) Pesquisa e planejamento: os alunos deverão pesquisar referências e planejar a composição corporal, contemplando os requisitos das disciplinas envolvidas;\n2) Prática artística: em duplas, realizarão uma pintura corporal que integre os elementos pesquisados e comunique uma ideia por meio de cores, formas e símbolos. A produção artística será registrada durante a realização da atividade.\n1. Realização da pintura corporal. (4,0)\n2. Composição visual, organização dos elementos, uso intencional de cores, formas e símbolos e acabamento da produção. (3,0)\n\nMATERIAIS NECESSÁRIOS: Tintas próprias para pintura corporal e pincéis.",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Realização da pintura corporal.",
+          "pontos": 4.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Composição visual, organização dos elementos, uso intencional de cores, formas e símbolos e acabamento da produção.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": "Tintas próprias para pintura corporal e pincéis.",
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-arte-produtividade-2",
+      "disciplina": "Arte",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "CRIAÇÃO DE RAP: RIMA IMPROVISADA",
+      "data_texto": "12/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-12",
+          "data_fim": "2026-11-12",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Capítulo 11 - Hábitos de Escuta Musical",
+      "criterio_correcao": "CRIAÇÃO DE RAP: RIMA IMPROVISADA\n\nOs alunos deverão criar, individualmente, uma composição autoral de rap em folha timbrada fornecida pela professora, desenvolvendo a construção de rimas e versos a partir dos conteúdos trabalhados em aula. A produção deverá conter 4 estrofes, com 4 versos em cada estrofe, totalizando 16 versos, além de um título para a composição.\n\n1. Realização e desenvolvimento da proposta. (5,0)\n2. Construção e aplicação das rimas na composição. (3,0)\n3. Coerência, autoria e organização da produção. (2,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Realização e desenvolvimento da proposta.",
+          "pontos": 5.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Construção e aplicação das rimas na composição.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Coerência, autoria e organização da produção.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-arte-produtividade-3",
+      "disciplina": "Arte",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS",
+      "data_texto": "03/12",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-12-03",
+          "data_fim": "2026-12-03",
+          "turma": null
+        }
+      ],
+      "valor": 3.0,
+      "valor_texto": "3,0",
+      "objeto_conhecimento": "Livro didático",
+      "criterio_correcao": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS:\n\nSerão avaliadas a execução das atividades em sala de aula, a participação em classe e as tarefas de casa.\n1. Em classe. (1,5)\n2. Em casa. (1,5)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Em classe.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Em casa.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Célula DATA contém um '.' isolado acima da data (sobra de formatação do PDF); ignorado."
+      ],
+      "sequencia": 3
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-arte-recuperacao-1",
+      "disciplina": "Arte",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO CONTÍNUA",
+      "data_texto": "CONTÍNUA",
+      "ocorrencias": [],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "AS ATIVIDADES DE RECUPERAÇÃO ACONTECERÃO DURANTE AS AULAS",
+      "criterio_correcao": "AS ATIVIDADES DE RECUPERAÇÃO ACONTECERÃO DURANTE AS AULAS",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ensino-religioso-produtividade-1",
+      "disciplina": "Ensino Religioso",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "LAPBOOK - UM SÓ CORPO, MUITOS MEMBROS",
+      "data_texto": "21 e 23/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-21",
+          "data_fim": "2026-10-21",
+          "turma": null
+        },
+        {
+          "data_inicio": "2026-10-23",
+          "data_fim": "2026-10-23",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Equipe Unida",
+      "criterio_correcao": "LAPBOOK - UM SÓ CORPO, MUITOS MEMBROS:\n\nConfecção, em dupla em sala de aula, de um lapbook sobre o tema “A necessidade da igreja”. Os alunos utilizarão o livro didático e a Bíblia para pesquisar e apresentar, de forma criativa, os seguintes aspectos: a importância da igreja como comunidade, união, cooperação, dons e talentos, serviço ao próximo e a participação de cada pessoa.\n\n1. Conteúdo da pesquisa (4,0);\n2. Organização e criativa (3,0);\n3. Participação e trabalhos em dupla (2,0);\n4. Referência Bíblica (1,0).\n\nATENÇÃO: trabalhos entregues fora do prazo terão um desconto de 30% na nota final.\n\nMATERIAIS NECESSÁRIOS: livro didático, Bíblia, 1 cartolina, folhas coloridas, lápis de cor/canetinhas, tesoura, cola, post-it, durex colorido, envelopes.",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Conteúdo da pesquisa",
+          "pontos": 4.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Organização e criativa",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Participação e trabalhos em dupla",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 4,
+          "descricao": "Referência Bíblica",
+          "pontos": 1.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": "livro didático, Bíblia, 1 cartolina, folhas coloridas, lápis de cor/canetinhas, tesoura, cola, post-it, durex colorido, envelopes.",
+      "observacoes": "ATENÇÃO: trabalhos entregues fora do prazo terão um desconto de 30% na nota final.",
+      "ambiguidades": [
+        "Data '21 e 23/10' (mês só no segundo dia) = 21/10 e 23/10."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ensino-religioso-produtividade-2",
+      "disciplina": "Ensino Religioso",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "LISTA DE EXERCÍCIOS ON-LINE",
+      "data_texto": "18/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-18",
+          "data_fim": "2026-11-18",
+          "turma": null
+        }
+      ],
+      "valor": 7.0,
+      "valor_texto": "7,0",
+      "objeto_conhecimento": "Especialidade de cada um",
+      "criterio_correcao": "LISTA DE EXERCÍCIOS ON-LINE:\n\nOs alunos participaram de uma lista de exercícios on-line, realizada exclusivamente em sala de aula, com o objetivo de verificar a compreensão e a aprendizagem dos conteúdos trabalhados\n1. Execução da lista. (7,0)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Execução da lista.",
+          "pontos": 7.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ensino-religioso-produtividade-3",
+      "disciplina": "Ensino Religioso",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS",
+      "data_texto": "24 e 27/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-24",
+          "data_fim": "2026-11-24",
+          "turma": null
+        },
+        {
+          "data_inicio": "2026-11-27",
+          "data_fim": "2026-11-27",
+          "turma": null
+        }
+      ],
+      "valor": 3.0,
+      "valor_texto": "3,0",
+      "objeto_conhecimento": "Livro didático e caderno",
+      "criterio_correcao": "EXECUÇÃO E ENTREGA DAS TAREFAS DIÁRIAS:\n\nSerão avaliadas a execução das atividades em classe e em casa, considerando participação, registros compatíveis, organização e cumprimento dos prazos.\n1. Em classe. (1,5)\n2. Em casa. (1,5)",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Em classe.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Em casa.",
+          "pontos": 1.5,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [
+        "Data '24 e 27/11' = 24/11 e 27/11.",
+        "Célula DATA contém um '.' isolado acima da data (sobra de formatação do PDF); ignorado."
+      ],
+      "sequencia": 3
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-ensino-religioso-recuperacao-1",
+      "disciplina": "Ensino Religioso",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO CONTÍNUA",
+      "data_texto": "CONTÍNUA",
+      "ocorrencias": [],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "AS ATIVIDADES DE RECUPERAÇÃO ACONTECERÃO DURANTE AS AULAS",
+      "criterio_correcao": "AS ATIVIDADES DE RECUPERAÇÃO ACONTECERÃO DURANTE AS AULAS",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-educacao-fisica-produtividade-1",
+      "disciplina": "Educação Física",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "AVALIAÇÃO PRÁTICA",
+      "data_texto": "26/10",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-10-26",
+          "data_fim": "2026-10-26",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Esportes: Futsal e Handebol",
+      "criterio_correcao": "AVALIAÇÃO PRÁTICA:\n\nObservar o aluno em suas habilidades no Futsal e Handebol exige uma abordagem contínua e formativa, que considere não apenas a execução mecânica dos movimentos, mas também a aplicação prática no jogo e a evolução individual.\n\n1. Avaliação Formativa e Processual: Observar o aluno ao longo de todo o processo de ensino e aprendizagem, valorizando a melhora técnica e o esforço, e não apenas o resultado final. (3,0)\n2. Fundamentos Técnicos: Domínio de bola, passe, condução, chute e drible de forma analítica (em circuitos ou estações de treino) e global (durante os jogos reduzidos). (2,0)\n3. Contexto de Jogo: Análise da capacidade do aluno de tomar decisões rápidas, perceber os espaços na quadra e aplicar o fundamento correto na hora certa. (2,0)\n4. Atitude e Cooperação: Considere o trabalho em equipe, o respeito às regras, a cooperação com os colegas e a postura durante as atividades. (3,0)\n\nATENÇÃO: É de uso obrigatório o uniforme (camiseta, calça, bermuda ou short saia e tênis confortável.",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Avaliação Formativa e Processual: Observar o aluno ao longo de todo o processo de ensino e aprendizagem, valorizando a melhora técnica e o esforço, e não apenas o resultado final.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Fundamentos Técnicos: Domínio de bola, passe, condução, chute e drible de forma analítica (em circuitos ou estações de treino) e global (durante os jogos reduzidos).",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Contexto de Jogo: Análise da capacidade do aluno de tomar decisões rápidas, perceber os espaços na quadra e aplicar o fundamento correto na hora certa.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 4,
+          "descricao": "Atitude e Cooperação: Considere o trabalho em equipe, o respeito às regras, a cooperação com os colegas e a postura durante as atividades.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": "ATENÇÃO: É de uso obrigatório o uniforme (camiseta, calça, bermuda ou short saia e tênis confortável.",
+      "ambiguidades": [
+        "No texto extraído aparece 'resultado nal' (ligadura 'fi' perdida); o PDF exibe 'resultado final'.",
+        "Parêntese do ATENÇÃO não é fechado no PDF; mantido."
+      ],
+      "sequencia": 1
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-educacao-fisica-produtividade-2",
+      "disciplina": "Educação Física",
+      "categoria": "PRODUTIVIDADE",
+      "categoria_rotulo": "PRODUTIVIDADE",
+      "titulo": "AVALIAÇÃO PRÁTICA",
+      "data_texto": "23/11",
+      "ocorrencias": [
+        {
+          "data_inicio": "2026-11-23",
+          "data_fim": "2026-11-23",
+          "turma": null
+        }
+      ],
+      "valor": 10.0,
+      "valor_texto": "10,0",
+      "objeto_conhecimento": "Esportes: Basquete e Vôlei.",
+      "criterio_correcao": "AVALIAÇÃO PRÁTICA:\n\nObservar o aluno em suas habilidades no Basquete e Voleibol exige uma abordagem contínua e formativa, que considere não apenas a execução mecânica dos movimentos, mas também a aplicação prática no jogo e a evolução individual\n\n1. Avaliação Formativa e Processual: Observar o aluno ao longo de todo o processo de ensino e aprendizagem, valorizando a melhora técnica e o esforço, e não apenas o resultado final. (3,0)\n2. Fundamentos Técnicos: Domínio de bola, passe, condução, chute e drible de forma analítica (em circuitos ou estações de treino) e global (durante os jogos reduzidos). (2,0)\n3. Contexto de Jogo: Análise da capacidade do aluno de tomar decisões rápidas, perceber os espaços na quadra e aplicar o fundamento correto na hora certa. (2,0)\n4. Atitude e Cooperação: Considere o trabalho em equipe, o respeito às regras, a cooperação com os colegas e a postura durante as atividades. (3,0)\n\nATENÇÃO: É de uso obrigatório o uniforme (camiseta, calça, bermuda ou short saia e tênis confortável.",
+      "itens_criterio": [
+        {
+          "ordem": 1,
+          "descricao": "Avaliação Formativa e Processual: Observar o aluno ao longo de todo o processo de ensino e aprendizagem, valorizando a melhora técnica e o esforço, e não apenas o resultado final.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 2,
+          "descricao": "Fundamentos Técnicos: Domínio de bola, passe, condução, chute e drible de forma analítica (em circuitos ou estações de treino) e global (durante os jogos reduzidos).",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 3,
+          "descricao": "Contexto de Jogo: Análise da capacidade do aluno de tomar decisões rápidas, perceber os espaços na quadra e aplicar o fundamento correto na hora certa.",
+          "pontos": 2.0,
+          "por_unidade": false,
+          "quantidade": null
+        },
+        {
+          "ordem": 4,
+          "descricao": "Atitude e Cooperação: Considere o trabalho em equipe, o respeito às regras, a cooperação com os colegas e a postura durante as atividades.",
+          "pontos": 3.0,
+          "por_unidade": false,
+          "quantidade": null
+        }
+      ],
+      "material_necessario": null,
+      "observacoes": "ATENÇÃO: É de uso obrigatório o uniforme (camiseta, calça, bermuda ou short saia e tênis confortável.",
+      "ambiguidades": [
+        "Linha quebrada entre páginas 16 e 17.",
+        "No texto extraído aparece 'resultado nal' (ligadura 'fi' perdida); o PDF exibe 'resultado final'."
+      ],
+      "sequencia": 2
+    },
+    {
+      "chave_origem": "2026-B4-EFUND09MA_MB-educacao-fisica-recuperacao-1",
+      "disciplina": "Educação Física",
+      "categoria": "RECUPERACAO",
+      "categoria_rotulo": null,
+      "titulo": "RECUPERAÇÃO CONTÍNUA",
+      "data_texto": "CONTÍNUA",
+      "ocorrencias": [],
+      "valor": null,
+      "valor_texto": null,
+      "objeto_conhecimento": "AS ATIVIDADES DE RECUPERAÇÃO ACONTECERÃO DURANTE AS AULAS",
+      "criterio_correcao": "AS ATIVIDADES DE RECUPERAÇÃO ACONTECERÃO DURANTE AS AULAS",
+      "itens_criterio": [],
+      "material_necessario": null,
+      "observacoes": null,
+      "ambiguidades": [],
+      "sequencia": 1
+    }
+  ]
+}
