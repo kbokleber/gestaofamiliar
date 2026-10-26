@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Clock, Plus, Edit2, Trash2, Save, Filter, FileSpreadsheet, ArrowLeft, Paperclip } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
@@ -45,7 +46,13 @@ const STATUS_OPTIONS = [
 const EMPTY_ORDERS: MaintenanceOrder[] = []
 const EMPTY_EQUIPMENT_LIST: Equipment[] = []
 
+function statusDaUrl(valor: string | null) {
+  const normalizado = (valor || '').toUpperCase()
+  return STATUS_OPTIONS.some((opcao) => opcao.value === normalizado) ? normalizado : ''
+}
+
 export default function MaintenanceOrders() {
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const [filteredOrders, setFilteredOrders] = useState<MaintenanceOrder[]>([])
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
@@ -54,7 +61,8 @@ export default function MaintenanceOrders() {
   const [filters, setFilters] = useState({
     equipment_id: 0,
     start_date: '',
-    end_date: ''
+    end_date: '',
+    status: statusDaUrl(searchParams.get('status')),
   })
   const [formData, setFormData] = useState({
     equipment_id: 0,
@@ -159,7 +167,14 @@ export default function MaintenanceOrders() {
   const error = ordersError ? (ordersError as Error).message : null
 
   useEffect(() => {
+    setFilters((atual) => ({ ...atual, status: statusDaUrl(searchParams.get('status')) }))
+  }, [searchParams])
+
+  useEffect(() => {
     let filtered = [...orders]
+    if (filters.status) {
+      filtered = filtered.filter(order => (order.status || '').toUpperCase().trim() === filters.status)
+    }
     if (filters.equipment_id > 0) {
       filtered = filtered.filter(order => order.equipment_id === filters.equipment_id)
     }
@@ -180,7 +195,7 @@ export default function MaintenanceOrders() {
       })
     }
     setFilteredOrders(filtered)
-  }, [orders, filters.equipment_id, filters.start_date, filters.end_date])
+  }, [orders, filters.equipment_id, filters.start_date, filters.end_date, filters.status])
 
   // Função para invalidar cache e refetch
   const fetchOrders = () => {
@@ -189,6 +204,10 @@ export default function MaintenanceOrders() {
 
   const applyFilters = () => {
     let filtered = [...orders]
+
+    if (filters.status) {
+      filtered = filtered.filter(order => (order.status || '').toUpperCase().trim() === filters.status)
+    }
 
     if (filters.equipment_id > 0) {
       filtered = filtered.filter(order => order.equipment_id === filters.equipment_id)
@@ -783,7 +802,20 @@ export default function MaintenanceOrders() {
 
           {/* Filtros */}
           <div className="bg-white shadow rounded-lg p-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="">Todos</option>
+                  {STATUS_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Equipamento</label>
                 <select

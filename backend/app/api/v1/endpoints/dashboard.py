@@ -54,11 +54,12 @@ async def get_dashboard_stats(
         (Medication.end_date == None) | (Medication.end_date >= now.date())
     ).scalar() or 0
     
-    # Contar ordens de manutenção
+    # Ordens ativas são as que ainda estão pendentes
     total_orders = db.query(func.count(MaintenanceOrder.id)).join(
         Equipment, MaintenanceOrder.equipment_id == Equipment.id
     ).filter(
-        Equipment.family_id == family_id
+        Equipment.family_id == family_id,
+        func.upper(MaintenanceOrder.status) == "PENDENTE",
     ).scalar() or 0
 
     pendentes, comunicados_semana = _contagens_estudos(db, current_user)

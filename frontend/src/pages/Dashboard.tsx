@@ -94,10 +94,10 @@ export default function Dashboard() {
           color: 'bg-orange-500',
         },
         {
-          name: 'Ordens de Manutenção',
+          name: 'Ordens de Manutenção Ativas',
           value: stats?.total_orders?.toString() ?? '...',
           icon: Clock,
-          href: '/maintenance/orders',
+          href: '/maintenance/orders?status=pendente',
           color: 'bg-purple-500',
         },
       ],
@@ -174,7 +174,7 @@ export default function Dashboard() {
                       </div>
                       <div className="ml-5 w-0 flex-1">
                         <dl>
-                          <dt className="text-sm font-medium text-gray-500 truncate">
+                          <dt className="text-sm font-medium text-gray-500">
                             {stat.name}
                           </dt>
                           <dd className="text-lg font-semibold text-gray-900">
