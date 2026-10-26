@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     
     # ----- Telegram / IA (config por família; esta URL é usada para registrar webhook) -----
     BACKEND_PUBLIC_URL: Optional[str] = None  # ex: https://api.seudominio.com (para setWebhook por família)
+
+    # Alertas no navegador dos filhos. As chaves ficam só no ambiente, nunca no git.
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = "mailto:gestaofamiliar@localhost"
     
     class Config:
         env_file = ".env"

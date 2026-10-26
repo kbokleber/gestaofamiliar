@@ -40,6 +40,7 @@ export default defineConfig({
       registerType: 'prompt',
       manifestFilename: 'manifest.json',
       workbox: {
+        importScripts: ['/push-sw.js'],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
@@ -75,7 +76,11 @@ export default defineConfig({
             type: 'image/png'
           }
         ]
-      }
+      },
+      devOptions: {
+        enabled: true,
+        type: 'classic',
+      },
     })
   ],
   resolve: {

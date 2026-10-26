@@ -42,6 +42,9 @@ services:
       KEYCLOAK_ALLOW_SIGNUP: ${KEYCLOAK_ALLOW_SIGNUP:-false}
       KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:gestaofamiliar@localhost}
     depends_on:
       postgres:
         condition: service_healthy

@@ -8,6 +8,7 @@ import { useAuthStore } from '../../stores/authStore'
 import Button from '../../components/Button'
 import Modal from '../../components/Modal'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
+import LembreteCelular from './LembreteCelular'
 
 interface Atividade {
   id: number
@@ -801,6 +802,8 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
           </div>
         )}
       </div>
+
+      {!telaComunicado && <LembreteCelular />}
 
       {!telaComunicado && (
       <div className="mb-3 grid grid-cols-2 gap-3">

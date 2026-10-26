@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.api.deps import require_menu
-from app.api.v1.endpoints import auth, users, healthcare, maintenance, dashboard, families, telegram, finance, system, estudos
+from app.api.v1.endpoints import auth, users, healthcare, maintenance, dashboard, families, telegram, finance, system, estudos, notificacoes
 
 api_router = APIRouter()
 
@@ -37,5 +37,10 @@ api_router.include_router(
     estudos.router,
     prefix="/estudos",
     tags=["estudos"],
+    dependencies=[Depends(require_menu("estudos"))],
+)
+api_router.include_router(
+    notificacoes.router,
+    tags=["notificacoes"],
     dependencies=[Depends(require_menu("estudos"))],
 )

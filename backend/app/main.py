@@ -52,6 +52,13 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 @app.on_event("startup")
+async def startup_lembretes():
+    import asyncio
+    from app.api.v1.endpoints.notificacoes import ciclo_de_lembretes
+    asyncio.create_task(ciclo_de_lembretes())
+
+
+@app.on_event("startup")
 def startup_create_tables():
     """Cria tabelas que não existem (ex.: family_telegram_config, family_ai_config)."""
     try:

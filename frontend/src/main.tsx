@@ -9,6 +9,20 @@ import { initKeycloak, keycloak, keycloakEnabled } from './lib/keycloak'
 import { authService } from './services/authService'
 import { useAuthStore } from './stores/authStore'
 import './index.css'
+import { registerSW } from 'virtual:pwa-register'
+
+if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(async (registros) => {
+    await Promise.all(
+      registros
+        .filter((registro) => !registro.active?.scriptURL.endsWith('/push-sw.js'))
+        .map((registro) => registro.unregister()),
+    )
+    await navigator.serviceWorker.register('/push-sw.js', { scope: '/' })
+  })
+} else {
+  registerSW({ immediate: true })
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

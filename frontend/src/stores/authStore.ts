@@ -12,6 +12,7 @@ interface User {
   family_ids?: number[]
   is_superuser?: boolean
   is_staff?: boolean
+  is_child?: boolean
   is_active?: boolean
   allowed_menus?: string[] | null
   api_token?: string | null

@@ -12,6 +12,7 @@ from app.models.telegram import (
 )
 from app.models.estudo import Atividade
 from app.models.whatsapp import FamilyWhatsAppConfig
+from app.models.lembrete import FamilyLembreteConfig, PushInscricao
 from app.models.prova import (
     Avaliacao,
     AvaliacaoHistorico,
@@ -52,6 +53,8 @@ __all__ = [
     "FinanceImportCategoryRule",
     "Atividade",
     "FamilyWhatsAppConfig",
+    "FamilyLembreteConfig",
+    "PushInscricao",
     "Cronograma",
     "CronogramaAluno",
     "Avaliacao",

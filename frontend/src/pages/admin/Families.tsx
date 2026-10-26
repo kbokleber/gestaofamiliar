@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
-import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, ChevronUp, Bot, Sparkles, Key, Loader2, CheckCircle, MessageCircle } from 'lucide-react'
+import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, ChevronUp, Bot, Sparkles, Key, Loader2, CheckCircle, MessageCircle, Bell } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import Loading from '../../components/Loading'
@@ -77,7 +77,13 @@ export default function AdminFamilies() {
   const [telegramError, setTelegramError] = useState('')
   const [telegramSuccess, setTelegramSuccess] = useState('')
   const [aiSuccess, setAiSuccess] = useState('')
-  const [abaEdicao, setAbaEdicao] = useState<'familia' | 'telegram' | 'ia' | 'whatsapp'>('familia')
+  const [abaEdicao, setAbaEdicao] = useState<'familia' | 'telegram' | 'ia' | 'whatsapp' | 'alertas'>('familia')
+  const [alertaEnabled, setAlertaEnabled] = useState(false)
+  const [alertaIntervalo, setAlertaIntervalo] = useState(2)
+  const [alertaUnidade, setAlertaUnidade] = useState<'horas' | 'minutos'>('horas')
+  const [savingAlerta, setSavingAlerta] = useState(false)
+  const [alertaSuccess, setAlertaSuccess] = useState('')
+  const [alertaError, setAlertaError] = useState('')
   const [whatsappEnabled, setWhatsappEnabled] = useState(false)
   const [whatsappUrl, setWhatsappUrl] = useState('')
   const [whatsappDestino, setWhatsappDestino] = useState('')
@@ -125,6 +131,14 @@ export default function AdminFamilies() {
     queryKey: ['families', 'whatsapp', familyIdForConfig],
     queryFn: async () => {
       const { data } = await api.get(`/families/${familyIdForConfig}/whatsapp`)
+      return data
+    },
+    enabled: !!familyIdForConfig,
+  })
+  const { data: familyLembreteConfig } = useQuery<{ enabled: boolean; intervalo: number; unidade: 'horas' | 'minutos' }>({
+    queryKey: ['families', 'lembrete', familyIdForConfig],
+    queryFn: async () => {
+      const { data } = await api.get(`/lembretes/${familyIdForConfig}`)
       return data
     },
     enabled: !!familyIdForConfig,
@@ -219,6 +233,13 @@ export default function AdminFamilies() {
     setWhatsappDestino(familyWhatsAppConfig.destino || '')
   }, [familyWhatsAppConfig])
 
+  useEffect(() => {
+    if (!familyLembreteConfig) return
+    setAlertaEnabled(familyLembreteConfig.enabled)
+    setAlertaIntervalo(familyLembreteConfig.intervalo || 2)
+    setAlertaUnidade(familyLembreteConfig.unidade === 'minutos' ? 'minutos' : 'horas')
+  }, [familyLembreteConfig])
+
   // Limpar campos sensíveis e mensagens ao trocar de família
   useEffect(() => {
     if (!selectedFamily) return
@@ -233,6 +254,8 @@ export default function AdminFamilies() {
     setAiSuccess('')
     setWhatsappSuccess('')
     setWhatsappError('')
+    setAlertaSuccess('')
+    setAlertaError('')
   }, [selectedFamily?.id])
 
   const handleSaveWhatsapp = async () => {
@@ -253,6 +276,27 @@ export default function AdminFamilies() {
       setWhatsappError(typeof detail === 'string' ? detail : 'Não foi possível salvar o WhatsApp.')
     } finally {
       setSavingWhatsapp(false)
+    }
+  }
+
+  const handleSaveAlerta = async () => {
+    if (!selectedFamily) return
+    setSavingAlerta(true)
+    setAlertaError('')
+    setAlertaSuccess('')
+    try {
+      await api.put(`/lembretes/${selectedFamily.id}`, {
+        enabled: alertaEnabled,
+        intervalo: Number(alertaIntervalo),
+        unidade: alertaUnidade,
+      })
+      queryClient.invalidateQueries({ queryKey: ['families', 'lembrete', selectedFamily.id] })
+      setAlertaSuccess('Alerta salvo. Cada filho ainda precisa ativar o aviso no próprio celular.')
+    } catch (err: any) {
+      const detail = err.response?.data?.detail
+      setAlertaError(typeof detail === 'string' ? detail : 'Não foi possível salvar o alerta.')
+    } finally {
+      setSavingAlerta(false)
     }
   }
 
@@ -925,6 +969,7 @@ export default function AdminFamilies() {
               ['telegram', 'Telegram'],
               ['ia', 'IA'],
               ['whatsapp', 'WhatsApp'],
+              ['alertas', 'Alertas'],
             ] as const).map(([id, nome]) => (
               <button
                 key={id}
@@ -1180,6 +1225,67 @@ export default function AdminFamilies() {
               </Button>
             </div>
           </div>
+          )}
+
+          {abaEdicao === 'alertas' && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Bell className="h-4 w-4 text-amber-600" />
+              Alerta no celular dos filhos
+            </h3>
+            <p className="text-xs text-gray-600 mb-3">
+              Das 13h às 21h, enquanto houver tarefa que vence amanhã ou que já venceu. Use minutos para testar sem esperar duas horas.
+            </p>
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={alertaEnabled}
+                  onChange={(e) => setAlertaEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-600"
+                />
+                <span className="text-sm font-medium text-gray-700">Enviar alerta no celular</span>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">A cada</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={alertaIntervalo}
+                    onChange={(e) => setAlertaIntervalo(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Unidade</label>
+                  <select
+                    value={alertaUnidade}
+                    onChange={(e) => setAlertaUnidade(e.target.value as 'horas' | 'minutos')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="horas">Horas</option>
+                    <option value="minutos">Minutos</option>
+                  </select>
+                </div>
+              </div>
+              <Button onClick={handleSaveAlerta} disabled={savingAlerta} className="inline-flex items-center gap-2">
+                {savingAlerta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                Salvar alerta
+              </Button>
+            </div>
+          </div>
+          )}
+
+          {abaEdicao === 'alertas' && alertaSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-sm text-green-800">{alertaSuccess}</p>
+            </div>
+          )}
+          {abaEdicao === 'alertas' && alertaError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">{alertaError}</p>
+            </div>
           )}
 
           {abaEdicao === 'telegram' && telegramSuccess && (
