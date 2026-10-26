@@ -19,7 +19,7 @@ class Equipment(Base):
     purchase_date = Column(Date, nullable=True)
     warranty_expiry = Column(Date, nullable=True)
     service_provider = Column(String(200), nullable=False, default='')  # Empresa Prestadora do Serviço
-    status = Column(String(20), nullable=False, default='OPERACIONAL')  # OPERACIONAL, EM_MANUTENCAO, FORA_DE_USO, RESERVA
+    status = Column(String(20), nullable=False, default='OPERACIONAL')  # OPERACIONAL, EM_MANUTENCAO, FORA_DE_USO, RESERVA, VENDIDO
     owner_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
     notes = Column(Text, nullable=False, default='')

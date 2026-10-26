@@ -49,7 +49,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_equipment",
-            "description": "Lista equipamentos da família. Pode filtrar por tipo (eletronico, eletrodomestico, movel, veiculo, outro) ou status (OPERACIONAL, EM_MANUTENCAO, FORA_DE_USO, RESERVA).",
+            "description": "Lista equipamentos da família. Pode filtrar por tipo (eletronico, eletrodomestico, movel, veiculo, outro) ou status (OPERACIONAL, EM_MANUTENCAO, FORA_DE_USO, RESERVA, VENDIDO).",
             "parameters": {
                 "type": "object",
                 "properties": {

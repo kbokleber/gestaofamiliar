@@ -34,6 +34,8 @@ def sincronizar_status_equipamento(db: Session, equipment_id: int) -> None:
         func.upper(MaintenanceOrder.status).in_(ORDENS_ABERTAS),
     ).first()
     status_atual = (equipamento.status or "").upper()
+    if status_atual == "VENDIDO":
+        return
     if aberta:
         if status_atual != "EM_MANUTENCAO":
             equipamento.status = "EM_MANUTENCAO"
@@ -87,6 +89,8 @@ async def create_equipment(
             equipment_dict['service_provider'] = ''
         if 'status' not in equipment_dict or equipment_dict['status'] is None:
             equipment_dict['status'] = 'OPERACIONAL'
+        elif equipment_dict['status']:
+            equipment_dict['status'] = equipment_dict['status'].upper()
         if 'notes' not in equipment_dict or equipment_dict['notes'] is None:
             equipment_dict['notes'] = ''
         
@@ -280,6 +284,8 @@ async def update_equipment(
     update_data.pop('has_documents', None)
     
     for field, value in update_data.items():
+        if field == 'status' and value:
+            value = value.upper()
         setattr(equipment, field, value)
     
     db.commit()

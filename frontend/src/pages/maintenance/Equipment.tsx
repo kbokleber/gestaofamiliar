@@ -29,7 +29,8 @@ const STATUS_OPTIONS = [
   { value: 'OPERACIONAL', label: 'Operacional' },
   { value: 'EM_MANUTENCAO', label: 'Em Manutenção' },
   { value: 'FORA_DE_USO', label: 'Fora de Uso' },
-  { value: 'RESERVA', label: 'Reserva' }
+  { value: 'RESERVA', label: 'Reserva' },
+  { value: 'VENDIDO', label: 'Vendido' }
 ]
 
 const TYPE_OPTIONS = [
@@ -287,7 +288,8 @@ export default function Equipment() {
       'OPERACIONAL': 'bg-green-100 text-green-800',
       'EM_MANUTENCAO': 'bg-yellow-100 text-yellow-800',
       'FORA_DE_USO': 'bg-red-100 text-red-800',
-      'RESERVA': 'bg-blue-100 text-blue-800'
+      'RESERVA': 'bg-blue-100 text-blue-800',
+      'VENDIDO': 'bg-slate-200 text-slate-700'
     }
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
