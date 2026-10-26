@@ -461,7 +461,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   const [confirmarConclusao, setConfirmarConclusao] = useState(false)
   const [confirmarReabertura, setConfirmarReabertura] = useState(false)
   const [busca, setBusca] = useState('')
-  const [recorte, setRecorte] = useState<'todas' | 'pendentes' | 'mes'>('pendentes')
+  const [recorte, setRecorte] = useState<'todas' | 'pendentes' | 'trinta'>('pendentes')
   const [buscaServidor, setBuscaServidor] = useState('')
   const [extras, setExtras] = useState<Atividade[]>([])
   const [temMaisExtras, setTemMaisExtras] = useState(false)
@@ -521,23 +521,25 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   ))
 
   const agora = new Date()
-  const nomeMes = agora.toLocaleDateString('pt-BR', { month: 'long' })
+  const inicioConcluidas = new Date(agora)
+  inicioConcluidas.setHours(0, 0, 0, 0)
+  inicioConcluidas.setDate(inicioConcluidas.getDate() - 30)
 
-  const concluidaNesteMes = (item: Atividade) => {
+  const concluidaNosUltimos30Dias = (item: Atividade) => {
     if (ehComunicado(item) || item.status !== 'concluida') return false
     const data = item.concluida_em ? new Date(item.concluida_em) : new Date(`${item.data}T12:00:00`)
-    return data.getMonth() === agora.getMonth() && data.getFullYear() === agora.getFullYear()
+    return data >= inicioConcluidas
   }
 
   const totalPendentes = atividades.filter((item) => !ehComunicado(item) && item.status !== 'concluida').length
-  const totalConcluidasMes = atividades.filter(concluidaNesteMes).length
+  const totalConcluidas30Dias = atividades.filter(concluidaNosUltimos30Dias).length
 
   const visiveis = useMemo(() => {
     if (telaComunicado) return atividades
     const termo = busca.trim().toLowerCase()
     return atividades.filter((item) => {
       if (recorte === 'pendentes' && (ehComunicado(item) || item.status === 'concluida')) return false
-      if (recorte === 'mes' && !concluidaNesteMes(item)) return false
+      if (recorte === 'trinta' && !concluidaNosUltimos30Dias(item)) return false
       if (!termo) return true
       const texto = semAcento([
         item.titulo,
@@ -770,12 +772,12 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
         </button>
         <button
           type="button"
-          onClick={() => setRecorte('mes')}
-          className={`rounded-2xl border px-4 py-3 text-left shadow-sm active:scale-[0.98] ${recorte === 'mes' ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'}`}
-          aria-pressed={recorte === 'mes'}
+          onClick={() => setRecorte('trinta')}
+          className={`rounded-2xl border px-4 py-3 text-left shadow-sm active:scale-[0.98] ${recorte === 'trinta' ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'}`}
+          aria-pressed={recorte === 'trinta'}
         >
-          <p className="text-3xl font-bold text-emerald-700">{totalConcluidasMes}</p>
-          <p className="mt-1 text-sm font-medium capitalize leading-tight text-gray-700">Concluídas em {nomeMes}</p>
+          <p className="text-3xl font-bold text-emerald-700">{totalConcluidas30Dias}</p>
+          <p className="mt-1 text-sm font-medium leading-tight text-gray-700">Concluídas em 30 dias</p>
         </button>
       </div>
       )}
@@ -818,8 +820,8 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
                 <p className="text-sm text-indigo-800">
                   {telaComunicado
                     ? `${filho.total} ${filho.total === 1 ? 'comunicado' : 'comunicados'}`
-                    : recorte === 'mes'
-                      ? `${filho.total} ${filho.total === 1 ? 'concluída' : 'concluídas'} em ${nomeMes}`
+                    : recorte === 'trinta'
+                      ? `${filho.total} ${filho.total === 1 ? 'concluída' : 'concluídas'} em 30 dias`
                       : `${filho.pendentes} ${filho.pendentes === 1 ? 'pendente' : 'pendentes'}${filho.dias.length === 0 ? ' · nenhuma tarefa' : ''}`}
                 </p>
               </header>
