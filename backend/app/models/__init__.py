@@ -11,6 +11,7 @@ from app.models.telegram import (
     TelegramLinkCode,
 )
 from app.models.estudo import Atividade
+from app.models.whatsapp import FamilyWhatsAppConfig
 from app.models.prova import (
     Avaliacao,
     AvaliacaoHistorico,
@@ -50,6 +51,7 @@ __all__ = [
     "FinanceRecurrence",
     "FinanceImportCategoryRule",
     "Atividade",
+    "FamilyWhatsAppConfig",
     "Cronograma",
     "CronogramaAluno",
     "Avaliacao",

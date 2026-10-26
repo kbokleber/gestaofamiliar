@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
-import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, ChevronUp, Bot, Sparkles, Key, Loader2, CheckCircle } from 'lucide-react'
+import { Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, ChevronDown, ChevronUp, Bot, Sparkles, Key, Loader2, CheckCircle, MessageCircle } from 'lucide-react'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import Loading from '../../components/Loading'
@@ -40,6 +40,12 @@ interface FamilyAIConfig {
   has_azure_config: boolean
 }
 
+interface FamilyWhatsAppConfig {
+  enabled: boolean
+  url: string
+  destino: string
+}
+
 export default function AdminFamilies() {
   const { user: currentUser } = useAuthStore()
   const queryClient = useQueryClient()
@@ -71,6 +77,13 @@ export default function AdminFamilies() {
   const [telegramError, setTelegramError] = useState('')
   const [telegramSuccess, setTelegramSuccess] = useState('')
   const [aiSuccess, setAiSuccess] = useState('')
+  const [abaEdicao, setAbaEdicao] = useState<'familia' | 'telegram' | 'ia' | 'whatsapp'>('familia')
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false)
+  const [whatsappUrl, setWhatsappUrl] = useState('')
+  const [whatsappDestino, setWhatsappDestino] = useState('')
+  const [savingWhatsapp, setSavingWhatsapp] = useState(false)
+  const [whatsappSuccess, setWhatsappSuccess] = useState('')
+  const [whatsappError, setWhatsappError] = useState('')
 
   // Verificar se é admin (apenas superuser)
   const isAdmin = currentUser?.is_superuser
@@ -104,6 +117,14 @@ export default function AdminFamilies() {
     queryKey: ['telegram', 'family', 'ai', familyIdForConfig],
     queryFn: async () => {
       const { data } = await api.get('/telegram/family/ai', { params: { family_id: familyIdForConfig } })
+      return data
+    },
+    enabled: !!familyIdForConfig,
+  })
+  const { data: familyWhatsAppConfig } = useQuery<FamilyWhatsAppConfig>({
+    queryKey: ['families', 'whatsapp', familyIdForConfig],
+    queryFn: async () => {
+      const { data } = await api.get(`/families/${familyIdForConfig}/whatsapp`)
       return data
     },
     enabled: !!familyIdForConfig,
@@ -191,9 +212,17 @@ export default function AdminFamilies() {
     setOpenaiModel(familyAIConfig.openai_model || 'gpt-4o-mini')
   }, [familyAIConfig])
 
+  useEffect(() => {
+    if (!familyWhatsAppConfig) return
+    setWhatsappEnabled(familyWhatsAppConfig.enabled)
+    setWhatsappUrl(familyWhatsAppConfig.url || '')
+    setWhatsappDestino(familyWhatsAppConfig.destino || '')
+  }, [familyWhatsAppConfig])
+
   // Limpar campos sensíveis e mensagens ao trocar de família
   useEffect(() => {
     if (!selectedFamily) return
+    setAbaEdicao('familia')
     setBotToken('')
     setOpenaiKey('')
     setAzureEndpoint('')
@@ -202,7 +231,30 @@ export default function AdminFamilies() {
     setTelegramError('')
     setTelegramSuccess('')
     setAiSuccess('')
+    setWhatsappSuccess('')
+    setWhatsappError('')
   }, [selectedFamily?.id])
+
+  const handleSaveWhatsapp = async () => {
+    if (!selectedFamily) return
+    setSavingWhatsapp(true)
+    setWhatsappError('')
+    setWhatsappSuccess('')
+    try {
+      await api.put(`/families/${selectedFamily.id}/whatsapp`, {
+        enabled: whatsappEnabled,
+        url: whatsappUrl.trim(),
+        destino: whatsappDestino.trim(),
+      })
+      queryClient.invalidateQueries({ queryKey: ['families', 'whatsapp', selectedFamily.id] })
+      setWhatsappSuccess('WhatsApp salvo. O aviso sai quando um filho concluir uma atividade.')
+    } catch (err: any) {
+      const detail = err.response?.data?.detail
+      setWhatsappError(typeof detail === 'string' ? detail : 'Não foi possível salvar o WhatsApp.')
+    } finally {
+      setSavingWhatsapp(false)
+    }
+  }
 
   // Mutação para criar família
   const createFamilyMutation = useMutation({
@@ -866,7 +918,28 @@ export default function AdminFamilies() {
         }}
         title={`Editar Família - ${selectedFamily?.name}`}
       >
-        <div className="space-y-6 max-h-[80vh] overflow-y-auto">
+        <div className="space-y-6">
+          <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1" role="tablist" aria-label="Assuntos da família">
+            {([
+              ['familia', 'Família'],
+              ['telegram', 'Telegram'],
+              ['ia', 'IA'],
+              ['whatsapp', 'WhatsApp'],
+            ] as const).map(([id, nome]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={abaEdicao === id}
+                onClick={() => setAbaEdicao(id)}
+                className={`min-h-11 shrink-0 rounded-lg px-3 text-sm font-medium ${abaEdicao === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}`}
+              >
+                {nome}
+              </button>
+            ))}
+          </div>
+
+          {abaEdicao === 'familia' && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nome da Família *
@@ -882,9 +955,10 @@ export default function AdminFamilies() {
               placeholder="Ex: Família Silva"
             />
           </div>
+          )}
 
-          {/* Telegram e IA - só para esta família */}
-          <div className="border-t border-gray-200 pt-4">
+          {abaEdicao === 'telegram' && (
+          <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Bot className="h-4 w-4 text-purple-500" />
               Bot da família (Telegram)
@@ -926,8 +1000,10 @@ export default function AdminFamilies() {
               </Button>
             </div>
           </div>
+          )}
 
-          <div className="border-t border-gray-200 pt-4">
+          {abaEdicao === 'ia' && (
+          <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-purple-500" />
               API de IA da família
@@ -1050,31 +1126,98 @@ export default function AdminFamilies() {
               </Button>
             </div>
           </div>
+          )}
 
-          {telegramSuccess && (
+          {abaEdicao === 'whatsapp' && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <MessageCircle className="h-4 w-4 text-green-600" />
+              Aviso no WhatsApp
+            </h3>
+            <p className="text-xs text-gray-600 mb-3">
+              Quando um filho concluir uma atividade, o sistema faz um POST nesta URL com a mensagem e o número do grupo.
+            </p>
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={whatsappEnabled}
+                  onChange={(e) => setWhatsappEnabled(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-600"
+                />
+                <span className="text-sm font-medium text-gray-700">Enviar aviso ao concluir atividade</span>
+              </label>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">URL</label>
+                <input
+                  type="url"
+                  value={whatsappUrl}
+                  onChange={(e) => setWhatsappUrl(e.target.value)}
+                  placeholder="https://seu-servico/whatsapp"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  O corpo enviado é mensagem e numero. Exemplo: Giovana marcou a tarefa Mapa do Brasil como concluída.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Grupo ou número</label>
+                <input
+                  type="text"
+                  value={whatsappDestino}
+                  onChange={(e) => setWhatsappDestino(e.target.value)}
+                  placeholder="Grupo ou número cadastrado aqui"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+              <Button
+                onClick={handleSaveWhatsapp}
+                disabled={savingWhatsapp}
+                className="inline-flex items-center gap-2"
+              >
+                {savingWhatsapp ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                Salvar WhatsApp
+              </Button>
+            </div>
+          </div>
+          )}
+
+          {abaEdicao === 'telegram' && telegramSuccess && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
               <p className="text-sm text-green-800">{telegramSuccess}</p>
             </div>
           )}
-          {aiSuccess && (
+          {abaEdicao === 'ia' && aiSuccess && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
               <p className="text-sm text-green-800">{aiSuccess}</p>
             </div>
           )}
-          {telegramError && (
+          {abaEdicao === 'whatsapp' && whatsappSuccess && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <p className="text-sm text-green-800">{whatsappSuccess}</p>
+            </div>
+          )}
+          {(abaEdicao === 'telegram' || abaEdicao === 'ia') && telegramError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <p className="text-sm text-red-800">{telegramError}</p>
             </div>
           )}
+          {abaEdicao === 'whatsapp' && whatsappError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">{whatsappError}</p>
+            </div>
+          )}
 
-          {error && (
+          {abaEdicao === 'familia' && error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
 
+          {abaEdicao === 'familia' && (
           <div className="flex justify-end gap-2 pt-4">
             <Button
               variant="outline"
@@ -1094,6 +1237,7 @@ export default function AdminFamilies() {
               {updateFamilyMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
             </Button>
           </div>
+          )}
         </div>
       </Modal>
 

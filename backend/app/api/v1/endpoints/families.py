@@ -6,6 +6,8 @@ from app.models.family import Family
 from app.models.user import User
 from app.models.healthcare import FamilyMember
 from app.schemas.family import Family as FamilySchema, FamilyCreate, FamilyUpdate
+from app.schemas.whatsapp import FamilyWhatsAppConfigResponse, FamilyWhatsAppConfigUpdate
+from app.models.whatsapp import FamilyWhatsAppConfig
 from app.schemas.user import User as UserSchema
 from app.schemas.healthcare import FamilyMember as FamilyMemberSchema
 from app.api.deps import get_current_admin
@@ -218,4 +220,53 @@ async def get_family_users(
         result.append(user_dict)
     
     return result
+
+
+def _familia_do_admin(db: Session, current_user: User, family_id: int) -> Family:
+    family = db.query(Family).filter(Family.id == family_id).first()
+    if not family:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Família não encontrada")
+    tem_acesso = family_id == current_user.family_id or any(item.id == family_id for item in current_user.families)
+    if not tem_acesso:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Você não tem acesso a esta família")
+    return family
+
+
+@router.get("/{family_id}/whatsapp", response_model=FamilyWhatsAppConfigResponse)
+async def ler_whatsapp(
+    family_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+):
+    """URL e destino do aviso de atividade concluída. Só o administrador da família."""
+    _familia_do_admin(db, current_user, family_id)
+    config = db.query(FamilyWhatsAppConfig).filter(FamilyWhatsAppConfig.family_id == family_id).first()
+    if config is None:
+        return FamilyWhatsAppConfigResponse(enabled=False, url="", destino="")
+    return FamilyWhatsAppConfigResponse(enabled=config.enabled, url=config.url or "", destino=config.destino or "")
+
+
+@router.put("/{family_id}/whatsapp", response_model=FamilyWhatsAppConfigResponse)
+async def salvar_whatsapp(
+    family_id: int,
+    payload: FamilyWhatsAppConfigUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+):
+    """Grava a URL e o grupo ou número que recebem o aviso de atividade concluída."""
+    _familia_do_admin(db, current_user, family_id)
+    try:
+        payload.validar()
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    config = db.query(FamilyWhatsAppConfig).filter(FamilyWhatsAppConfig.family_id == family_id).first()
+    if config is None:
+        config = FamilyWhatsAppConfig(family_id=family_id)
+        db.add(config)
+    config.enabled = payload.enabled
+    config.url = payload.url
+    config.destino = payload.destino
+    db.commit()
+    db.refresh(config)
+    return FamilyWhatsAppConfigResponse(enabled=config.enabled, url=config.url or "", destino=config.destino or "")
 

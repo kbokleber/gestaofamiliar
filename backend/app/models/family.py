@@ -22,6 +22,7 @@ class Family(Base):
     family_members = relationship("FamilyMember", back_populates="family", cascade="all, delete-orphan")
     equipment = relationship("Equipment", back_populates="family", cascade="all, delete-orphan")
     telegram_config = relationship("FamilyTelegramConfig", back_populates="family", uselist=False, cascade="all, delete-orphan")
+    whatsapp_config = relationship("FamilyWhatsAppConfig", back_populates="family", uselist=False, cascade="all, delete-orphan")
     ai_config = relationship("FamilyAIConfig", back_populates="family", uselist=False, cascade="all, delete-orphan")
     finance_categories = relationship("FinanceCategory", back_populates="family", cascade="all, delete-orphan")
     finance_entries = relationship("FinanceEntry", back_populates="family", cascade="all, delete-orphan")

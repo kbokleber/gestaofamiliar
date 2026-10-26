@@ -669,6 +669,12 @@ async def concluir_atividade(
     atividade.concluida_em = datetime.now(timezone.utc)
     db.commit()
     db.refresh(atividade)
+    from app.services.whatsapp import avisar_atividade_concluida
+    try:
+        await avisar_atividade_concluida(db, atividade)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning("Falha ao avisar o WhatsApp da atividade %s", atividade.id, exc_info=True)
     return _to_schema(atividade)
 
 
