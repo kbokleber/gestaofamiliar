@@ -322,6 +322,8 @@ export default function MaintenanceOrders() {
         console.log('Resposta da criação:', response.data)
       }
       fetchOrders()
+      queryClient.invalidateQueries({ queryKey: ['maintenance-equipment'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       if (isEditingInline) {
         cancelEdit()
       } else {
@@ -350,6 +352,8 @@ export default function MaintenanceOrders() {
     try {
       await api.delete(`/maintenance/orders/${orderToDelete.id}`)
       fetchOrders()
+      queryClient.invalidateQueries({ queryKey: ['maintenance-equipment'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] })
       setOrderToDelete(null)
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Erro ao excluir')

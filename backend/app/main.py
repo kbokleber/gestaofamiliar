@@ -94,6 +94,14 @@ def startup_create_tables():
             conn.execute(text(
                 "ALTER TABLE estudo_atividade ALTER COLUMN status DROP NOT NULL"
             ))
+        from app.db.base import SessionLocal
+        from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
+        db = SessionLocal()
+        try:
+            sincronizar_equipamentos_com_ordens_abertas(db)
+            db.commit()
+        finally:
+            db.close()
         logger.info("Tabelas do banco verificadas/criadas.")
     except Exception as e:
         logger.exception("Erro ao criar tabelas: %s", e)

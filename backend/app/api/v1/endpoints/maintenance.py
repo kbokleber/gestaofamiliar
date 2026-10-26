@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import json
@@ -16,6 +17,40 @@ from app.schemas.maintenance import (
 from app.api.deps import get_current_user, get_current_family
 
 router = APIRouter()
+
+ORDENS_ABERTAS = ("PENDENTE", "EM_ANDAMENTO")
+
+
+def sincronizar_status_equipamento(db: Session, equipment_id: int) -> None:
+    """Ordem pendente ou em andamento deixa o equipamento em manutenção.
+
+    Quando não resta nenhuma ordem aberta, o equipamento volta a operacional.
+    """
+    equipamento = db.query(Equipment).filter(Equipment.id == equipment_id).first()
+    if not equipamento:
+        return
+    aberta = db.query(MaintenanceOrder.id).filter(
+        MaintenanceOrder.equipment_id == equipment_id,
+        func.upper(MaintenanceOrder.status).in_(ORDENS_ABERTAS),
+    ).first()
+    status_atual = (equipamento.status or "").upper()
+    if aberta:
+        if status_atual != "EM_MANUTENCAO":
+            equipamento.status = "EM_MANUTENCAO"
+    elif status_atual == "EM_MANUTENCAO":
+        equipamento.status = "OPERACIONAL"
+
+
+def sincronizar_equipamentos_com_ordens_abertas(db: Session) -> None:
+    """Alinha equipamentos que já têm ordem aberta, sem mexer nos demais."""
+    ids = [
+        equipamento_id
+        for (equipamento_id,) in db.query(MaintenanceOrder.equipment_id).filter(
+            func.upper(MaintenanceOrder.status).in_(ORDENS_ABERTAS)
+        ).distinct()
+    ]
+    for equipment_id in ids:
+        sincronizar_status_equipamento(db, equipment_id)
 
 # ===== EQUIPMENT =====
 @router.post("/equipment", response_model=EquipmentSchema, status_code=status.HTTP_201_CREATED)
@@ -367,6 +402,8 @@ async def create_maintenance_order(
     
     order = MaintenanceOrder(**data_dict, created_by_id=current_user.id)
     db.add(order)
+    db.flush()
+    sincronizar_status_equipamento(db, order.equipment_id)
     db.commit()
     db.refresh(order)
     
@@ -580,6 +617,7 @@ async def update_maintenance_order(
             )
         
         logging.info(f"[DEBUG] Ordem {order_id} encontrada")
+        equipamento_anterior_id = order.equipment_id
         
         # IMPORTANTE: Para campos opcionais como documents, precisamos garantir que sejam processados
         # mesmo quando são None. O problema é que exclude_unset=True pode não incluir campos None
@@ -611,6 +649,10 @@ async def update_maintenance_order(
         try:
             import logging
             logging.info(f"[DEBUG] Fazendo commit da ordem {order_id}...")
+            db.flush()
+            sincronizar_status_equipamento(db, order.equipment_id)
+            if equipamento_anterior_id != order.equipment_id:
+                sincronizar_status_equipamento(db, equipamento_anterior_id)
             db.commit()
             logging.info(f"[DEBUG] Commit realizado com sucesso")
             db.refresh(order)
@@ -704,7 +746,10 @@ async def delete_maintenance_order(
         )
     
     try:
+        equipment_id = order.equipment_id
         db.delete(order)
+        db.flush()
+        sincronizar_status_equipamento(db, equipment_id)
         db.commit()
     except Exception as e:
         db.rollback()
