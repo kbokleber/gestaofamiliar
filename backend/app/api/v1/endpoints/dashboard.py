@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import or_
 from app.db.base import get_db
 from app.models.user import User
 from app.models.dashboard import DashboardPreference
+from app.models.estudo import Atividade
 from app.models.healthcare import FamilyMember, MedicalAppointment, Medication
 from app.models.maintenance import Equipment, MaintenanceOrder
 from app.schemas.dashboard import (
@@ -58,14 +60,59 @@ async def get_dashboard_stats(
     ).filter(
         Equipment.family_id == family_id
     ).scalar() or 0
+
+    pendentes, comunicados_semana = _contagens_estudos(db, current_user)
     
     return {
         "total_members": total_members,
         "total_appointments": total_appointments,
         "total_equipment": total_equipment,
         "active_medications": active_medications,
-        "total_orders": total_orders
+        "total_orders": total_orders,
+        "atividades_pendentes": pendentes,
+        "comunicados_semana": comunicados_semana,
     }
+
+
+def _consulta_estudos(db: Session, usuario: User):
+    consulta = db.query(func.count(Atividade.id)).filter(Atividade.family_id == usuario.family_id)
+    if usuario.is_child:
+        return consulta.filter(Atividade.aluno_id == usuario.id)
+    if usuario.is_superuser:
+        filhos = db.query(User.id).filter(
+            User.family_id == usuario.family_id,
+            User.is_child.is_(True),
+            User.is_active.is_(True),
+        )
+        return consulta.filter(Atividade.aluno_id.in_(filhos))
+    return None
+
+
+def _contagens_estudos(db: Session, usuario: User) -> tuple[int, int]:
+    """Pendências dos filhos e comunicados cuja data cai na semana de segunda a domingo."""
+    if usuario.family_id is None:
+        return 0, 0
+    hoje = datetime.now(timezone(timedelta(hours=-3))).date()
+    inicio = hoje - timedelta(days=hoje.weekday())
+    fim = inicio + timedelta(days=6)
+    if not usuario.is_child and not usuario.is_superuser:
+        comunicados = db.query(func.count(Atividade.id)).filter(
+            Atividade.family_id == usuario.family_id,
+            Atividade.tipo == "comunicado",
+            Atividade.data >= inicio,
+            Atividade.data <= fim,
+        ).scalar() or 0
+        return 0, comunicados
+    pendentes = _consulta_estudos(db, usuario).filter(
+        Atividade.tipo != "comunicado",
+        or_(Atividade.status.is_(None), Atividade.status != "concluida"),
+    ).scalar() or 0
+    comunicados = _consulta_estudos(db, usuario).filter(
+        Atividade.tipo == "comunicado",
+        Atividade.data >= inicio,
+        Atividade.data <= fim,
+    ).scalar() or 0
+    return pendentes, comunicados
 
 @router.get("/preferences", response_model=DashboardPreferenceSchema)
 async def get_dashboard_preferences(

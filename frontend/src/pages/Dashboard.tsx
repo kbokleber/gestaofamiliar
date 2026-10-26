@@ -1,4 +1,4 @@
-import { Heart, Users, Calendar, Settings, Clock } from 'lucide-react'
+import { Heart, Users, Calendar, Settings, Clock, ClipboardList, Megaphone } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -12,6 +12,8 @@ interface DashboardStats {
   total_equipment: number
   active_medications: number
   total_orders: number
+  atividades_pendentes?: number
+  comunicados_semana?: number
 }
 
 export default function Dashboard() {
@@ -86,7 +88,23 @@ export default function Dashboard() {
       color: 'bg-purple-500',
       menu: 'manutencao',
     },
-  ].filter((card) => canSeeMenu(user, card.menu as 'saude' | 'manutencao'))
+    {
+      name: 'Atividades pendentes',
+      value: stats?.atividades_pendentes?.toString() ?? '...',
+      icon: ClipboardList,
+      href: '/estudos/atividades?recorte=pendentes',
+      color: 'bg-amber-500',
+      menu: 'estudos',
+    },
+    {
+      name: 'Comunicados da semana',
+      value: stats?.comunicados_semana?.toString() ?? '...',
+      icon: Megaphone,
+      href: '/estudos/comunicados?semana=atual',
+      color: 'bg-orange-500',
+      menu: 'estudos',
+    },
+  ].filter((card) => canSeeMenu(user, card.menu as 'saude' | 'manutencao' | 'estudos'))
 
   if (loading && !stats) {
     return <Loading message="Carregando dashboard..." />

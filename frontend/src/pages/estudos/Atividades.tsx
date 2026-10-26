@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText, X, Megaphone } from 'lucide-react'
@@ -446,7 +447,24 @@ function toDateTimeLocal(iso: string) {
   return `${data.getFullYear()}-${pad(data.getMonth() + 1)}-${pad(data.getDate())}T${pad(data.getHours())}:${pad(data.getMinutes())}`
 }
 
+function limitesDaSemana() {
+  const hoje = new Date()
+  hoje.setHours(12, 0, 0, 0)
+  const inicio = new Date(hoje)
+  inicio.setDate(hoje.getDate() - ((hoje.getDay() + 6) % 7))
+  const fim = new Date(inicio)
+  fim.setDate(inicio.getDate() + 6)
+  return { inicio, fim }
+}
+
+function naSemanaAtual(dataIso: string) {
+  const data = new Date(`${dataIso}T12:00:00`)
+  const { inicio, fim } = limitesDaSemana()
+  return data >= inicio && data <= fim
+}
+
 export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' | 'comunicado' }) {
+  const [searchParams] = useSearchParams()
   const telaComunicado = modo === 'comunicado'
   const user = useAuthStore((state) => state.user)
   const isAdmin = !!user?.is_superuser
@@ -461,7 +479,11 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   const [confirmarConclusao, setConfirmarConclusao] = useState(false)
   const [confirmarReabertura, setConfirmarReabertura] = useState(false)
   const [busca, setBusca] = useState('')
-  const [recorte, setRecorte] = useState<'todas' | 'pendentes' | 'trinta'>('pendentes')
+  const recortePedido = searchParams.get('recorte')
+  const [recorte, setRecorte] = useState<'todas' | 'pendentes' | 'trinta'>(
+    recortePedido === 'trinta' || recortePedido === 'pendentes' ? recortePedido : 'pendentes',
+  )
+  const [somenteSemana, setSomenteSemana] = useState(searchParams.get('semana') === 'atual')
   const [buscaServidor, setBuscaServidor] = useState('')
   const [extras, setExtras] = useState<Atividade[]>([])
   const [temMaisExtras, setTemMaisExtras] = useState(false)
@@ -478,6 +500,15 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
     const agendar = window.setTimeout(() => setBuscaServidor(busca.trim()), 300)
     return () => window.clearTimeout(agendar)
   }, [busca, telaComunicado])
+
+  useEffect(() => {
+    if (telaComunicado) {
+      setSomenteSemana(searchParams.get('semana') === 'atual')
+      return
+    }
+    const pedido = searchParams.get('recorte')
+    if (pedido === 'pendentes' || pedido === 'trinta') setRecorte(pedido)
+  }, [searchParams, telaComunicado])
 
   useEffect(() => {
     setExtras([])
@@ -555,13 +586,17 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
     })
   }, [atividades, busca, recorte, telaComunicado])
 
-  const listaAtual = telaComunicado ? [...atividades, ...extras] : visiveis
-  const podeCarregarMais = telaComunicado && (
+  const listaAtual = telaComunicado
+    ? (somenteSemana ? atividades.filter((item) => naSemanaAtual(item.data)) : [...atividades, ...extras])
+    : visiveis
+  const podeCarregarMais = telaComunicado && !somenteSemana && (
     buscaServidor
       ? (extras.length > 0 ? temMaisExtras : !!lista?.temMais)
       : (extras.length > 0 ? temMaisExtras : !!lista?.temAnteriores)
   )
-  const podeOcultar = telaComunicado && !buscaServidor && extras.length > 0 && !temMaisExtras
+  const podeOcultar = telaComunicado && !somenteSemana && !buscaServidor && extras.length > 0 && !temMaisExtras
+  const semana = limitesDaSemana()
+  const rotuloSemana = `${semana.inicio.toLocaleDateString('pt-BR')} a ${semana.fim.toLocaleDateString('pt-BR')}`
 
   const carregarMais = async () => {
     const ultimo = listaAtual[listaAtual.length - 1]
@@ -738,6 +773,14 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
             : <ClipboardList className="h-7 w-7 shrink-0 text-indigo-600" />}
           {telaComunicado ? 'Comunicados' : 'Atividades'}
         </h1>
+        {telaComunicado && somenteSemana && (
+          <p className="text-sm text-gray-600">
+            Semana de {rotuloSemana}.{' '}
+            <button type="button" onClick={() => setSomenteSemana(false)} className="font-medium text-orange-700 underline">
+              Ver os recentes
+            </button>
+          </p>
+        )}
         {isAdmin && (
           <div className="flex flex-col gap-2 sm:flex-row">
             <select
