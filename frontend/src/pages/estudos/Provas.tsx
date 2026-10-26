@@ -125,7 +125,7 @@ export default function Provas() {
   })
   const [alunoId, setAlunoId] = useState('')
   const [disciplina, setDisciplina] = useState('')
-  const [categoria, setCategoria] = useState('')
+  const [categorias, setCategorias] = useState<string[]>([])
   const [mostrarEventos, setMostrarEventos] = useState(true)
   const [diaAberto, setDiaAberto] = useState<string | null>(null)
   const [avaliacaoId, setAvaliacaoId] = useState<number | null>(null)
@@ -188,18 +188,19 @@ export default function Provas() {
   })
 
   const { data: eventos = [], isError } = useQuery<Evento[]>({
-    queryKey: ['calendario', intervalo.de, intervalo.ate, alunoId, disciplina, categoria, mostrarEventos],
-    queryFn: async () => (await api.get('/estudos/calendario', {
-      params: {
+    queryKey: ['calendario', intervalo.de, intervalo.ate, alunoId, disciplina, categorias.slice().sort().join(','), mostrarEventos],
+    queryFn: async () => {
+      const params = new URLSearchParams({
         de: intervalo.de,
         ate: intervalo.ate,
         agrupar: 'evento',
-        incluir_eventos_escolares: mostrarEventos,
-        ...(alunoId ? { aluno_id: alunoId } : {}),
-        ...(disciplina ? { disciplina } : {}),
-        ...(categoria ? { categoria } : {}),
-      },
-    })).data,
+        incluir_eventos_escolares: String(mostrarEventos),
+      })
+      if (alunoId) params.append('aluno_id', alunoId)
+      if (disciplina) params.append('disciplina', disciplina)
+      categorias.forEach((item) => params.append('categoria', item))
+      return (await api.get('/estudos/calendario', { params })).data
+    },
   })
 
   const { data: detalhe } = useQuery<AvaliacaoDetalhe>({
@@ -275,23 +276,38 @@ export default function Provas() {
           <option value="">Todas as disciplinas</option>
           {disciplinas.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="min-h-12 rounded-xl border border-gray-300 bg-white px-3" aria-label="Filtrar por categoria">
-          <option value="">Todas as categorias</option>
-          {CATEGORIAS.map(([valor, nome]) => <option key={valor} value={valor}>{nome}</option>)}
-        </select>
+        <div className="flex flex-wrap gap-2 sm:col-span-2" role="group" aria-label="Filtrar por categoria">
+          <button
+            type="button"
+            onClick={() => setCategorias([])}
+            aria-pressed={categorias.length === 0}
+            className={`min-h-11 rounded-full border px-3 text-sm ${categorias.length === 0 ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-700'}`}
+          >
+            Todas
+          </button>
+          {CATEGORIAS.map(([valor, nome, cor]) => {
+            const marcada = categorias.includes(valor)
+            return (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setCategorias((atual) => (
+                  atual.includes(valor) ? atual.filter((item) => item !== valor) : [...atual, valor]
+                ))}
+                aria-pressed={marcada}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3 text-sm ${marcada ? 'border-transparent text-white' : 'border-gray-300 bg-white text-gray-800'}`}
+                style={marcada ? { backgroundColor: cor, borderColor: cor } : undefined}
+              >
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: marcada ? '#fff' : cor }} />
+                {nome}
+              </button>
+            )
+          })}
+        </div>
         <label className="flex min-h-12 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-700">
           <input type="checkbox" checked={mostrarEventos} onChange={(e) => setMostrarEventos(e.target.checked)} />
           Recessos e semanas de prova
         </label>
-      </div>
-
-      <div className="mb-3 flex flex-wrap gap-2 text-xs text-gray-600">
-        {CATEGORIAS.map(([valor, nome, cor]) => (
-          <span key={valor} className="inline-flex items-center gap-1">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cor }} />
-            {nome}
-          </span>
-        ))}
       </div>
 
       <div className="mb-3 flex items-center justify-between">
