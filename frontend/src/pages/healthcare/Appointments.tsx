@@ -386,7 +386,7 @@ export default function Appointments() {
       {viewMode === 'create' ? (
         // Tela completa de cadastro
         <div className="min-h-screen bg-gray-50">
-          <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+          <div className="bg-white shadow-sm border-b border-gray-200 sticky top-[var(--barra-app,0px)] z-10 lg:top-0">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
               <div className="flex items-center gap-4">
                 <button

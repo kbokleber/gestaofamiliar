@@ -6,7 +6,7 @@ import {
   Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen, ClipboardList, FileText, Megaphone
 } from 'lucide-react'
 import { canSeeMenu, type MenuKey } from '../lib/menus'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useAppVersion } from '../hooks/useAppVersion'
 
 export default function Layout() {
@@ -14,6 +14,18 @@ export default function Layout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { revision, buildTimeLabel } = useAppVersion()
+  const barraRef = useRef<HTMLDivElement>(null)
+  const [alturaBarra, setAlturaBarra] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = barraRef.current
+    if (!el) return
+    const medir = () => setAlturaBarra(Math.ceil(el.getBoundingClientRect().height))
+    medir()
+    const observer = new ResizeObserver(medir)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [revision, buildTimeLabel])
 
   const handleLogout = () => {
     logout()
@@ -91,9 +103,12 @@ export default function Layout() {
   const allNavigation = [...visibleNavigation, ...adminNavigation]
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gray-50">
+    <div
+      className="min-h-screen overflow-x-hidden bg-gray-50"
+      style={{ ['--barra-app' as string]: `${alturaBarra}px` }}
+    >
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 bg-white shadow-sm z-50 px-4 py-3 flex items-center justify-between">
+      <div ref={barraRef} className="lg:hidden fixed top-0 left-0 right-0 bg-white shadow-sm z-50 flex items-center justify-between px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div>
           <h1 className="text-lg font-semibold">Gestão Familiar</h1>
           <p className="text-xs text-gray-500">Compilado em: {buildTimeLabel}</p>
@@ -115,12 +130,13 @@ export default function Layout() {
         aria-label="Navegação principal" 
         className={`
           fixed left-0 z-40 flex bg-white shadow-lg transition-transform duration-200 ease-in-out
-          top-16 h-[calc(100dvh-4rem)] w-[min(20rem,calc(100vw-1.5rem))]
+          w-[min(20rem,calc(100vw-1.5rem))]
           rounded-r-2xl border-r border-gray-200
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:top-0 lg:h-screen lg:w-64 lg:translate-x-0 lg:rounded-none lg:border-r
           flex-col
         `}
+        style={alturaBarra > 0 ? { top: alturaBarra, height: `calc(100dvh - ${alturaBarra}px)` } : undefined}
       >
         <div className="hidden border-b border-gray-100 p-6 lg:block">
           <h1 className="text-xl font-bold text-gray-900">Gestão Familiar</h1>
@@ -211,7 +227,10 @@ export default function Layout() {
       )}
 
       {/* Main content */}
-      <main className="min-h-screen pt-16 lg:ml-64 lg:pt-0">
+      <main
+        className="min-h-screen lg:ml-64 lg:!pt-0"
+        style={alturaBarra > 0 ? { paddingTop: alturaBarra + 12 } : undefined}
+      >
         <div className="p-4 sm:p-6">
           <Outlet />
         </div>
