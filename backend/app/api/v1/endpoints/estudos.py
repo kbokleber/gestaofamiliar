@@ -14,12 +14,13 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Security, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import and_, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, defer, joinedload
 
 from app.api.deps import api_key_header, get_current_admin, get_current_user, oauth2_scheme
 from app.core.config import settings
 from app.db.base import get_db
-from app.models.estudo import Atividade
+from app.models.estudo import Atividade, ComunicadoLido
 from app.models.user import User
 from app.schemas.estudo import Anexo, Atividade as AtividadeSchema
 from app.schemas.estudo import AtividadeCreate, AtividadeUpdate
@@ -146,7 +147,12 @@ def _link_valido(atividade_id: int, idx: int, exp: Optional[int], sig: Optional[
     return hmac.compare_digest(esperado, sig)
 
 
-def _to_schema(atividade: Atividade, incluir_anexos: bool = True, resumo: Optional[list[dict]] = None) -> AtividadeSchema:
+def _to_schema(
+    atividade: Atividade,
+    incluir_anexos: bool = True,
+    resumo: Optional[list[dict]] = None,
+    lido: bool = False,
+) -> AtividadeSchema:
     return AtividadeSchema(
         id=atividade.id,
         aluno_id=atividade.aluno_id,
@@ -162,11 +168,54 @@ def _to_schema(atividade: Atividade, incluir_anexos: bool = True, resumo: Option
         autor=atividade.autor,
         numero=atividade.numero,
         status=None if (atividade.tipo or "atividade") == "comunicado" else (atividade.status or "pendente"),
+        lido=lido,
+        criado_pelo_app=bool(atividade.criado_pelo_app),
         anexos=_publico(resumo if resumo is not None else _ler_resumo(atividade)) if incluir_anexos else [],
         concluida_em=atividade.concluida_em,
         created_by_id=atividade.created_by_id,
         created_at=atividade.created_at,
     )
+
+
+def _exige_comunicado_editavel(atividade: Atividade) -> None:
+    """Comunicados da integração (não criados pela tela do app) são só leitura."""
+    if (atividade.tipo or "atividade") != "comunicado":
+        return
+    if atividade.criado_pelo_app:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Comunicados da integração não podem ser alterados nem excluídos.",
+    )
+
+
+async def get_leitor_comunicado(current_user: User = Depends(get_current_user)) -> User:
+    """Permite marcar/desmarcar comunicados apenas para quem NÃO é filho.
+
+    O acesso ao menu de estudos já é garantido em nível de router
+    (require_menu("estudos")). Aqui só barramos os filhos.
+    """
+    if current_user.is_child:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Filhos não marcam comunicados como lidos.",
+        )
+    return current_user
+
+
+def _ids_lidos(db: Session, user: User, atividade_ids: list[int]) -> set[int]:
+    """IDs de comunicados já lidos pelo usuário, dentre os informados."""
+    if user.is_child or not atividade_ids:
+        return set()
+    linhas = (
+        db.query(ComunicadoLido.atividade_id)
+        .filter(
+            ComunicadoLido.user_id == user.id,
+            ComunicadoLido.atividade_id.in_(atividade_ids),
+        )
+        .all()
+    )
+    return {linha[0] for linha in linhas}
 
 
 def _pode_ver(atividade: Atividade, current_user: User) -> None:
@@ -423,6 +472,7 @@ async def list_atividades(
     tipo: Optional[str] = None,
     anteriores: int = Query(0),
     q: Optional[str] = None,
+    lidos: int = Query(0),
     limite: int = Query(20, ge=1, le=50),
     antes_de: Optional[date] = None,
     antes_id: Optional[int] = None,
@@ -434,7 +484,8 @@ async def list_atividades(
     O filho recebe somente as próprias. O administrador recebe as da
     própria família e pode filtrar com o parâmetro aluno_id.
     Comunicado recente volta só das últimas duas semanas. Os mais antigos
-    e a pesquisa vêm em páginas.
+    e a pesquisa vêm em páginas. Com lidos=1, staff/admin vê só os
+    já marcados como lidos por aquela pessoa.
     """
     if tipo is not None:
         tipo = _tipo_valido(tipo)
@@ -457,7 +508,22 @@ async def list_atividades(
         return [_to_schema(item, incluir_anexos=False) for item in atividades]
 
     termo = (q or "").strip()
+    so_lidos = bool(lidos) and not current_user.is_child
     corte = _hoje_local() - timedelta(days=DIAS_COMUNICADO_RECENTE)
+    # Lista limpa: esconde lidos. Com lidos=1, mostra só os lidos da pessoa.
+    # Na busca (q) sem lidos=1, os lidos voltam junto com os outros.
+    if so_lidos:
+        lidos_subq = (
+            db.query(ComunicadoLido.atividade_id)
+            .filter(ComunicadoLido.user_id == current_user.id)
+        )
+        query = query.filter(Atividade.id.in_(lidos_subq))
+    elif not termo and not current_user.is_child:
+        lidos_subq = (
+            db.query(ComunicadoLido.atividade_id)
+            .filter(ComunicadoLido.user_id == current_user.id)
+        )
+        query = query.filter(~Atividade.id.in_(lidos_subq))
     if termo:
         query = _filtrar_texto(query, termo)
         response.headers["X-Tem-Anteriores"] = "0"
@@ -477,7 +543,11 @@ async def list_atividades(
     else:
         response.headers["X-Tem-Mais"] = "0"
         atividades = query.all()
-    return [_to_schema(item, incluir_anexos=False) for item in atividades]
+    lidos = _ids_lidos(db, current_user, [item.id for item in atividades])
+    return [
+        _to_schema(item, incluir_anexos=False, lido=item.id in lidos)
+        for item in atividades
+    ]
 
 
 @router.get("/atividades/{atividade_id}", response_model=AtividadeSchema)
@@ -489,7 +559,64 @@ async def read_atividade(
     """Detalhe de uma atividade. O filho só abre a própria. Comunicado também abre para os pais da família."""
     atividade = _get_or_404(db, atividade_id)
     _pode_ver(atividade, current_user)
-    return _to_schema(atividade, resumo=_garantir_arquivos(atividade, db))
+    lido = bool(_ids_lidos(db, current_user, [atividade.id]))
+    return _to_schema(atividade, resumo=_garantir_arquivos(atividade, db), lido=lido)
+
+
+def _comunicado_para_ler(db: Session, atividade_id: int, current_user: User) -> Atividade:
+    atividade = _get_or_404(db, atividade_id)
+    if (atividade.tipo or "atividade") != "comunicado":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Apenas comunicados podem ser marcados como lidos.",
+        )
+    _pode_ver(atividade, current_user)
+    return atividade
+
+
+@router.post("/atividades/{atividade_id}/lido")
+async def marcar_lido(
+    atividade_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_leitor_comunicado),
+):
+    """Marca um comunicado como lido para a pessoa atual. Filho recebe 403."""
+    _comunicado_para_ler(db, atividade_id, current_user)
+    existe = (
+        db.query(ComunicadoLido)
+        .filter(
+            ComunicadoLido.user_id == current_user.id,
+            ComunicadoLido.atividade_id == atividade_id,
+        )
+        .first()
+    )
+    if existe is None:
+        db.add(ComunicadoLido(user_id=current_user.id, atividade_id=atividade_id))
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+    return {"lido": True}
+
+
+@router.delete("/atividades/{atividade_id}/lido")
+async def desmarcar_lido(
+    atividade_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_leitor_comunicado),
+):
+    """Desmarca o comunicado como lido para a pessoa atual. Filho recebe 403."""
+    _comunicado_para_ler(db, atividade_id, current_user)
+    (
+        db.query(ComunicadoLido)
+        .filter(
+            ComunicadoLido.user_id == current_user.id,
+            ComunicadoLido.atividade_id == atividade_id,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"lido": False}
 
 
 @router.get("/atividades/{atividade_id}/anexos/{idx}/link")
@@ -522,6 +649,7 @@ async def adicionar_anexo(
     """Anexa uma imagem PNG, JPG ou um PDF. Somente administrador, via multipart no campo file."""
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
+    _exige_comunicado_editavel(atividade)
     conteudo = await file.read()
     if not conteudo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo está vazio.")
@@ -591,6 +719,7 @@ async def excluir_anexo(
     """Remove uma imagem da atividade. Somente administrador."""
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
+    _exige_comunicado_editavel(atividade)
     anexos = _carregar_anexos(atividade)
     if idx < 0 or idx >= len(anexos):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Anexo {idx} não encontrado.")
@@ -610,14 +739,24 @@ async def create_atividade(
     payload: AtividadeCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
+    api_key: Optional[str] = Security(api_key_header),
 ):
-    """Cria uma atividade para um filho. Somente administrador, via Bearer ou X-API-Token."""
+    """Cria uma atividade para um filho. Somente administrador, via Bearer ou X-API-Token.
+
+    Bearer (app) → criado_pelo_app=True. X-API-Token (integração) → False.
+    Só comunicados com criado_pelo_app=True aceitam editar/excluir depois.
+    """
     if not payload.titulo.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Título é obrigatório.")
     alunos = _destinatarios(db, payload, current_user)
+    via_app = not bool(api_key)
     criadas = []
     for aluno in alunos:
-        atividade = Atividade(created_by_id=current_user.id, status="pendente")
+        atividade = Atividade(
+            created_by_id=current_user.id,
+            status="pendente",
+            criado_pelo_app=via_app,
+        )
         _aplicar_conteudo(atividade, payload, aluno)
         db.add(atividade)
         criadas.append(atividade)
@@ -634,11 +773,12 @@ async def update_atividade(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    """Altera uma atividade. Somente administrador."""
+    """Altera uma atividade. Somente administrador. Comunicado da integração → 403."""
     if not payload.titulo.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Título é obrigatório.")
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
+    _exige_comunicado_editavel(atividade)
     aluno = _filho_ativo(db, payload.aluno_id, current_user)
     _aplicar_conteudo(atividade, payload, aluno)
     db.commit()
@@ -704,9 +844,10 @@ async def delete_atividade(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    """Exclui uma atividade. Somente administrador."""
+    """Exclui uma atividade. Somente administrador. Comunicado da integração → 403."""
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
+    _exige_comunicado_editavel(atividade)
     db.delete(atividade)
     db.commit()
     return {"message": "Atividade excluída com sucesso"}

@@ -101,6 +101,10 @@ def startup_create_tables():
             conn.execute(text(
                 "ALTER TABLE estudo_atividade ALTER COLUMN status DROP NOT NULL"
             ))
+            conn.execute(text(
+                "ALTER TABLE estudo_atividade ADD COLUMN IF NOT EXISTS "
+                "criado_pelo_app BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
         from app.db.base import SessionLocal
         from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
         db = SessionLocal()

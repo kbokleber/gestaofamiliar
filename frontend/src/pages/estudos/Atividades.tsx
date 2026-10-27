@@ -24,6 +24,8 @@ interface Atividade {
   autor: string | null
   numero: string | null
   status: 'pendente' | 'concluida' | null
+  lido: boolean
+  criado_pelo_app?: boolean
   anexos: Anexo[]
   concluida_em: string | null
 }
@@ -143,6 +145,13 @@ function ehComunicado(item: Atividade) {
   return item.tipo === 'comunicado'
 }
 
+/** Só comunicados criados pela tela do app (não pela integração) aceitam Editar/Excluir. */
+function podeEditarExcluir(item: Atividade, isAdmin: boolean) {
+  if (!isAdmin) return false
+  if (ehComunicado(item) && !item.criado_pelo_app) return false
+  return true
+}
+
 function diaDoItem(item: Atividade) {
   if (ehComunicado(item)) return item.data
   return diaDoPrazo(item.prazo_entrega || item.data)
@@ -193,6 +202,7 @@ function CartaoAtividade({
   onEditar: (atividade: Atividade) => void
   onExcluir: (atividade: Atividade) => void
 }) {
+  const mostraAcoes = podeEditarExcluir(atividade, isAdmin)
   return (
     <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <button
@@ -233,7 +243,7 @@ function CartaoAtividade({
           <p className="mt-0.5 text-sm text-gray-500">{atividade.professor}</p>
         )}
       </button>
-      {isAdmin && (
+      {mostraAcoes && (
         <div className="grid grid-cols-2 border-t border-gray-100">
           <button
             type="button"
@@ -284,6 +294,7 @@ function GaleriaAnexos({
   const [aberto, setAberto] = useState<number | null>(null)
   const [urlAberta, setUrlAberta] = useState('')
   const anexos = atividade.anexos ?? []
+  const podeGerirAnexos = podeEditarExcluir(atividade, isAdmin)
 
   const enviar = async (arquivo: File) => {
     const corpo = new FormData()
@@ -366,7 +377,7 @@ function GaleriaAnexos({
                     {anexo.size > 0 && <p className="text-sm text-gray-500">{formatarTamanho(anexo.size)}</p>}
                   </div>
                 </div>
-                <div className={isAdmin ? 'grid grid-cols-2 border-t border-gray-100' : 'border-t border-gray-100'}>
+                <div className={podeGerirAnexos ? 'grid grid-cols-2 border-t border-gray-100' : 'border-t border-gray-100'}>
                   <button
                     type="button"
                     onClick={() => visualizar(indice)}
@@ -375,7 +386,7 @@ function GaleriaAnexos({
                     <Eye className="h-5 w-5" />
                     Visualizar
                   </button>
-                  {isAdmin && (
+                  {podeGerirAnexos && (
                     <button
                       type="button"
                       onClick={() => remover(indice)}
@@ -391,7 +402,7 @@ function GaleriaAnexos({
           })}
         </div>
       )}
-      {isAdmin && (
+      {podeGerirAnexos && (
         <label className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 px-3 text-base text-gray-700">
           <ImagePlus className="h-5 w-5" />
           {enviando ? 'Enviando...' : 'Adicionar imagem ou PDF'}
@@ -469,6 +480,8 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   const telaComunicado = modo === 'comunicado'
   const user = useAuthStore((state) => state.user)
   const isAdmin = !!user?.is_superuser
+  const isChild = !!user?.is_child
+  const podeMarcarLido = telaComunicado && !isChild
   const queryClient = useQueryClient()
   const [alunoFiltro, setAlunoFiltro] = useState<number | ''>('')
   const [selecionada, setSelecionada] = useState<Atividade | null>(null)
@@ -486,6 +499,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   )
   const [somenteSemana, setSomenteSemana] = useState(searchParams.get('semana') === 'atual')
   const [buscaServidor, setBuscaServidor] = useState('')
+  const [mostrarLidas, setMostrarLidas] = useState(false)
   const [extras, setExtras] = useState<Atividade[]>([])
   const [temMaisExtras, setTemMaisExtras] = useState(false)
   const [carregandoExtras, setCarregandoExtras] = useState(false)
@@ -514,16 +528,17 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   useEffect(() => {
     setExtras([])
     setTemMaisExtras(false)
-  }, [modo, alunoFiltro, buscaServidor])
+  }, [modo, alunoFiltro, buscaServidor, mostrarLidas])
 
   const { data: lista, isError } = useQuery<{ itens: Atividade[], temAnteriores: boolean, temMais: boolean }>({
-    queryKey: ['atividades', modo, isAdmin ? alunoFiltro : 'minhas', telaComunicado ? buscaServidor : ''],
+    queryKey: ['atividades', modo, isAdmin ? alunoFiltro : 'minhas', telaComunicado ? buscaServidor : '', telaComunicado && podeMarcarLido ? mostrarLidas : false],
     queryFn: async () => {
       const response = await api.get<Atividade[]>('/estudos/atividades', {
         params: {
           tipo: modo,
           ...(isAdmin && alunoFiltro ? { aluno_id: alunoFiltro } : {}),
           ...(telaComunicado && buscaServidor ? { q: buscaServidor } : {}),
+          ...(telaComunicado && podeMarcarLido && mostrarLidas ? { lidos: 1 } : {}),
         },
       })
       return {
@@ -609,6 +624,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
           limite: 20,
           ...(isAdmin && alunoFiltro ? { aluno_id: alunoFiltro } : {}),
           ...(buscaServidor ? { q: buscaServidor } : { anteriores: 1 }),
+          ...(podeMarcarLido && mostrarLidas ? { lidos: 1 } : {}),
           ...(ultimo && (buscaServidor || extras.length > 0) ? { antes_de: ultimo.data, antes_id: ultimo.id } : {}),
         },
       })
@@ -720,6 +736,34 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
     },
   })
 
+  const toggleLido = useMutation({
+    mutationFn: async (atividade: Atividade) => {
+      if (atividade.lido) {
+        await api.delete(`/estudos/atividades/${atividade.id}/lido`)
+      } else {
+        await api.post(`/estudos/atividades/${atividade.id}/lido`)
+      }
+      return { id: atividade.id, lido: !atividade.lido }
+    },
+    onSuccess: ({ id, lido }) => {
+      // Sem "Lidas": some ao marcar. Com "Lidas": some ao desmarcar.
+      setExtras((atual) => atual
+        .map((item) => (item.id === id ? { ...item, lido } : item))
+        .filter((item) => {
+          if (buscaServidor) return true
+          return mostrarLidas ? item.lido : !item.lido
+        }))
+      queryClient.setQueryData<Atividade>(['atividade', id], (anterior) =>
+        anterior ? { ...anterior, lido } : anterior)
+      if (lido || (mostrarLidas && !lido)) {
+        setSelecionada(null)
+      } else if (selecionada?.id === id) {
+        setSelecionada({ ...selecionada, lido })
+      }
+      queryClient.invalidateQueries({ queryKey: ['atividades'] })
+    },
+  })
+
   const abrirNova = () => {
     setEditando(null)
     setForm({ ...emptyForm, tipo: modo })
@@ -728,6 +772,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   }
 
   const abrirEdicao = (atividade: Atividade) => {
+    if (!podeEditarExcluir(atividade, isAdmin)) return
     setEditando(atividade)
     setForm({
       tipo: atividade.tipo || 'atividade',
@@ -828,15 +873,28 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
       </div>
       )}
 
-      <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-        <input
-          value={busca}
-          onChange={(event) => setBusca(event.target.value)}
-          placeholder={telaComunicado ? 'Buscar também nos anteriores' : 'Data, matéria ou descrição'}
-          aria-label="Pesquisar tarefas"
-          className="w-full rounded-xl border border-gray-300 py-3 pl-10 pr-3 text-base"
-        />
+      <div className={`mb-4 ${telaComunicado && podeMarcarLido ? 'flex flex-col gap-3 sm:flex-row sm:items-center' : ''}`}>
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <input
+            value={busca}
+            onChange={(event) => setBusca(event.target.value)}
+            placeholder={telaComunicado ? 'Buscar também nos anteriores' : 'Data, matéria ou descrição'}
+            aria-label="Pesquisar tarefas"
+            className="w-full rounded-xl border border-gray-300 py-3 pl-10 pr-3 text-base"
+          />
+        </div>
+        {telaComunicado && podeMarcarLido && (
+          <label className="flex min-h-12 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-gray-300 px-3 text-base text-gray-800">
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={mostrarLidas}
+              onChange={(event) => setMostrarLidas(event.target.checked)}
+            />
+            Lidas
+          </label>
+        )}
       </div>
 
       {isError && (
@@ -845,7 +903,9 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
 
       {!isError && listaAtual.length === 0 && (
         <p className="text-gray-600">
-          {telaComunicado && buscaServidor
+          {telaComunicado && mostrarLidas
+            ? 'Nenhum comunicado lido neste período.'
+            : telaComunicado && buscaServidor
             ? 'Nenhum comunicado encontrado.'
             : telaComunicado && lista?.temAnteriores
               ? 'Nenhum comunicado das últimas duas semanas.'
@@ -989,6 +1049,16 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
             </div>
             <p className="whitespace-pre-wrap text-base leading-relaxed text-gray-800">{atividadeAberta.descricao || 'Sem descrição.'}</p>
             <GaleriaAnexos atividade={atividadeAberta} isAdmin={isAdmin} onChange={atualizarAnexos} />
+            {podeMarcarLido && ehComunicado(atividadeAberta) && (
+              <Button
+                variant={atividadeAberta.lido ? 'outline' : 'primary'}
+                onClick={() => toggleLido.mutate(atividadeAberta)}
+                disabled={toggleLido.isPending}
+                className="min-h-12 w-full text-base"
+              >
+                {atividadeAberta.lido ? 'Marcar como não lido' : 'Marcar como lido'}
+              </Button>
+            )}
             {!isAdmin && !ehComunicado(atividadeAberta) && atividadeAberta.status !== 'concluida' && (
               <Button onClick={() => setConfirmarConclusao(true)} className="min-h-12 w-full text-base">
                 Marcar como concluída

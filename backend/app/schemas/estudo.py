@@ -39,6 +39,8 @@ class Atividade(AtividadeBase):
     family_id: int
     aluno_nome: str
     status: Optional[str] = None
+    lido: bool = False
+    criado_pelo_app: bool = False
     anexos: list[Anexo] = []
     concluida_em: Optional[datetime] = None
     created_by_id: Optional[int] = None
