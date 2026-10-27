@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Activity, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
+import { Activity, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, FileSpreadsheet } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import DateTimeInput from '../../components/DateTimeInput'
@@ -36,6 +36,20 @@ interface Procedure {
 const EMPTY_PROCEDURES: Procedure[] = []
 const EMPTY_MEMBERS: FamilyMember[] = []
 
+function limitesDoMesCorrente() {
+  const hoje = new Date()
+  const ano = hoje.getFullYear()
+  const mes = hoje.getMonth()
+  const inicio = `${ano}-${String(mes + 1).padStart(2, '0')}-01`
+  const ultimoDia = new Date(ano, mes + 1, 0).getDate()
+  const fim = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
+  return { inicio, fim }
+}
+
+function diaDoProcedimento(procedureDate: string) {
+  return procedureDate.split('T')[0]
+}
+
 // Cache local para carregamento instantâneo
 const getPlaceholderProcedures = (): Procedure[] | undefined => {
   try {
@@ -65,10 +79,11 @@ export default function Procedures() {
   const [viewMode, setViewMode] = useState<'list' | 'create'>('list')
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingProcedure, setEditingProcedure] = useState<Procedure | null>(null)
+  const [somenteMesCorrente, setSomenteMesCorrente] = useState(true)
   const [filters, setFilters] = useState({
     member_id: 0,
     start_date: '',
-    end_date: ''
+    end_date: '',
   })
   const [formData, setFormData] = useState({
     family_member_id: 0,
@@ -132,25 +147,28 @@ export default function Procedures() {
     if (filters.member_id > 0) {
       filtered = filtered.filter(procedure => procedure.family_member_id === filters.member_id)
     }
-    if (filters.start_date) {
-      const startDate = new Date(filters.start_date)
-      startDate.setHours(0, 0, 0, 0)
-      filtered = filtered.filter(procedure => {
-        const procedureDate = new Date(procedure.procedure_date)
-        return procedureDate >= startDate
+    if (somenteMesCorrente) {
+      const mes = limitesDoMesCorrente()
+      filtered = filtered.filter((procedure) => {
+        const dia = diaDoProcedimento(procedure.procedure_date)
+        return dia >= mes.inicio && dia <= mes.fim
       })
-    }
-    if (filters.end_date) {
-      const endDate = new Date(filters.end_date)
-      endDate.setHours(23, 59, 59, 999)
-      filtered = filtered.filter(procedure => {
-        const procedureDate = new Date(procedure.procedure_date)
-        return procedureDate <= endDate
-      })
+    } else {
+      if (filters.start_date) {
+        filtered = filtered.filter(procedure => diaDoProcedimento(procedure.procedure_date) >= filters.start_date)
+      }
+      if (filters.end_date) {
+        filtered = filtered.filter(procedure => diaDoProcedimento(procedure.procedure_date) <= filters.end_date)
+      }
     }
 
     return filtered
-  }, [procedures, filters.member_id, filters.start_date, filters.end_date])
+  }, [procedures, filters.member_id, filters.start_date, filters.end_date, somenteMesCorrente])
+
+  const alterarDataFiltro = (campo: 'start_date' | 'end_date', value: string) => {
+    setSomenteMesCorrente(false)
+    setFilters((atual) => ({ ...atual, [campo]: value }))
+  }
 
   const handleExportExcel = () => {
     const dataToExport = filteredProcedures.map(procedure => ({
@@ -580,27 +598,35 @@ export default function Procedures() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Data Inicial</label>
                 <DateInput
-                  value={filters.start_date}
-                  onChange={(value) => setFilters({...filters, start_date: value})}
+                  value={somenteMesCorrente ? '' : filters.start_date}
+                  onChange={(value) => alterarDataFiltro('start_date', value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Data Final</label>
                 <DateInput
-                  value={filters.end_date}
-                  onChange={(value) => setFilters({...filters, end_date: value})}
+                  value={somenteMesCorrente ? '' : filters.end_date}
+                  onChange={(value) => alterarDataFiltro('end_date', value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="flex items-end">
-                <button
-                  type="button"
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center"
-                >
-                  <Filter className="mr-2 h-5 w-5" />
-                  Filtrar
-                </button>
+                <label className="flex min-h-11 w-full items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-800">
+                  <input
+                    type="checkbox"
+                    checked={somenteMesCorrente}
+                    onChange={(e) => {
+                      const ligado = e.target.checked
+                      setSomenteMesCorrente(ligado)
+                      if (ligado) {
+                        setFilters((atual) => ({ ...atual, start_date: '', end_date: '' }))
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Somente mês corrente
+                </label>
               </div>
             </div>
           </div>
@@ -609,6 +635,18 @@ export default function Procedures() {
         <div className="bg-white shadow rounded-lg p-6">
           <p className="text-gray-600 text-center py-8">
             Nenhum procedimento encontrado com os filtros aplicados.
+            {somenteMesCorrente && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  onClick={() => setSomenteMesCorrente(false)}
+                  className="text-blue-600 underline"
+                >
+                  Ver todos os períodos
+                </button>
+              </>
+            )}
           </p>
         </div>
       ) : (
