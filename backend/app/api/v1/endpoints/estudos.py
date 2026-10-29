@@ -1,4 +1,5 @@
 import base64
+import binascii
 import hashlib
 import hmac
 import io
@@ -11,8 +12,9 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path, PurePath
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Security, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, Security, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import ValidationError
 from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, defer, joinedload
@@ -32,9 +34,14 @@ PASTA_ANEXOS = Path(__file__).resolve().parents[4] / "var" / "anexo_cache"
 LINK_SEGUNDOS = 600
 
 TAMANHO_MAXIMO = 25 * 1024 * 1024
+# Limite por arquivo recebido na criação do comunicado, antes da compressão.
+LIMITE_ARQUIVO_ENTRADA = 20 * 1024 * 1024
 LIMITE_COMPRIMIR = 5 * 1024 * 1024
 LADO_MAXIMO_IMAGEM = 1600
 LIMITE_ANEXOS = 10
+# Janela em que ainda aceitamos o 1º lote de anexos num comunicado da
+# integração (sem anexos). Depois disso ele volta a ser só leitura.
+JANELA_ANEXO_INTEGRACAO_HORAS = 24
 TIPOS_ANEXO = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -182,6 +189,35 @@ def _exige_comunicado_editavel(atividade: Atividade) -> None:
     if (atividade.tipo or "atividade") != "comunicado":
         return
     if atividade.criado_pelo_app:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Comunicados da integração não podem ser alterados nem excluídos.",
+    )
+
+
+def _horas_desde_criacao(atividade: Atividade) -> float:
+    """Idade do registro em horas, tolerando created_at nulo ou sem fuso."""
+    criado = atividade.created_at
+    if criado is None:
+        return 0.0
+    if criado.tzinfo is None:
+        criado = criado.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - criado).total_seconds() / 3600
+
+
+def _exige_pode_anexar(atividade: Atividade) -> None:
+    """Quem pode anexar em um comunicado.
+
+    - Atividade comum ou comunicado criado pelo app: sempre.
+    - Comunicado da integração: só o 1º lote, enquanto não tem anexo e dentro
+      das primeiras 24 h (para corrigir comunicados antigos). Depois: 403.
+    """
+    if (atividade.tipo or "atividade") != "comunicado":
+        return
+    if atividade.criado_pelo_app:
+        return
+    if not _carregar_anexos(atividade) and _horas_desde_criacao(atividade) < JANELA_ANEXO_INTEGRACAO_HORAS:
         return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
@@ -649,7 +685,7 @@ async def adicionar_anexo(
     """Anexa uma imagem PNG, JPG ou um PDF. Somente administrador, via multipart no campo file."""
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
-    _exige_comunicado_editavel(atividade)
+    _exige_pode_anexar(atividade)
     conteudo = await file.read()
     if not conteudo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo está vazio.")
@@ -734,21 +770,204 @@ async def excluir_anexo(
     return _to_schema(atividade, resumo=resumo)
 
 
-@router.post("/atividades", response_model=AtividadeSchema, status_code=status.HTTP_201_CREATED)
+def _payload_from_dict(dados: dict) -> AtividadeCreate:
+    """Valida o corpo do comunicado/atividade, respondendo 422 como o FastAPI."""
+    try:
+        return AtividadeCreate.model_validate(dados)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors())
+
+
+def _entrada_anexo_base64(item: dict) -> tuple[str, str, bytes]:
+    if not isinstance(item, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cada anexo deve ter nome, content_type e conteudo_base64.",
+        )
+    nome = str(item.get("nome") or "arquivo")
+    content_type = str(item.get("content_type") or "")
+    bruto = item.get("conteudo_base64") or ""
+    if isinstance(bruto, str) and "," in bruto[:64] and bruto.strip().lower().startswith("data:"):
+        bruto = bruto.split(",", 1)[1]
+    try:
+        conteudo = base64.b64decode(bruto, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"O anexo {nome} não está em base64 válido.",
+        )
+    return nome, content_type, conteudo
+
+
+async def _ler_entrada_atividade(request: Request) -> tuple[AtividadeCreate, list[tuple[str, str, bytes]]]:
+    """Lê o corpo tanto em multipart/form-data quanto em application/json.
+
+    multipart: campo `payload` (JSON de AtividadeCreate) + campo `files` (0..N).
+    json: AtividadeCreate, com campo opcional `anexos` [{nome, content_type, conteudo_base64}].
+    Retorna o payload validado e a lista bruta de anexos (nome, content_type, bytes).
+    """
+    content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    entradas: list[tuple[str, str, bytes]] = []
+
+    if content_type in {"multipart/form-data", "application/x-www-form-urlencoded"}:
+        form = await request.form()
+        bruto = form.get("payload")
+        if bruto is None or hasattr(bruto, "read"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Envie o campo payload com o JSON do comunicado.",
+            )
+        try:
+            dados = json.loads(bruto)
+        except (json.JSONDecodeError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="O campo payload não é um JSON válido.",
+            )
+        if not isinstance(dados, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="O campo payload deve ser um objeto JSON.",
+            )
+        payload = _payload_from_dict(dados)
+        for arquivo in form.getlist("files"):
+            if not hasattr(arquivo, "read"):
+                continue
+            conteudo = await arquivo.read()
+            entradas.append((arquivo.filename or "arquivo", arquivo.content_type or "", conteudo))
+        return payload, entradas
+
+    try:
+        dados = await request.json()
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Envie um JSON válido.")
+    if not isinstance(dados, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Envie um JSON válido.")
+    anexos_json = dados.pop("anexos", None)
+    payload = _payload_from_dict(dados)
+    if anexos_json is not None:
+        if not isinstance(anexos_json, list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="O campo anexos deve ser uma lista.",
+            )
+        entradas = [_entrada_anexo_base64(item) for item in anexos_json]
+    return payload, entradas
+
+
+def _processar_anexos_entrada(
+    entradas: list[tuple[str, str, bytes]]
+) -> tuple[list[dict], list[dict]]:
+    """Valida, comprime e deduplica os anexos recebidos.
+
+    Retorna (anexos_completos, resumo). Qualquer arquivo inválido levanta 400
+    com o nome do arquivo antes de nada ser gravado no banco.
+    """
+    if len(entradas) > LIMITE_ANEXOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Envie no máximo {LIMITE_ANEXOS} arquivos.",
+        )
+    anexos_completos: list[dict] = []
+    resumo: list[dict] = []
+    vistos: set = set()
+    for nome, content_type, conteudo in entradas:
+        if not conteudo:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"O arquivo {nome} está vazio.")
+        if len(conteudo) > LIMITE_ARQUIVO_ENTRADA:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"O arquivo {nome} passa de 20 MB.")
+        try:
+            tipo = _anexo_valido(nome, conteudo, content_type)
+            conteudo = _reduzir_se_grande(conteudo, tipo)
+            tipo = _anexo_valido(nome, conteudo, tipo)
+        except HTTPException as exc:
+            raise HTTPException(status_code=exc.status_code, detail=f"{nome}: {exc.detail}")
+        chave = hashlib.sha256(conteudo).hexdigest()
+        nome_limpo = _nome_arquivo(nome)
+        marca = (nome_limpo, len(conteudo))
+        if marca in vistos or chave in vistos:
+            continue
+        vistos.add(marca)
+        vistos.add(chave)
+        _gravar_cache(conteudo)
+        meta = {"name": nome_limpo, "type": tipo, "size": len(conteudo), "arquivo": chave}
+        resumo.append(meta)
+        anexos_completos.append({**meta, "data": base64.b64encode(conteudo).decode("ascii")})
+    return anexos_completos, resumo
+
+
+_CREATE_ATIVIDADE_OPENAPI = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "allOf": [{"$ref": "#/components/schemas/AtividadeCreate"}],
+                    "properties": {
+                        "anexos": {
+                            "type": "array",
+                            "description": "Anexos opcionais em base64 (PNG, JPG ou PDF).",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "nome": {"type": "string"},
+                                    "content_type": {"type": "string"},
+                                    "conteudo_base64": {"type": "string"},
+                                },
+                                "required": ["nome", "conteudo_base64"],
+                            },
+                        }
+                    },
+                }
+            },
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "payload": {
+                            "type": "string",
+                            "description": "JSON (string) de AtividadeCreate.",
+                        },
+                        "files": {
+                            "type": "array",
+                            "description": "0..N arquivos PNG, JPG ou PDF.",
+                            "items": {"type": "string", "format": "binary"},
+                        },
+                    },
+                    "required": ["payload"],
+                }
+            },
+        },
+    }
+}
+
+
+@router.post(
+    "/atividades",
+    response_model=AtividadeSchema,
+    status_code=status.HTTP_201_CREATED,
+    openapi_extra=_CREATE_ATIVIDADE_OPENAPI,
+)
 async def create_atividade(
-    payload: AtividadeCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
     api_key: Optional[str] = Security(api_key_header),
 ):
-    """Cria uma atividade para um filho. Somente administrador, via Bearer ou X-API-Token.
+    """Cria uma atividade/comunicado para um filho. Somente administrador, via Bearer ou X-API-Token.
+
+    Aceita application/json (AtividadeCreate, com anexos base64 opcionais) e
+    multipart/form-data (campo `payload` + campo `files`). Tudo numa transação:
+    anexo inválido → 400 e nada criado.
 
     Bearer (app) → criado_pelo_app=True. X-API-Token (integração) → False.
     Só comunicados com criado_pelo_app=True aceitam editar/excluir depois.
     """
+    payload, entradas = await _ler_entrada_atividade(request)
     if not payload.titulo.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Título é obrigatório.")
     alunos = _destinatarios(db, payload, current_user)
+    anexos_completos, resumo = _processar_anexos_entrada(entradas)
     via_app = not bool(api_key)
     criadas = []
     for aluno in alunos:
@@ -758,12 +977,15 @@ async def create_atividade(
             criado_pelo_app=via_app,
         )
         _aplicar_conteudo(atividade, payload, aluno)
+        if anexos_completos:
+            atividade.anexos = json.dumps(anexos_completos)
+            atividade.anexos_resumo = json.dumps(resumo)
         db.add(atividade)
         criadas.append(atividade)
     db.commit()
     for atividade in criadas:
         db.refresh(atividade)
-    return _to_schema(criadas[0])
+    return _to_schema(criadas[0], resumo=resumo if anexos_completos else None)
 
 
 @router.put("/atividades/{atividade_id}", response_model=AtividadeSchema)

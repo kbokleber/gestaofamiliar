@@ -280,6 +280,62 @@ function formatarTamanho(bytes: number) {
   return `${texto} ${unidades[indice]}`
 }
 
+/** Miniatura de imagem buscada por blob com Bearer (não aponta a URL da API direto). */
+function MiniaturaAnexo({
+  atividadeId,
+  indice,
+  nome,
+  tipo,
+}: {
+  atividadeId: number
+  indice: number
+  nome: string
+  tipo: string
+}) {
+  const [url, setUrl] = useState('')
+  const [erro, setErro] = useState(false)
+
+  useEffect(() => {
+    let vivo = true
+    let endereco = ''
+    setErro(false)
+    setUrl('')
+    ;(async () => {
+      try {
+        const resposta = await api.get(
+          `/estudos/atividades/${atividadeId}/anexos/${indice}/download`,
+          { params: { inline: 1 }, responseType: 'blob' },
+        )
+        endereco = URL.createObjectURL(new Blob([resposta.data], { type: tipo || 'application/octet-stream' }))
+        if (vivo) setUrl(endereco)
+        else URL.revokeObjectURL(endereco)
+      } catch {
+        if (vivo) setErro(true)
+      }
+    })()
+    return () => {
+      vivo = false
+      if (endereco) URL.revokeObjectURL(endereco)
+    }
+  }, [atividadeId, indice, tipo])
+
+  if (erro) {
+    return (
+      <div className="flex h-40 items-center justify-center bg-gray-100 text-sm text-gray-500">
+        Não foi possível carregar
+      </div>
+    )
+  }
+  if (!url) {
+    return (
+      <div className="flex h-40 items-center justify-center bg-gray-100 text-sm text-gray-500">
+        Carregando…
+      </div>
+    )
+  }
+  return <img src={url} alt={nome} className="max-h-72 w-full bg-neutral-50 object-contain" />
+}
+
 function GaleriaAnexos({
   atividade,
   isAdmin,
@@ -370,13 +426,31 @@ function GaleriaAnexos({
             const imagem = anexo.type.startsWith('image/')
             return (
               <article key={`${anexo.name}-${indice}`} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-                <div className="flex items-center gap-3 px-4 py-4">
-                  {imagem ? <ImagePlus className="h-6 w-6 shrink-0 text-indigo-600" /> : <FileText className="h-6 w-6 shrink-0 text-red-600" />}
-                  <div className="min-w-0">
-                    <p className="truncate text-base text-gray-800">{anexo.name}</p>
-                    {anexo.size > 0 && <p className="text-sm text-gray-500">{formatarTamanho(anexo.size)}</p>}
+                {imagem ? (
+                  <button
+                    type="button"
+                    onClick={() => visualizar(indice)}
+                    className="block w-full active:opacity-90"
+                    aria-label={`Abrir ${anexo.name} em tela cheia`}
+                  >
+                    <MiniaturaAnexo atividadeId={atividade.id} indice={indice} nome={anexo.name} tipo={anexo.type} />
+                    <div className="flex items-center gap-2 px-4 py-2 text-left">
+                      <ImagePlus className="h-5 w-5 shrink-0 text-indigo-600" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-gray-800">{anexo.name}</p>
+                        {anexo.size > 0 && <p className="text-xs text-gray-500">{formatarTamanho(anexo.size)}</p>}
+                      </div>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3 px-4 py-4">
+                    <FileText className="h-6 w-6 shrink-0 text-red-600" />
+                    <div className="min-w-0">
+                      <p className="truncate text-base text-gray-800">{anexo.name}</p>
+                      {anexo.size > 0 && <p className="text-sm text-gray-500">{formatarTamanho(anexo.size)}</p>}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className={podeGerirAnexos ? 'grid grid-cols-2 border-t border-gray-100' : 'border-t border-gray-100'}>
                   <button
                     type="button"
@@ -384,7 +458,7 @@ function GaleriaAnexos({
                     className="flex min-h-12 items-center justify-center gap-2 text-base text-indigo-700 active:bg-indigo-50"
                   >
                     <Eye className="h-5 w-5" />
-                    Visualizar
+                    {imagem ? 'Ver em tela cheia' : 'Abrir PDF'}
                   </button>
                   {podeGerirAnexos && (
                     <button
@@ -475,6 +549,36 @@ function naSemanaAtual(dataIso: string) {
   return data >= inicio && data <= fim
 }
 
+/** Prévia (antes de salvar) de um arquivo escolhido no formulário. */
+function PreviaAnexoForm({ arquivo, onRemover }: { arquivo: File; onRemover: () => void }) {
+  const imagem = arquivo.type.startsWith('image/')
+  const url = useMemo(() => (imagem ? URL.createObjectURL(arquivo) : ''), [arquivo, imagem])
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url) }, [url])
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <button
+        type="button"
+        onClick={onRemover}
+        className="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white"
+        aria-label={`Remover ${arquivo.name}`}
+      >
+        <X className="h-4 w-4" />
+      </button>
+      {imagem && url ? (
+        <img src={url} alt={arquivo.name} className="h-28 w-full object-cover" />
+      ) : (
+        <div className="flex h-28 items-center justify-center bg-gray-50">
+          <FileText className="h-8 w-8 text-red-600" />
+        </div>
+      )}
+      <div className="px-2 py-1">
+        <p className="truncate text-xs text-gray-700">{arquivo.name}</p>
+        {arquivo.size > 0 && <p className="text-[11px] text-gray-400">{formatarTamanho(arquivo.size)}</p>}
+      </div>
+    </div>
+  )
+}
+
 export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' | 'comunicado' }) {
   const [searchParams] = useSearchParams()
   const telaComunicado = modo === 'comunicado'
@@ -488,6 +592,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   const [form, setForm] = useState<FormState>(emptyForm)
   const [editando, setEditando] = useState<Atividade | null>(null)
   const [formAberto, setFormAberto] = useState(false)
+  const [anexosForm, setAnexosForm] = useState<File[]>([])
   const [erro, setErro] = useState('')
   const [excluindo, setExcluindo] = useState<Atividade | null>(null)
   const [confirmarConclusao, setConfirmarConclusao] = useState(false)
@@ -684,6 +789,18 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
       }
       if (editando) {
         await api.put(`/estudos/atividades/${editando.id}`, payload)
+      } else if (anexosForm.length > 0) {
+        // Comunicado/atividade com anexos: envia tudo no mesmo POST multipart.
+        const corpo = new FormData()
+        corpo.append('payload', JSON.stringify(payload))
+        anexosForm.forEach((arquivo) => corpo.append('files', arquivo))
+        await api.post('/estudos/atividades', corpo, {
+          transformRequest: [(dados, headers) => {
+            if (typeof headers.delete === 'function') headers.delete('Content-Type')
+            else delete headers['Content-Type']
+            return dados
+          }],
+        })
       } else {
         await api.post('/estudos/atividades', payload)
       }
@@ -693,6 +810,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
       setFormAberto(false)
       setEditando(null)
       setForm(emptyForm)
+      setAnexosForm([])
       setErro('')
     },
     onError: (error: any) => {
@@ -767,6 +885,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
   const abrirNova = () => {
     setEditando(null)
     setForm({ ...emptyForm, tipo: modo })
+    setAnexosForm([])
     setErro('')
     setFormAberto(true)
   }
@@ -787,6 +906,7 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
       autor: atividade.autor || '',
       numero: atividade.numero || '',
     })
+    setAnexosForm([])
     setErro('')
     setSelecionada(null)
     setFormAberto(true)
@@ -1242,6 +1362,40 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
               </label>
             )}
           </div>
+          {!editando && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">Anexos (imagens ou PDFs)</p>
+              {anexosForm.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {anexosForm.map((arquivo, indice) => (
+                    <PreviaAnexoForm
+                      key={`${arquivo.name}-${arquivo.size}-${indice}`}
+                      arquivo={arquivo}
+                      onRemover={() => setAnexosForm((atual) => atual.filter((_, i) => i !== indice))}
+                    />
+                  ))}
+                </div>
+              )}
+              <label className="flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 px-3 text-base text-gray-700">
+                <ImagePlus className="h-5 w-5" />
+                Adicionar imagens ou PDFs
+                <input
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,.png,.jpg,.jpeg,application/pdf,.pdf"
+                  className="hidden"
+                  onChange={(evento) => {
+                    const novos = Array.from(evento.target.files ?? [])
+                    evento.target.value = ''
+                    if (novos.length) setAnexosForm((atual) => [...atual, ...novos].slice(0, 10))
+                  }}
+                />
+              </label>
+              {anexosForm.length >= 10 && (
+                <p className="text-xs text-gray-500">Máximo de 10 arquivos.</p>
+              )}
+            </div>
+          )}
           {erro && <p className="text-sm text-red-700">{erro}</p>}
           <div className="flex flex-col gap-2 pt-2">
             <Button onClick={enviar} disabled={salvar.isPending} className="min-h-12 w-full text-base">
