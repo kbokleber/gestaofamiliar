@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { Settings, Plus, Edit2, Trash2, Save, Paperclip, ArrowLeft, Filter } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Settings, Plus, Edit2, Trash2, Save, Paperclip, ArrowLeft, Filter, Wrench } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import DateInput from '../../components/DateInput'
@@ -21,6 +21,7 @@ interface Equipment {
   status: string
   notes: string
   documents: string | null
+  orders_count?: number
   created_at: string
   updated_at: string
 }
@@ -618,6 +619,16 @@ export default function Equipment() {
                       </span>
                     </div>
                   )}
+                  <div>
+                    <span className="font-medium text-gray-700">Ordens:</span>
+                    <Link
+                      to={`/maintenance/orders?equipment_id=${item.id}`}
+                      className="ml-2 inline-flex items-center gap-1 font-semibold text-purple-700 underline"
+                    >
+                      <Wrench className="h-3.5 w-3.5" />
+                      {item.orders_count ?? 0}
+                    </Link>
+                  </div>
                   {item.purchase_date && (
                     <div>
                       <span className="font-medium text-gray-700">Data de Compra:</span>
@@ -664,6 +675,9 @@ export default function Equipment() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Ordens
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Ações
                   </th>
@@ -697,6 +711,16 @@ export default function Equipment() {
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(item.status)}`}>
                         {getStatusLabel(item.status)}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Link
+                        to={`/maintenance/orders?equipment_id=${item.id}`}
+                        className="inline-flex items-center gap-1 text-sm font-semibold text-purple-700 hover:text-purple-900"
+                        title="Ver ordens deste equipamento"
+                      >
+                        <Wrench className="h-4 w-4" />
+                        {item.orders_count ?? 0}
+                      </Link>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button 

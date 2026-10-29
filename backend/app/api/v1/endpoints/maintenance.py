@@ -21,6 +21,18 @@ router = APIRouter()
 ORDENS_ABERTAS = ("PENDENTE", "EM_ANDAMENTO")
 
 
+def _contagem_ordens_por_equipamento(db: Session, equipment_ids: list[int]) -> dict[int, int]:
+    if not equipment_ids:
+        return {}
+    linhas = (
+        db.query(MaintenanceOrder.equipment_id, func.count(MaintenanceOrder.id))
+        .filter(MaintenanceOrder.equipment_id.in_(equipment_ids))
+        .group_by(MaintenanceOrder.equipment_id)
+        .all()
+    )
+    return {equipment_id: quantidade for equipment_id, quantidade in linhas}
+
+
 def sincronizar_status_equipamento(db: Session, equipment_id: int) -> None:
     """Ordem pendente ou em andamento deixa o equipamento em manutenção.
 
@@ -148,8 +160,9 @@ async def list_equipment(
         query = query.options(defer(Equipment.documents))
     
     equipments = query.order_by(Equipment.created_at.desc()).all()
-    
-    # Se não incluir documentos, limpar para economizar banda
+    contagens = _contagem_ordens_por_equipamento(db, [item.id for item in equipments])
+
+    # Sem documentos: resposta enxuta. Com documentos: ORM + contagem de ordens.
     if not include_documents:
         return [
             {
@@ -167,13 +180,16 @@ async def list_equipment(
                 "owner_id": e.owner_id,
                 "notes": e.notes,
                 "documents": None,
-                "has_documents": None, # Will be handled by next query optimization if required
+                "has_documents": None,
+                "orders_count": contagens.get(e.id, 0),
                 "created_at": e.created_at,
-                "updated_at": e.updated_at
+                "updated_at": e.updated_at,
             }
             for e in equipments
         ]
-    
+
+    for equipamento in equipments:
+        equipamento.orders_count = contagens.get(equipamento.id, 0)
     return equipments
 
 @router.get("/equipment/{equipment_id}/documents/{doc_index}/download")

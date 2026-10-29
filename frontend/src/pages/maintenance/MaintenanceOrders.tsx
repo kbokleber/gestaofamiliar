@@ -59,7 +59,7 @@ export default function MaintenanceOrders() {
   const [isEditingInline, setIsEditingInline] = useState(false)
   const [editingOrder, setEditingOrder] = useState<MaintenanceOrder | null>(null)
   const [filters, setFilters] = useState({
-    equipment_id: 0,
+    equipment_id: Number(searchParams.get('equipment_id')) || 0,
     start_date: '',
     end_date: '',
     status: statusDaUrl(searchParams.get('status')),
@@ -167,7 +167,11 @@ export default function MaintenanceOrders() {
   const error = ordersError ? (ordersError as Error).message : null
 
   useEffect(() => {
-    setFilters((atual) => ({ ...atual, status: statusDaUrl(searchParams.get('status')) }))
+    setFilters((atual) => ({
+      ...atual,
+      status: statusDaUrl(searchParams.get('status')),
+      equipment_id: Number(searchParams.get('equipment_id')) || 0,
+    }))
   }, [searchParams])
 
   useEffect(() => {

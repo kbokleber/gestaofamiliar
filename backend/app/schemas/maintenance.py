@@ -41,6 +41,7 @@ class Equipment(EquipmentBase):
     owner_id: Optional[int] = None
     documents: Optional[str] = None
     has_documents: Optional[bool] = None
+    orders_count: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     
