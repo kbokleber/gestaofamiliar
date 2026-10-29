@@ -1234,7 +1234,7 @@ export default function AdminFamilies() {
               Alerta no celular dos filhos
             </h3>
             <p className="text-xs text-gray-600 mb-3">
-              Das 13h às 21h, enquanto houver tarefa que vence amanhã ou que já venceu. Use minutos para testar sem esperar duas horas.
+              Das 13h às 21h, enquanto houver tarefa de hoje, de amanhã ou que já venceu. Use minutos para testar sem esperar duas horas.
             </p>
             <div className="space-y-3">
               <label className="flex items-center gap-2 cursor-pointer">

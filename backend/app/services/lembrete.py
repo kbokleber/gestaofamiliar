@@ -40,7 +40,7 @@ def _dia_local(prazo: datetime) -> datetime.date:
 
 
 def tarefas_para_lembrar(db: Session, aluno_id: int, hoje=None) -> list[Atividade]:
-    """Pendências que vencem amanhã ou que já venceram. O prazo de hoje fica de fora."""
+    """Pendências de hoje, de amanhã ou já vencidas."""
     hoje = hoje or agora_local().date()
     amanha = hoje + timedelta(days=1)
     atividades = db.query(Atividade).filter(
@@ -52,7 +52,7 @@ def tarefas_para_lembrar(db: Session, aluno_id: int, hoje=None) -> list[Atividad
     escolhidas = []
     for atividade in atividades:
         dia = _dia_local(atividade.prazo_entrega)
-        if dia == amanha or dia < hoje:
+        if dia == hoje or dia == amanha or dia < hoje:
             escolhidas.append(atividade)
     escolhidas.sort(key=lambda item: item.prazo_entrega)
     return escolhidas
@@ -61,7 +61,7 @@ def tarefas_para_lembrar(db: Session, aluno_id: int, hoje=None) -> list[Atividad
 def _texto(atividades: list[Atividade]) -> str:
     titulos = [" ".join((item.titulo or "atividade").split()) for item in atividades[:8]]
     resto = len(atividades) - len(titulos)
-    texto = "Amanhã ou atrasadas: " + "; ".join(titulos)
+    texto = "Hoje, amanhã ou atrasadas: " + "; ".join(titulos)
     if resto > 0:
         texto += f" e mais {resto}"
     return texto[:240]

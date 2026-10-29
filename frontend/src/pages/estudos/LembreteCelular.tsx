@@ -68,7 +68,7 @@ export default function LembreteCelular() {
         partes.push(data.enviados.map((item: { filho: string; tarefas: string[] }) => `${item.filho}: ${item.tarefas.join(', ')}`).join(' · '))
       }
       if (data.sem_inscricao?.length) partes.push(`Sem alerta no celular: ${data.sem_inscricao.join(', ')}`)
-      if (data.sem_tarefa?.length) partes.push(`Sem tarefa de amanhã ou atrasada: ${data.sem_tarefa.join(', ')}`)
+      if (data.sem_tarefa?.length) partes.push(`Sem tarefa de hoje, amanhã ou atrasada: ${data.sem_tarefa.join(', ')}`)
       setMensagem(partes.join(' ') || 'Nenhum filho para avisar.')
     } catch (exc) {
       const detalhe = (exc as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -81,7 +81,7 @@ export default function LembreteCelular() {
   return (
     <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
       <p className="text-sm text-amber-950">
-        O alerta toca enquanto houver tarefa de amanhã ou atrasada. O intervalo é o da família, só das 13h às 21h.
+        O alerta toca enquanto houver tarefa de hoje, de amanhã ou atrasada. O intervalo é o da família, só das 13h às 21h.
       </p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         {filho && (
