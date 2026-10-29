@@ -6,7 +6,7 @@ from sqlalchemy import or_
 from app.db.base import get_db
 from app.models.user import User
 from app.models.dashboard import DashboardPreference
-from app.models.estudo import Atividade
+from app.models.estudo import Atividade, ComunicadoLido
 from app.models.healthcare import FamilyMember, MedicalAppointment, Medication
 from app.models.maintenance import Equipment, MaintenanceOrder
 from app.schemas.dashboard import (
@@ -91,18 +91,24 @@ def _consulta_estudos(db: Session, usuario: User):
 
 
 def _contagens_estudos(db: Session, usuario: User) -> tuple[int, int]:
-    """Pendências dos filhos e comunicados cuja data cai na semana de segunda a domingo."""
+    """Pendências dos filhos e comunicados não lidos da semana (segunda a domingo)."""
     if usuario.family_id is None:
         return 0, 0
     hoje = datetime.now(timezone(timedelta(hours=-3))).date()
     inicio = hoje - timedelta(days=hoje.weekday())
     fim = inicio + timedelta(days=6)
+    lidos = None
+    if not usuario.is_child:
+        lidos = db.query(ComunicadoLido.atividade_id).filter(
+            ComunicadoLido.user_id == usuario.id
+        )
     if not usuario.is_child and not usuario.is_superuser:
         comunicados = db.query(func.count(Atividade.id)).filter(
             Atividade.family_id == usuario.family_id,
             Atividade.tipo == "comunicado",
             Atividade.data >= inicio,
             Atividade.data <= fim,
+            ~Atividade.id.in_(lidos),
         ).scalar() or 0
         return 0, comunicados
     pendentes = _consulta_estudos(db, usuario).filter(
@@ -113,8 +119,10 @@ def _contagens_estudos(db: Session, usuario: User) -> tuple[int, int]:
         Atividade.tipo == "comunicado",
         Atividade.data >= inicio,
         Atividade.data <= fim,
-    ).scalar() or 0
-    return pendentes, comunicados
+    )
+    if lidos is not None:
+        comunicados = comunicados.filter(~Atividade.id.in_(lidos))
+    return pendentes, comunicados.scalar() or 0
 
 @router.get("/preferences", response_model=DashboardPreferenceSchema)
 async def get_dashboard_preferences(
