@@ -39,9 +39,6 @@ LIMITE_ARQUIVO_ENTRADA = 20 * 1024 * 1024
 LIMITE_COMPRIMIR = 5 * 1024 * 1024
 LADO_MAXIMO_IMAGEM = 1600
 LIMITE_ANEXOS = 10
-# Janela em que ainda aceitamos o 1º lote de anexos num comunicado da
-# integração (sem anexos). Depois disso ele volta a ser só leitura.
-JANELA_ANEXO_INTEGRACAO_HORAS = 24
 TIPOS_ANEXO = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -196,33 +193,23 @@ def _exige_comunicado_editavel(atividade: Atividade) -> None:
     )
 
 
-def _horas_desde_criacao(atividade: Atividade) -> float:
-    """Idade do registro em horas, tolerando created_at nulo ou sem fuso."""
-    criado = atividade.created_at
-    if criado is None:
-        return 0.0
-    if criado.tzinfo is None:
-        criado = criado.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - criado).total_seconds() / 3600
-
-
-def _exige_pode_anexar(atividade: Atividade) -> None:
-    """Quem pode anexar em um comunicado.
-
-    - Atividade comum ou comunicado criado pelo app: sempre.
-    - Comunicado da integração: só o 1º lote, enquanto não tem anexo e dentro
-      das primeiras 24 h (para corrigir comunicados antigos). Depois: 403.
-    """
-    if (atividade.tipo or "atividade") != "comunicado":
-        return
-    if atividade.criado_pelo_app:
-        return
-    if not _carregar_anexos(atividade) and _horas_desde_criacao(atividade) < JANELA_ANEXO_INTEGRACAO_HORAS:
-        return
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Comunicados da integração não podem ser alterados nem excluídos.",
-    )
+def _hashes_anexos(atividade: Atividade) -> set[str]:
+    """SHA-256 dos anexos já gravados (campo arquivo ou hash do base64)."""
+    hashes: set[str] = set()
+    for item in _carregar_anexos(atividade):
+        if not isinstance(item, dict):
+            continue
+        chave = item.get("arquivo")
+        if isinstance(chave, str) and len(chave) == 64:
+            hashes.add(chave)
+            continue
+        data = item.get("data")
+        if isinstance(data, str) and data:
+            try:
+                hashes.add(hashlib.sha256(base64.b64decode(data)).hexdigest())
+            except Exception:
+                continue
+    return hashes
 
 
 async def get_leitor_comunicado(current_user: User = Depends(get_current_user)) -> User:
@@ -682,10 +669,15 @@ async def adicionar_anexo(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_admin),
 ):
-    """Anexa uma imagem PNG, JPG ou um PDF. Somente administrador, via multipart no campo file."""
+    """Anexa uma imagem PNG, JPG ou um PDF. Somente administrador, via multipart no campo file.
+
+    Comunicado da integração (criado_pelo_app=False): pode acrescentar anexos a
+    qualquer momento (vários arquivos, um por chamada). Arquivo com o mesmo
+    SHA-256 de um anexo já existente é ignorado (não duplica). Editar/excluir o
+    comunicado e remover anexo continuam 403.
+    """
     atividade = _get_or_404(db, atividade_id)
     _mesma_familia(atividade, current_user)
-    _exige_pode_anexar(atividade)
     conteudo = await file.read()
     if not conteudo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo está vazio.")
@@ -694,11 +686,15 @@ async def adicionar_anexo(
     tipo = _anexo_valido(file.filename or "", conteudo, file.content_type or "")
     conteudo = _reduzir_se_grande(conteudo, tipo)
     tipo = _anexo_valido(file.filename or "", conteudo, tipo)
+    chave = hashlib.sha256(conteudo).hexdigest()
     resumo = list(_garantir_arquivos(atividade, db))
     anexos = _carregar_anexos(atividade)
+    if chave in _hashes_anexos(atividade):
+        # Mesmo conteúdo já gravado: não duplica.
+        return _to_schema(atividade, resumo=resumo)
     if len(anexos) >= LIMITE_ANEXOS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Essa atividade já tem 10 anexos.")
-    chave = _gravar_cache(conteudo)
+    _gravar_cache(conteudo)
     meta = {
         "name": _nome_arquivo(file.filename or "imagem"),
         "type": tipo,

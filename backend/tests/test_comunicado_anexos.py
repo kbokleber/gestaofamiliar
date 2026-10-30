@@ -304,28 +304,47 @@ def test_integracao_put_delete_continuam_403(ambiente):
     assert cliente.delete("/api/v1/estudos/atividades/100").status_code == 403
 
 
-def test_integracao_anexar_em_menos_de_24h_depois_bloqueia(ambiente):
+def test_integracao_anexar_varios(ambiente):
     cliente = ambiente["cliente"]
-    # id 100 é da integração, recente e sem anexos: aceita o 1º lote.
+    # id 100 é da integração: pode acrescentar vários anexos a qualquer momento.
     primeiro = cliente.post(
         "/api/v1/estudos/atividades/100/anexos",
         files={"file": ("foto.png", png_bytes(), "image/png")},
     )
     assert primeiro.status_code == 200, primeiro.text
     assert len(primeiro.json()["anexos"]) == 1
-    # Agora já tem anexo: volta a ser só leitura.
     segundo = cliente.post(
         "/api/v1/estudos/atividades/100/anexos",
         files={"file": ("foto2.png", png_bytes(cor=(10, 10, 10)), "image/png")},
     )
-    assert segundo.status_code == 403
+    assert segundo.status_code == 200, segundo.text
+    assert len(segundo.json()["anexos"]) == 2
 
 
-def test_integracao_antiga_nao_aceita_anexo(ambiente):
+def test_integracao_anexo_duplicado_nao_repete(ambiente):
     cliente = ambiente["cliente"]
-    # id 102 tem mais de 24h: bloqueado mesmo sem anexos.
+    conteudo = png_bytes()
+    primeiro = cliente.post(
+        "/api/v1/estudos/atividades/100/anexos",
+        files={"file": ("foto.png", conteudo, "image/png")},
+    )
+    assert primeiro.status_code == 200, primeiro.text
+    assert len(primeiro.json()["anexos"]) == 1
+    # Mesmo conteúdo de novo: não duplica.
+    repetido = cliente.post(
+        "/api/v1/estudos/atividades/100/anexos",
+        files={"file": ("foto-copia.png", conteudo, "image/png")},
+    )
+    assert repetido.status_code == 200, repetido.text
+    assert len(repetido.json()["anexos"]) == 1
+
+
+def test_integracao_antiga_ainda_aceita_anexo(ambiente):
+    cliente = ambiente["cliente"]
+    # id 102 tem mais de 24h: ainda pode acrescentar anexo.
     resposta = cliente.post(
         "/api/v1/estudos/atividades/102/anexos",
         files={"file": ("foto.png", png_bytes(), "image/png")},
     )
-    assert resposta.status_code == 403
+    assert resposta.status_code == 200, resposta.text
+    assert len(resposta.json()["anexos"]) == 1
