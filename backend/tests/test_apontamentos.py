@@ -189,3 +189,46 @@ def test_import_preenche_bimestre_pela_data(ambiente):
     assert item.bimestre == 3
     lista = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 16, "bimestre": 3})
     assert len(lista.json()) == 1
+
+
+def test_lido_por_pessoa_e_filtro(ambiente):
+    from datetime import date
+
+    from app.models.estudo import ApontamentoLido
+
+    cliente, db, estado = ambiente
+    db.add(Apontamento(
+        family_id=1, aluno_id=16, chave_origem="eclass-16-apont-lido",
+        data=date(2026, 10, 21), disciplina="Língua Portuguesa", professor="",
+        tipo="Observação", titulo="Conversas em excesso", descricao="x",
+        bimestre=4, ano_letivo=2026, fonte="e-class", hash_conteudo="a", created_by_id=1,
+    ))
+    db.commit()
+    item_id = db.query(Apontamento).one().id
+
+    lista = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 16})
+    assert lista.status_code == 200
+    assert lista.json()[0]["lido"] is False
+
+    marcado = cliente.post(f"/api/v1/estudos/apontamentos/{item_id}/lido")
+    assert marcado.status_code == 200
+    assert marcado.json() == {"lido": True}
+    assert db.query(ApontamentoLido).count() == 1
+
+    aberta = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 16})
+    assert aberta.json() == []
+    lidas = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 16, "lidos": 1})
+    assert len(lidas.json()) == 1
+    assert lidas.json()[0]["lido"] is True
+
+    desmarcado = cliente.delete(f"/api/v1/estudos/apontamentos/{item_id}/lido")
+    assert desmarcado.json() == {"lido": False}
+    de_volta = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 16})
+    assert len(de_volta.json()) == 1
+    assert de_volta.json()[0]["lido"] is False
+
+    estado["user"] = db.get(__import__("app.models.user", fromlist=["User"]).User, 16)
+    assert cliente.post(f"/api/v1/estudos/apontamentos/{item_id}/lido").status_code == 403
+    filho = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 17})
+    assert len(filho.json()) == 1
+    assert filho.json()[0]["lido"] is False

@@ -34,6 +34,26 @@ class Apontamento(Base):
     aluno = relationship("User", foreign_keys=[aluno_id])
 
 
+class ApontamentoLido(Base):
+    """Marca de leitura de um apontamento por uma pessoa (pai/adulto).
+
+    O estado é individual: cada adulto tem a própria marca. Filhos não gravam aqui.
+    """
+
+    __tablename__ = "estudo_apontamento_lido"
+    __table_args__ = (
+        UniqueConstraint("user_id", "apontamento_id", name="uq_apontamento_lido_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
+    apontamento_id = Column(Integer, ForeignKey("estudo_apontamento.id"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", foreign_keys=[user_id])
+    apontamento = relationship("Apontamento", foreign_keys=[apontamento_id])
+
+
 class Atividade(Base):
     """Atividade de estudo de um filho."""
 

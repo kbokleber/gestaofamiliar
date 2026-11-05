@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { StickyNote } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Modal from '../../components/Modal'
+import Button from '../../components/Button'
 
 interface AlunoOption {
   id: number
@@ -35,6 +36,7 @@ interface Apontamento {
   ano_letivo: number
   fonte: string
   scraped_at: string | null
+  lido?: boolean
 }
 
 function fmtData(isoData: string | null) {
@@ -56,7 +58,10 @@ export default function Apontamentos() {
   const [alunoId, setAlunoId] = useState('')
   const [bimestre, setBimestre] = useState('')
   const [anoLetivo, setAnoLetivo] = useState(String(anoAtual))
+  const [mostrarLidas, setMostrarLidas] = useState(false)
   const [selecionado, setSelecionado] = useState<Apontamento | null>(null)
+  const queryClient = useQueryClient()
+  const podeMarcarLido = !filho
 
   const { data: cronogramas = [] } = useQuery<CronogramaLista[]>({
     queryKey: ['cronogramas'],
@@ -93,15 +98,32 @@ export default function Apontamentos() {
     : (alunoId || (filhos[0] ? String(filhos[0].id) : ''))
 
   const { data: itens = [], isLoading, isError } = useQuery<Apontamento[]>({
-    queryKey: ['apontamentos', alunoAtivo, bimestre, anoLetivo],
+    queryKey: ['apontamentos', alunoAtivo, bimestre, anoLetivo, podeMarcarLido && mostrarLidas],
     queryFn: async () => {
       const params: Record<string, string | number> = { limite: 200 }
       if (alunoAtivo) params.aluno_id = Number(alunoAtivo)
       if (bimestre) params.bimestre = Number(bimestre)
       if (anoLetivo) params.ano_letivo = Number(anoLetivo)
+      if (podeMarcarLido && mostrarLidas) params.lidos = 1
       return (await api.get('/estudos/apontamentos', { params })).data
     },
     enabled: !!alunoAtivo,
+  })
+
+  const toggleLido = useMutation({
+    mutationFn: async (item: Apontamento) => {
+      if (item.lido) {
+        await api.delete(`/estudos/apontamentos/${item.id}/lido`)
+      } else {
+        await api.post(`/estudos/apontamentos/${item.id}/lido`)
+      }
+      return { id: item.id, lido: !item.lido }
+    },
+    onSuccess: ({ lido }) => {
+      queryClient.invalidateQueries({ queryKey: ['apontamentos'] })
+      if (lido || (mostrarLidas && !lido)) setSelecionado(null)
+      else setSelecionado((atual) => (atual ? { ...atual, lido } : atual))
+    },
   })
 
   const campo = 'min-h-12 w-full rounded-xl border border-gray-300 bg-white px-3 text-base'
@@ -140,6 +162,17 @@ export default function Apontamentos() {
           <option value="">Todos os bimestres</option>
           {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}º bimestre</option>)}
         </select>
+        {podeMarcarLido && (
+          <label className="flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 text-base text-gray-800">
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={mostrarLidas}
+              onChange={(event) => setMostrarLidas(event.target.checked)}
+            />
+            Lidas
+          </label>
+        )}
       </div>
 
       {!alunoAtivo && (
@@ -151,7 +184,11 @@ export default function Apontamentos() {
       {alunoAtivo && isError && <p className="text-red-700">Não foi possível carregar os apontamentos.</p>}
       {alunoAtivo && !isLoading && !isError && itens.length === 0 && (
         <p className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-gray-600">
-          Nenhum apontamento sincronizado ainda. Eles entram após a importação do e-class.
+          {mostrarLidas
+            ? 'Nenhum apontamento lido neste filtro.'
+            : podeMarcarLido
+              ? 'Nenhum apontamento por aqui. Os já lidos ficam no filtro Lidas.'
+              : 'Nenhum apontamento sincronizado ainda. Eles entram após a importação do e-class.'}
         </p>
       )}
 
@@ -201,6 +238,16 @@ export default function Apontamentos() {
             )}
             {selecionado.descricao && (
               <p className="whitespace-pre-wrap border-t border-gray-100 pt-3">{selecionado.descricao}</p>
+            )}
+            {podeMarcarLido && (
+              <Button
+                variant={selecionado.lido ? 'outline' : 'primary'}
+                onClick={() => toggleLido.mutate(selecionado)}
+                disabled={toggleLido.isPending}
+                className="mt-3 min-h-12 w-full text-base"
+              >
+                {selecionado.lido ? 'Marcar como não lido' : 'Marcar como lido'}
+              </Button>
             )}
           </div>
         )}

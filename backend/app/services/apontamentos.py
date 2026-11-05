@@ -13,7 +13,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import and_, extract, or_
 from sqlalchemy.orm import Session
 
-from app.models.estudo import Apontamento
+from app.models.estudo import Apontamento, ApontamentoLido
 from app.models.user import User
 from app.schemas.apontamento import ApontamentoImportacao, ApontamentoItemIn
 from app.services.provas import aluno_leitura, erro, exigir_adulto, familia_do, filhos_da_familia
@@ -97,7 +97,7 @@ def _pacote(item: ApontamentoItemIn, bimestre: Optional[int], ano_letivo: int) -
     }
 
 
-def serial_apontamento(item: Apontamento) -> dict:
+def serial_apontamento(item: Apontamento, lido: bool = False) -> dict:
     return {
         "id": item.id,
         "chave_origem": item.chave_origem,
@@ -112,7 +112,30 @@ def serial_apontamento(item: Apontamento) -> dict:
         "ano_letivo": item.ano_letivo,
         "fonte": item.fonte,
         "scraped_at": item.scraped_at,
+        "lido": lido,
     }
+
+
+def ids_apontamentos_lidos(db: Session, usuario: User, apontamento_ids: list[int]) -> set[int]:
+    if usuario.is_child or not apontamento_ids:
+        return set()
+    linhas = (
+        db.query(ApontamentoLido.apontamento_id)
+        .filter(
+            ApontamentoLido.user_id == usuario.id,
+            ApontamentoLido.apontamento_id.in_(apontamento_ids),
+        )
+        .all()
+    )
+    return {linha[0] for linha in linhas}
+
+
+def exigir_leitor(usuario: User) -> None:
+    if usuario.is_child:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Filhos não marcam apontamentos como lidos.",
+        )
 
 
 def importar_apontamentos(
@@ -202,6 +225,7 @@ def listar_apontamentos(
     ano_letivo: Optional[int] = None,
     disciplina: Optional[str] = None,
     limite: int = 200,
+    lidos: bool = False,
 ) -> list[Apontamento]:
     family_id = familia_do(usuario)
     consulta = db.query(Apontamento).filter(Apontamento.family_id == family_id)
@@ -227,6 +251,17 @@ def listar_apontamentos(
         consulta = consulta.filter(Apontamento.ano_letivo == ano_letivo)
     if disciplina and disciplina.strip():
         consulta = consulta.filter(Apontamento.disciplina == disciplina.strip())
+    # Pais: lista principal esconde lidos; lidos=1 mostra só os da pessoa.
+    # Filho vê tudo, sem marca de leitura.
+    if not usuario.is_child:
+        lidos_subq = (
+            db.query(ApontamentoLido.apontamento_id)
+            .filter(ApontamentoLido.user_id == usuario.id)
+        )
+        if lidos:
+            consulta = consulta.filter(Apontamento.id.in_(lidos_subq))
+        else:
+            consulta = consulta.filter(~Apontamento.id.in_(lidos_subq))
     return (
         consulta
         .order_by(Apontamento.data.desc().nulls_last(), Apontamento.id.desc())
@@ -243,3 +278,32 @@ def carregar_apontamento(db: Session, apontamento_id: int, usuario: User) -> Apo
     if usuario.is_child and item.aluno_id != usuario.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Apontamento não encontrado.")
     return item
+
+
+def marcar_apontamento_lido(db: Session, usuario: User, apontamento_id: int) -> None:
+    exigir_leitor(usuario)
+    carregar_apontamento(db, apontamento_id, usuario)
+    existe = (
+        db.query(ApontamentoLido)
+        .filter(
+            ApontamentoLido.user_id == usuario.id,
+            ApontamentoLido.apontamento_id == apontamento_id,
+        )
+        .first()
+    )
+    if existe is None:
+        db.add(ApontamentoLido(user_id=usuario.id, apontamento_id=apontamento_id))
+        db.flush()
+
+
+def desmarcar_apontamento_lido(db: Session, usuario: User, apontamento_id: int) -> None:
+    exigir_leitor(usuario)
+    carregar_apontamento(db, apontamento_id, usuario)
+    (
+        db.query(ApontamentoLido)
+        .filter(
+            ApontamentoLido.user_id == usuario.id,
+            ApontamentoLido.apontamento_id == apontamento_id,
+        )
+        .delete(synchronize_session=False)
+    )
