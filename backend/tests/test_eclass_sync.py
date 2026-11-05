@@ -11,7 +11,7 @@ from app.api.deps import get_current_user
 from app.api.v1.endpoints.provas import router
 from app.db.base import Base, get_db
 from app.models.family import Family
-from app.models.prova import Avaliacao, Boletim, Cronograma
+from app.models.prova import Avaliacao, Boletim, BoletimLinha, Cronograma
 from app.models.user import User
 from app.services.eclass import chave_item_eclass, mapear_categoria
 
@@ -197,3 +197,120 @@ def test_sincronizar_avaliacoes_e_boletim(ambiente):
         "Recuperação Única - mundo microscópio (RC1)",
     )
     assert rc.chave_origem == esperado
+
+
+def test_sync_nao_cria_linha_boletim_a_partir_de_avaliacoes(ambiente):
+    """Cartões Arte A / Arte R / Cultura Geral ficam só em Avaliações — não no boletim."""
+    cliente, db, estado, filho = ambiente
+    payload = {
+        "fonte": "e-class",
+        "aluno": {"profile": "Gui", "aluno_id": 16, "turma_portal": "EFUND09MB", "nome": "Guilherme"},
+        "bimestre": 3,
+        "ano_letivo": 2026,
+        "disciplinas": [
+            {
+                "disciplina": "Arte A",
+                "professor": "Prof. Arte",
+                "nota_parcial": 9.0,
+                "itens": [
+                    {
+                        "data": "2026-09-01",
+                        "tipo_codigo": "TB1",
+                        "atividade": "Trabalho Arte A",
+                        "alcancado": 9.0,
+                        "valor": 10.0,
+                    }
+                ],
+            },
+            {
+                "disciplina": "Cultura Geral",
+                "nota_parcial": None,
+                "itens": [],
+            },
+        ],
+        "boletim": {
+            "linhas": [
+                {
+                    "disciplina": "Arte",
+                    "b1_nota": 5.0, "b1_faltas": 0,
+                    "b2_nota": 6.7, "b2_faltas": 0,
+                    "b3_nota": 9.9, "b3_faltas": 1,
+                },
+            ],
+        },
+    }
+    resp = cliente.post("/api/v1/estudos/eclass/sincronizar", json=payload)
+    assert resp.status_code == 200, resp.text
+    assert db.query(Avaliacao).filter(Avaliacao.disciplina == "Arte A").count() == 1
+    nomes = {linha.disciplina for linha in db.query(BoletimLinha).all()}
+    assert nomes == {"Arte"}
+    assert "Arte A" not in nomes
+    assert "Cultura Geral" not in nomes
+
+
+def test_sync_substituir_linhas_remove_orfas(ambiente):
+    cliente, db, estado, filho = ambiente
+    base = {
+        "fonte": "e-class",
+        "aluno": {"profile": "Gui", "aluno_id": 16, "turma_portal": "EFUND09MB", "nome": "Guilherme"},
+        "bimestre": 3,
+        "ano_letivo": 2026,
+        "disciplinas": [],
+        "boletim": {
+            "linhas": [
+                {"disciplina": "Arte", "b3_nota": 9.9, "b3_faltas": 1},
+                {"disciplina": "Arte A", "b3_nota": None, "b3_faltas": None},
+                {"disciplina": "Cultura Geral", "b3_nota": None, "b3_faltas": None},
+            ],
+        },
+    }
+    assert cliente.post("/api/v1/estudos/eclass/sincronizar", json=base).status_code == 200
+    assert db.query(BoletimLinha).count() == 3
+
+    limpo = {
+        **base,
+        "boletim": {
+            "substituir_linhas": True,
+            "linhas": [
+                {"disciplina": "Arte", "b3_nota": 9.9, "b3_faltas": 1},
+            ],
+        },
+    }
+    resp = cliente.post("/api/v1/estudos/eclass/sincronizar", json=limpo)
+    assert resp.status_code == 200, resp.text
+    corpo = resp.json()["boletim"]
+    assert corpo["substituir_linhas"] is True
+    assert corpo["removidas"] == 2
+    assert corpo["linhas"] == 1
+    nomes = {linha.disciplina for linha in db.query(BoletimLinha).all()}
+    assert nomes == {"Arte"}
+
+
+def test_delete_linha_boletim(ambiente):
+    cliente, db, estado, filho = ambiente
+    payload = {
+        "fonte": "e-class",
+        "aluno": {"profile": "Gui", "aluno_id": 16, "turma_portal": "EFUND09MB", "nome": "Guilherme"},
+        "bimestre": 3,
+        "ano_letivo": 2026,
+        "disciplinas": [],
+        "boletim": {
+            "linhas": [
+                {"disciplina": "Arte", "b3_nota": 9.9, "b3_faltas": 1},
+                {"disciplina": "Cultura Geral", "b3_nota": None, "b3_faltas": None},
+            ],
+        },
+    }
+    assert cliente.post("/api/v1/estudos/eclass/sincronizar", json=payload).status_code == 200
+    orfa = db.query(BoletimLinha).filter(BoletimLinha.disciplina == "Cultura Geral").one()
+    arte = db.query(BoletimLinha).filter(BoletimLinha.disciplina == "Arte").one()
+    boletim_id = orfa.boletim_id
+
+    resp = cliente.delete(f"/api/v1/estudos/boletim/linhas/{orfa.id}")
+    assert resp.status_code == 204, resp.text
+    assert db.query(BoletimLinha).filter(BoletimLinha.id == orfa.id).first() is None
+    assert db.query(BoletimLinha).filter(BoletimLinha.id == arte.id).one().disciplina == "Arte"
+    assert db.query(Boletim).filter(Boletim.id == boletim_id).one() is not None
+
+    inexistente = cliente.delete("/api/v1/estudos/boletim/linhas/99999")
+    assert inexistente.status_code == 404

@@ -20,7 +20,12 @@ from app.schemas.prova import (
     EclassSyncIn,
     Importacao,
 )
-from app.services.eclass import obter_boletim, serial_boletim, sincronizar_eclass
+from app.services.eclass import (
+    excluir_linha_boletim,
+    obter_boletim,
+    serial_boletim,
+    sincronizar_eclass,
+)
 from app.services.provas import (
     ORDEM_CATEGORIA,
     CORES_CATEGORIA,
@@ -445,6 +450,22 @@ def ler_boletim(
 ):
     """Boletim (Notas e Faltas) sincronizado do e-class para um filho × ano letivo."""
     return serial_boletim(obter_boletim(db, current_user, aluno_id, ano_letivo))
+
+
+@router.delete("/boletim/linhas/{linha_id}", status_code=status.HTTP_204_NO_CONTENT)
+def apagar_linha_boletim(
+    linha_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove uma disciplina órfã do boletim (Notas e Faltas).
+
+    Não apaga o documento do boletim — só a linha. Útil para limpar ruído do sync
+    (ex.: Arte A / Arte R / Cultura Geral) sem tocar nas avaliações e-class.
+    Auth: JWT ou X-API-Token (mesmo das demais rotas de estudos).
+    """
+    excluir_linha_boletim(db, current_user, linha_id)
+    db.commit()
 
 
 @router.post("/avaliacoes", status_code=status.HTTP_201_CREATED)

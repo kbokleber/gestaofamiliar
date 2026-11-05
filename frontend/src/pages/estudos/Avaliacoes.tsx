@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ClipboardCheck } from 'lucide-react'
 import api from '../../lib/api'
@@ -48,6 +48,7 @@ interface Boletim {
   id: number
   aluno_id: number
   ano_letivo: number
+  total_faltas_por_bimestre?: Record<string, number> | null
   linhas: {
     id: number
     disciplina: string
@@ -357,9 +358,19 @@ export default function Avaliacoes() {
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-gray-700">
                   <tr>
-                    <th className="px-3 py-3 font-medium">Disciplina</th>
+                    <th rowSpan={2} className="px-3 py-3 font-medium align-bottom">Disciplina</th>
                     {[1, 2, 3, 4].map((n) => (
-                      <th key={n} className="px-3 py-3 font-medium whitespace-nowrap">{n}º</th>
+                      <th key={n} colSpan={2} className="border-l border-gray-200 px-3 py-2 text-center font-medium whitespace-nowrap">
+                        {n}º bimestre
+                      </th>
+                    ))}
+                  </tr>
+                  <tr className="text-xs uppercase tracking-wide text-gray-500">
+                    {[1, 2, 3, 4].map((n) => (
+                      <Fragment key={n}>
+                        <th className="border-l border-gray-200 px-2 py-1.5 text-center font-medium">Nota</th>
+                        <th className="px-2 py-1.5 text-center font-medium">Faltas</th>
+                      </Fragment>
                     ))}
                   </tr>
                 </thead>
@@ -376,15 +387,39 @@ export default function Avaliacoes() {
                         const nota = linha[`b${n}_nota` as const]
                         const faltas = linha[`b${n}_faltas` as const]
                         return (
-                          <td key={n} className="px-3 py-3 whitespace-nowrap text-gray-800">
-                            <span className="font-medium">{fmtNota(nota)}</span>
-                            {faltas != null && <span className="text-gray-500"> / {faltas}f</span>}
-                          </td>
+                          <Fragment key={n}>
+                            <td className="border-l border-gray-100 px-2 py-3 text-center whitespace-nowrap font-medium text-gray-900">
+                              {fmtNota(nota)}
+                            </td>
+                            <td className="px-2 py-3 text-center whitespace-nowrap text-gray-600">
+                              {faltas != null ? faltas : '—'}
+                            </td>
+                          </Fragment>
                         )
                       })}
                     </tr>
                   ))}
                 </tbody>
+                {boletim.total_faltas_por_bimestre && (
+                  <tfoot className="border-t border-gray-200 bg-stone-50 text-sm text-gray-700">
+                    <tr>
+                      <td className="px-3 py-3 font-medium">Total de faltas</td>
+                      {([1, 2, 3, 4] as const).map((n) => {
+                        const total = boletim.total_faltas_por_bimestre?.[String(n)]
+                          ?? boletim.total_faltas_por_bimestre?.[`b${n}`]
+                          ?? null
+                        return (
+                          <Fragment key={n}>
+                            <td className="border-l border-gray-100 px-2 py-3" />
+                            <td className="px-2 py-3 text-center font-medium">
+                              {total != null ? total : '—'}
+                            </td>
+                          </Fragment>
+                        )
+                      })}
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           )}

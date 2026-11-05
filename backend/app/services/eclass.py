@@ -209,7 +209,13 @@ def _gravar_boletim(
     usuario: User,
     payload: EclassSyncIn,
 ) -> Optional[dict]:
-    if payload.boletim is None and not payload.disciplinas:
+    """Grava/atualiza o boletim só a partir de `boletim.linhas` (Notas e Faltas).
+
+    Cartões de Avaliações (`disciplinas`) NÃO criam linhas — evitam órfãs como
+    "Arte A"/"Arte R"/"Cultura Geral". Podem apenas enriquecer (professor /
+    nota_parcial) linhas que já existam com o mesmo nome de disciplina.
+    """
+    if payload.boletim is None:
         return None
 
     boletim = (
@@ -238,38 +244,15 @@ def _gravar_boletim(
 
     boletim.scraped_at = _parse_scraped_at(payload.scraped_at) or datetime.now(timezone.utc)
     boletim.fonte = payload.fonte or boletim.fonte or "e-class"
-    if payload.boletim is not None:
-        boletim.total_faltas_por_bimestre = payload.boletim.total_faltas_por_bimestre
+    boletim.total_faltas_por_bimestre = payload.boletim.total_faltas_por_bimestre
 
     por_disciplina = {linha.disciplina: linha for linha in boletim.linhas}
-
-    if payload.boletim is not None:
-        vistas = set()
-        for linha_in in payload.boletim.linhas:
-            disciplina = (linha_in.disciplina or "").strip()
-            if not disciplina:
-                continue
-            vistas.add(disciplina)
-            linha = por_disciplina.get(disciplina)
-            if linha is None:
-                linha = BoletimLinha(
-                    family_id=family_id,
-                    boletim=boletim,
-                    disciplina=disciplina,
-                    created_by_id=usuario.id,
-                )
-                db.add(linha)
-                por_disciplina[disciplina] = linha
-            for campo in (
-                "b1_nota", "b1_faltas", "b2_nota", "b2_faltas",
-                "b3_nota", "b3_faltas", "b4_nota", "b4_faltas",
-            ):
-                setattr(linha, campo, getattr(linha_in, campo))
-
-    for disc in payload.disciplinas:
-        disciplina = (disc.disciplina or "").strip()
+    vistas: set[str] = set()
+    for linha_in in payload.boletim.linhas:
+        disciplina = (linha_in.disciplina or "").strip()
         if not disciplina:
             continue
+        vistas.add(disciplina)
         linha = por_disciplina.get(disciplina)
         if linha is None:
             linha = BoletimLinha(
@@ -280,6 +263,31 @@ def _gravar_boletim(
             )
             db.add(linha)
             por_disciplina[disciplina] = linha
+        for campo in (
+            "b1_nota", "b1_faltas", "b2_nota", "b2_faltas",
+            "b3_nota", "b3_faltas", "b4_nota", "b4_faltas",
+        ):
+            setattr(linha, campo, getattr(linha_in, campo))
+
+    removidas = 0
+    if payload.boletim.substituir_linhas:
+        for disciplina, linha in list(por_disciplina.items()):
+            if disciplina in vistas:
+                continue
+            db.delete(linha)
+            del por_disciplina[disciplina]
+            removidas += 1
+
+    # Enriquecimento opcional: professor / nota_parcial só em linhas já existentes
+    # com o mesmo nome (ex.: "Arte" no boletim ← cartão "Arte" nas Avaliações).
+    # "Arte A" / "Arte R" não batem e não viram linha.
+    for disc in payload.disciplinas:
+        disciplina = (disc.disciplina or "").strip()
+        if not disciplina:
+            continue
+        linha = por_disciplina.get(disciplina)
+        if linha is None:
+            continue
         if disc.professor:
             linha.professor = disc.professor
         if disc.nota_parcial is not None:
@@ -287,7 +295,13 @@ def _gravar_boletim(
             linha.bimestre_nota_parcial = payload.bimestre
 
     db.flush()
-    return {"id": boletim.id, "acao": acao, "linhas": len(por_disciplina)}
+    return {
+        "id": boletim.id,
+        "acao": acao,
+        "linhas": len(por_disciplina),
+        "removidas": removidas,
+        "substituir_linhas": bool(payload.boletim.substituir_linhas),
+    }
 
 
 def sincronizar_eclass(db: Session, usuario: User, payload: EclassSyncIn) -> dict:
@@ -459,3 +473,24 @@ def obter_boletim(
     if boletim is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boletim não encontrado.")
     return boletim
+
+
+def obter_linha_boletim(db: Session, usuario: User, linha_id: int) -> BoletimLinha:
+    """Carrega uma linha do boletim da família do usuário (404 se não existir)."""
+    family_id = familia_do(usuario)
+    linha = (
+        db.query(BoletimLinha)
+        .options(selectinload(BoletimLinha.boletim))
+        .filter(BoletimLinha.id == linha_id, BoletimLinha.family_id == family_id)
+        .first()
+    )
+    if linha is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Linha do boletim não encontrada.")
+    return linha
+
+
+def excluir_linha_boletim(db: Session, usuario: User, linha_id: int) -> None:
+    """Apaga só a linha (disciplina) do boletim — não remove o documento do boletim."""
+    exigir_adulto(usuario)
+    linha = obter_linha_boletim(db, usuario, linha_id)
+    db.delete(linha)

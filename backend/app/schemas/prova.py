@@ -271,6 +271,9 @@ class EclassBoletimIn(BaseModel):
     colunas: list[str] = []
     linhas: list[EclassBoletimLinhaIn] = []
     total_faltas_por_bimestre: Optional[dict] = None
+    # Quando true, o conjunto em `linhas` substitui o boletim do aluno/ano
+    # (remove disciplinas que não vieram no payload — limpa órfãs).
+    substituir_linhas: bool = False
 
 
 class EclassProvaAgendaIn(BaseModel):

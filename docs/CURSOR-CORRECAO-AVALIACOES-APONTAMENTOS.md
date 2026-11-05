@@ -53,3 +53,25 @@ Alunos: Guilherme `aluno_id=16`, Giovana `aluno_id=17`.
 ### Não fazer
 - Não reusar layout/fluxo de Provas como solução da aba Avaliações.
 - Não deixar um filho ler avaliação ou apontamento do outro.
+
+## Boletim (Notas e Faltas) — anti-órfãs (05/11/2026)
+
+### Causa das órfãs
+O sync criava linha de boletim a partir do nome do cartão de **Avaliações** (`disciplinas[].nota_parcial`). No e-class, Avaliações tem “Arte A”/“Arte R”; Notas e Faltas tem só **Arte**. Cultura Geral entrou como ruído vazio.
+
+### Regras
+1. `DELETE /api/v1/estudos/boletim/linhas/{linha_id}` — apaga **só a linha** (204). Auth JWT/`X-API-Token`. 404 se não existir. Não apaga o documento do boletim.
+2. Linhas de boletim **só** a partir de `boletim.linhas`. Cartões Arte A/R continuam em Avaliações (`fonte=eclass`) e **não** viram linha.
+3. `boletim.substituir_linhas: true` no sync: o conjunto enviado **substitui** as linhas do aluno/ano (remove órfãs ausentes no payload). Default (ausente/false) = upsert sem apagar.
+4. UI Notas e Faltas: nota + faltas por bimestre (colunas separadas), espelho do e-class.
+
+### Limpeza pontual pós-deploy (produção)
+```bash
+# Giovana
+DELETE /api/v1/estudos/boletim/linhas/21   # Arte A
+DELETE /api/v1/estudos/boletim/linhas/22   # Arte R
+DELETE /api/v1/estudos/boletim/linhas/13   # Cultura Geral
+# Guilherme
+DELETE /api/v1/estudos/boletim/linhas/10   # Cultura Geral
+```
+Não mexer nas avaliações e-class Arte A/R.
