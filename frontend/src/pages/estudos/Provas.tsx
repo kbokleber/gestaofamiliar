@@ -386,6 +386,12 @@ export default function Provas() {
         {detalhe && (
           <div className="space-y-3 text-left text-sm text-gray-800">
             <h3 className="text-lg font-semibold text-gray-900">{detalhe.titulo}</h3>
+            {detalhe.alunos && detalhe.alunos.length > 0 && (
+              <p className="font-medium text-indigo-800">
+                {detalhe.alunos.length === 1 ? 'Filho' : 'Filhos'}:{' '}
+                {detalhe.alunos.map((aluno) => aluno.nome).join(', ')}
+              </p>
+            )}
             <p>{detalhe.data_texto}</p>
             {detalhe.valor_texto && <p>Valor: {detalhe.valor_texto}</p>}
             {detalhe.objeto_conhecimento && (
