@@ -20,7 +20,13 @@ from app.schemas.prova import (
     EclassSyncIn,
     Importacao,
 )
-from app.services.eclass import obter_boletim, serial_boletim, sincronizar_eclass
+from app.services.eclass import (
+    apagar_linha_boletim,
+    obter_boletim,
+    pedido_substituir_linhas,
+    serial_boletim,
+    sincronizar_eclass,
+)
 from app.services.provas import (
     ORDEM_CATEGORIA,
     CORES_CATEGORIA,
@@ -422,16 +428,31 @@ def listar_avaliacoes(
 def sincronizar_portal_eclass(
     payload: EclassSyncIn,
     dry_run: bool = Query(False),
+    substituir_linhas: bool = Query(
+        False,
+        description="Substitui o conjunto de linhas do boletim pelo bloco boletim.linhas.",
+    ),
+    modo: Optional[str] = Query(
+        None,
+        description='Use "substituir" para o mesmo efeito de substituir_linhas=true.',
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Recebe o JSON do scrape e-class (Avaliações + boletim + PAAEB) e grava com dedup por chave_origem."""
+    """Recebe o JSON do scrape e-class (Avaliações + boletim + PAAEB) e grava com dedup por chave_origem.
+
+    Linhas de Notas e Faltas nascem só de boletim.linhas. Cartões em disciplinas[]
+    atualizam avaliações e, se a disciplina já existe no boletim, a nota parcial.
+    Com substituir_linhas=true (query ou corpo) ou modo=substituir, linhas ausentes
+    do bloco boletim.linhas são apagadas (órfãs Arte A/R, Cultura Geral A/R etc.).
+    """
     exigir_adulto(current_user)
+    substituir = pedido_substituir_linhas(payload, substituir_linhas, modo)
     if dry_run:
-        relatorio = sincronizar_eclass(db, current_user, payload)
+        relatorio = sincronizar_eclass(db, current_user, payload, substituir_linhas=substituir)
         db.rollback()
         return {"dry_run": True, **relatorio}
-    relatorio = sincronizar_eclass(db, current_user, payload)
+    relatorio = sincronizar_eclass(db, current_user, payload, substituir_linhas=substituir)
     db.commit()
     return {"dry_run": False, **relatorio}
 
@@ -445,6 +466,22 @@ def ler_boletim(
 ):
     """Boletim (Notas e Faltas) sincronizado do e-class para um filho × ano letivo."""
     return serial_boletim(obter_boletim(db, current_user, aluno_id, ano_letivo))
+
+
+@router.delete("/boletim/linhas/{linha_id}", status_code=status.HTTP_200_OK)
+def excluir_linha_boletim(
+    linha_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Apaga uma linha de Notas e Faltas. Avaliações e-class da disciplina permanecem.
+
+    Adulto da família, inclusive via X-API-Token. Filho recebe 403.
+    """
+    exigir_adulto(current_user)
+    resposta = apagar_linha_boletim(db, current_user, linha_id)
+    db.commit()
+    return resposta
 
 
 @router.post("/avaliacoes", status_code=status.HTTP_201_CREATED)

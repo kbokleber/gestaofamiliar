@@ -256,14 +256,25 @@ class EclassDisciplinaIn(BaseModel):
 
 
 class EclassBoletimLinhaIn(BaseModel):
+    """Linha de Notas e Faltas.
+
+    Notas numéricas vão em bN_nota; conceitos (A/R, MB, …) em bN_conceito.
+    O scraper pode mandar o conceito no próprio campo de nota (str) — o sync
+    separa automaticamente para disciplinas como Cultura Geral / Arte.
+    """
+
     disciplina: str = Field(..., max_length=120)
-    b1_nota: Optional[float] = None
+    b1_nota: Optional[float | str] = None
+    b1_conceito: Optional[str] = Field(None, max_length=20)
     b1_faltas: Optional[int] = None
-    b2_nota: Optional[float] = None
+    b2_nota: Optional[float | str] = None
+    b2_conceito: Optional[str] = Field(None, max_length=20)
     b2_faltas: Optional[int] = None
-    b3_nota: Optional[float] = None
+    b3_nota: Optional[float | str] = None
+    b3_conceito: Optional[str] = Field(None, max_length=20)
     b3_faltas: Optional[int] = None
-    b4_nota: Optional[float] = None
+    b4_nota: Optional[float | str] = None
+    b4_conceito: Optional[str] = Field(None, max_length=20)
     b4_faltas: Optional[int] = None
 
 
@@ -271,6 +282,8 @@ class EclassBoletimIn(BaseModel):
     colunas: list[str] = []
     linhas: list[EclassBoletimLinhaIn] = []
     total_faltas_por_bimestre: Optional[dict] = None
+    # Quando verdadeiro, o conjunto boletim.linhas substitui as linhas já gravadas.
+    substituir_linhas: bool = False
 
 
 class EclassProvaAgendaIn(BaseModel):
@@ -292,3 +305,6 @@ class EclassSyncIn(BaseModel):
     disciplinas: list[EclassDisciplinaIn] = []
     boletim: Optional[EclassBoletimIn] = None
     provas_agenda: list[EclassProvaAgendaIn] = []
+    # Espelho de Notas e Faltas: apaga linhas do aluno/ano que não vierem em boletim.linhas.
+    substituir_linhas: bool = False
+    modo: Optional[str] = None

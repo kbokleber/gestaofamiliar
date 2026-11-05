@@ -202,26 +202,105 @@ def _upsert_avaliacao(
     return "atualizada"
 
 
+def pedido_substituir_linhas(
+    payload: EclassSyncIn,
+    substituir_linhas: bool = False,
+    modo: Optional[str] = None,
+) -> bool:
+    """True quando o sync deve trocar o conjunto de linhas do aluno/ano.
+
+    Aceita a flag na query, no corpo ou em boletim, e o modo "substituir".
+    Cartões de Avaliações nunca entram nessa decisão.
+    """
+    modo_efetivo = (modo or payload.modo or "").strip().lower()
+    no_boletim = bool(payload.boletim is not None and payload.boletim.substituir_linhas)
+    return bool(substituir_linhas or payload.substituir_linhas or no_boletim or modo_efetivo == "substituir")
+
+
+def _buscar_boletim(db: Session, family_id: int, aluno_id: int, ano_letivo: int) -> Optional[Boletim]:
+    return (
+        db.query(Boletim)
+        .options(selectinload(Boletim.linhas))
+        .filter(
+            Boletim.family_id == family_id,
+            Boletim.aluno_id == aluno_id,
+            Boletim.ano_letivo == ano_letivo,
+        )
+        .first()
+    )
+
+
+def _aplicar_parcial_existente(por_disciplina: dict, payload: EclassSyncIn) -> None:
+    """Professor e nota parcial só atualizam linha que já veio de Notas e Faltas."""
+    for disc in payload.disciplinas:
+        disciplina = (disc.disciplina or "").strip()
+        if not disciplina:
+            continue
+        linha = por_disciplina.get(disciplina)
+        if linha is None:
+            continue
+        if disc.professor:
+            linha.professor = disc.professor
+        if disc.nota_parcial is not None:
+            linha.nota_parcial = disc.nota_parcial
+            linha.bimestre_nota_parcial = payload.bimestre
+
+
+def _separar_nota_conceito(valor) -> tuple[Optional[float], Optional[str]]:
+    """Aceita número, string numérica ou conceito (A/R, MB, …)."""
+    if valor is None:
+        return None, None
+    if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+        return float(valor), None
+    texto = str(valor).strip()
+    if not texto or texto in {"—", "-", "–", "−"}:
+        return None, None
+    normalizado = texto.replace(",", ".")
+    try:
+        return float(normalizado), None
+    except ValueError:
+        return None, texto[:20]
+
+
+def _aplicar_linha_boletim(linha: BoletimLinha, linha_in) -> None:
+    conceitos: dict[str, str] = {}
+    for bimestre in (1, 2, 3, 4):
+        bruto_nota = getattr(linha_in, f"b{bimestre}_nota")
+        bruto_conceito = getattr(linha_in, f"b{bimestre}_conceito", None)
+        nota, conceito_da_nota = _separar_nota_conceito(bruto_nota)
+        conceito = (bruto_conceito or conceito_da_nota or "").strip() or None
+        setattr(linha, f"b{bimestre}_nota", nota)
+        setattr(linha, f"b{bimestre}_faltas", getattr(linha_in, f"b{bimestre}_faltas"))
+        if conceito:
+            conceitos[str(bimestre)] = conceito
+    linha.conceitos_por_bimestre = conceitos or None
+
+
 def _gravar_boletim(
     db: Session,
     family_id: int,
     aluno: User,
     usuario: User,
     payload: EclassSyncIn,
+    substituir_linhas: bool = False,
 ) -> Optional[dict]:
-    if payload.boletim is None and not payload.disciplinas:
-        return None
+    # Linha de boletim nasce só de boletim.linhas (espelho de Notas e Faltas).
+    # Cartão de Avaliações (disciplinas[].nota_parcial) não cria disciplina nova
+    # (Arte A/R, Cultura Geral A/R etc. ficam só na aba Avaliações).
+    boletim = _buscar_boletim(db, family_id, aluno.id, payload.ano_letivo)
+    if payload.boletim is None:
+        if boletim is None:
+            return None
+        por_disciplina = {linha.disciplina: linha for linha in boletim.linhas}
+        _aplicar_parcial_existente(por_disciplina, payload)
+        db.flush()
+        return {
+            "id": boletim.id,
+            "acao": "atualizado",
+            "linhas": len(por_disciplina),
+            "removidas": 0,
+        }
 
-    boletim = (
-        db.query(Boletim)
-        .options(selectinload(Boletim.linhas))
-        .filter(
-            Boletim.family_id == family_id,
-            Boletim.aluno_id == aluno.id,
-            Boletim.ano_letivo == payload.ano_letivo,
-        )
-        .first()
-    )
     if boletim is None:
         boletim = Boletim(
             family_id=family_id,
@@ -238,38 +317,15 @@ def _gravar_boletim(
 
     boletim.scraped_at = _parse_scraped_at(payload.scraped_at) or datetime.now(timezone.utc)
     boletim.fonte = payload.fonte or boletim.fonte or "e-class"
-    if payload.boletim is not None:
-        boletim.total_faltas_por_bimestre = payload.boletim.total_faltas_por_bimestre
+    boletim.total_faltas_por_bimestre = payload.boletim.total_faltas_por_bimestre
 
     por_disciplina = {linha.disciplina: linha for linha in boletim.linhas}
-
-    if payload.boletim is not None:
-        vistas = set()
-        for linha_in in payload.boletim.linhas:
-            disciplina = (linha_in.disciplina or "").strip()
-            if not disciplina:
-                continue
-            vistas.add(disciplina)
-            linha = por_disciplina.get(disciplina)
-            if linha is None:
-                linha = BoletimLinha(
-                    family_id=family_id,
-                    boletim=boletim,
-                    disciplina=disciplina,
-                    created_by_id=usuario.id,
-                )
-                db.add(linha)
-                por_disciplina[disciplina] = linha
-            for campo in (
-                "b1_nota", "b1_faltas", "b2_nota", "b2_faltas",
-                "b3_nota", "b3_faltas", "b4_nota", "b4_faltas",
-            ):
-                setattr(linha, campo, getattr(linha_in, campo))
-
-    for disc in payload.disciplinas:
-        disciplina = (disc.disciplina or "").strip()
+    vistas: set[str] = set()
+    for linha_in in payload.boletim.linhas:
+        disciplina = (linha_in.disciplina or "").strip()
         if not disciplina:
             continue
+        vistas.add(disciplina)
         linha = por_disciplina.get(disciplina)
         if linha is None:
             linha = BoletimLinha(
@@ -280,17 +336,34 @@ def _gravar_boletim(
             )
             db.add(linha)
             por_disciplina[disciplina] = linha
-        if disc.professor:
-            linha.professor = disc.professor
-        if disc.nota_parcial is not None:
-            linha.nota_parcial = disc.nota_parcial
-            linha.bimestre_nota_parcial = payload.bimestre
+        _aplicar_linha_boletim(linha, linha_in)
+
+    _aplicar_parcial_existente(por_disciplina, payload)
+
+    removidas = 0
+    if substituir_linhas:
+        for disciplina, linha in list(por_disciplina.items()):
+            if disciplina in vistas:
+                continue
+            db.delete(linha)
+            del por_disciplina[disciplina]
+            removidas += 1
 
     db.flush()
-    return {"id": boletim.id, "acao": acao, "linhas": len(por_disciplina)}
+    return {
+        "id": boletim.id,
+        "acao": acao,
+        "linhas": len(por_disciplina),
+        "removidas": removidas,
+    }
 
 
-def sincronizar_eclass(db: Session, usuario: User, payload: EclassSyncIn) -> dict:
+def sincronizar_eclass(
+    db: Session,
+    usuario: User,
+    payload: EclassSyncIn,
+    substituir_linhas: bool = False,
+) -> dict:
     exigir_adulto(usuario)
     family_id = familia_do(usuario)
     alunos = filhos_da_familia(db, [payload.aluno.aluno_id], family_id, ["aluno", "aluno_id"])
@@ -390,7 +463,9 @@ def sincronizar_eclass(db: Session, usuario: User, payload: EclassSyncIn) -> dic
         relatorio[{"criada": "criadas", "atualizada": "atualizadas", "inalterada": "inalteradas"}[acao]] += 1
         detalhes.append({"chave_origem": chave, "acao": acao, "tipo": "paaeb"})
 
-    boletim_info = _gravar_boletim(db, family_id, aluno, usuario, payload)
+    boletim_info = _gravar_boletim(
+        db, family_id, aluno, usuario, payload, substituir_linhas=substituir_linhas,
+    )
     db.flush()
     return {
         "cronograma_id": cronograma.id,
@@ -401,6 +476,17 @@ def sincronizar_eclass(db: Session, usuario: User, payload: EclassSyncIn) -> dic
         "detalhes": detalhes,
         "boletim": boletim_info,
     }
+
+
+def _conceito_bimestre(linha: BoletimLinha, bimestre: int) -> Optional[str]:
+    dados = linha.conceitos_por_bimestre or {}
+    if not isinstance(dados, dict):
+        return None
+    valor = dados.get(str(bimestre), dados.get(bimestre))
+    if valor is None:
+        return None
+    texto = str(valor).strip()
+    return texto or None
 
 
 def serial_boletim(boletim: Boletim) -> dict:
@@ -417,19 +503,52 @@ def serial_boletim(boletim: Boletim) -> dict:
                 "disciplina": linha.disciplina,
                 "professor": linha.professor,
                 "b1_nota": float(linha.b1_nota) if linha.b1_nota is not None else None,
+                "b1_conceito": _conceito_bimestre(linha, 1),
                 "b1_faltas": linha.b1_faltas,
                 "b2_nota": float(linha.b2_nota) if linha.b2_nota is not None else None,
+                "b2_conceito": _conceito_bimestre(linha, 2),
                 "b2_faltas": linha.b2_faltas,
                 "b3_nota": float(linha.b3_nota) if linha.b3_nota is not None else None,
+                "b3_conceito": _conceito_bimestre(linha, 3),
                 "b3_faltas": linha.b3_faltas,
                 "b4_nota": float(linha.b4_nota) if linha.b4_nota is not None else None,
+                "b4_conceito": _conceito_bimestre(linha, 4),
                 "b4_faltas": linha.b4_faltas,
+                "conceitos_por_bimestre": linha.conceitos_por_bimestre,
                 "nota_parcial": float(linha.nota_parcial) if linha.nota_parcial is not None else None,
                 "bimestre_nota_parcial": linha.bimestre_nota_parcial,
             }
             for linha in sorted(boletim.linhas, key=lambda item: item.disciplina.lower())
         ],
     }
+
+
+def apagar_linha_boletim(db: Session, usuario: User, linha_id: int) -> dict:
+    """Remove uma linha do boletim da família. Não mexe nas avaliações e-class."""
+    exigir_adulto(usuario)
+    family_id = familia_do(usuario)
+    linha = (
+        db.query(BoletimLinha)
+        .options(selectinload(BoletimLinha.boletim))
+        .filter(BoletimLinha.id == linha_id)
+        .first()
+    )
+    if (
+        linha is None
+        or linha.family_id != family_id
+        or linha.boletim is None
+        or linha.boletim.family_id != family_id
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Linha de boletim não encontrada.")
+    resposta = {
+        "id": linha.id,
+        "boletim_id": linha.boletim_id,
+        "disciplina": linha.disciplina,
+        "apagada": True,
+    }
+    db.delete(linha)
+    db.flush()
+    return resposta
 
 
 def obter_boletim(

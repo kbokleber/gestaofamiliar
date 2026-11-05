@@ -125,6 +125,10 @@ def startup_create_tables():
                 "ALTER TABLE estudo_avaliacao ADD COLUMN IF NOT EXISTS "
                 "fonte VARCHAR(20) NOT NULL DEFAULT 'pdf'"
             ))
+            conn.execute(text(
+                "ALTER TABLE estudo_boletim_linha ADD COLUMN IF NOT EXISTS "
+                "conceitos_por_bimestre JSON"
+            ))
         from app.db.base import SessionLocal
         from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
         db = SessionLocal()

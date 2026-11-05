@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ClipboardCheck } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import Modal from '../../components/Modal'
+import { faltasDoBimestre, fmtFaltas, notaEFaltas, type Bimestre } from './notasFaltas'
 
 interface AlunoOption {
   id: number
@@ -53,21 +54,112 @@ interface Boletim {
     disciplina: string
     professor: string | null
     b1_nota: number | null
+    b1_conceito?: string | null
     b1_faltas: number | null
     b2_nota: number | null
+    b2_conceito?: string | null
     b2_faltas: number | null
     b3_nota: number | null
+    b3_conceito?: string | null
     b3_faltas: number | null
     b4_nota: number | null
+    b4_conceito?: string | null
     b4_faltas: number | null
     nota_parcial: number | null
     bimestre_nota_parcial: number | null
   }[]
+  total_faltas_por_bimestre: unknown
 }
 
 function fmtNota(valor: number | null | undefined) {
   if (valor == null) return '—'
   return valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+}
+
+const BIMESTRES: Bimestre[] = [1, 2, 3, 4]
+
+function fmtCelulaNota(nota: number | null, conceito: string | null) {
+  if (conceito) return conceito
+  return fmtNota(nota)
+}
+
+function TabelaNotasFaltas({ boletim }: { boletim: Boletim }) {
+  const total = boletim.total_faltas_por_bimestre
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+      <table className="min-w-full border-collapse text-left text-sm">
+        <caption className="sr-only">
+          Notas e faltas por disciplina e bimestre
+        </caption>
+        <thead className="bg-stone-50 text-gray-700">
+          <tr>
+            <th rowSpan={2} className="sticky left-0 z-10 bg-stone-50 px-3 py-3 font-medium">
+              Disciplina
+            </th>
+            {BIMESTRES.map((n) => (
+              <th
+                key={n}
+                colSpan={2}
+                className="border-l border-gray-200 px-2 py-2 text-center font-medium whitespace-nowrap"
+              >
+                {n}º bimestre
+              </th>
+            ))}
+          </tr>
+          <tr>
+            {BIMESTRES.map((n) => (
+              <Fragment key={n}>
+                <th className="border-l border-gray-200 px-2 py-1 text-center text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Nota
+                </th>
+                <th className="px-2 py-1 text-center text-xs font-medium uppercase tracking-wide text-gray-500">
+                  Faltas
+                </th>
+              </Fragment>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {boletim.linhas.map((linha) => (
+            <tr key={linha.id}>
+              <td className="sticky left-0 z-10 bg-white px-3 py-3 font-medium text-gray-900">
+                {linha.disciplina}
+                {linha.professor && (
+                  <span className="mt-0.5 block text-xs font-normal text-gray-500">{linha.professor}</span>
+                )}
+              </td>
+              {BIMESTRES.map((n) => {
+                const celula = notaEFaltas(linha, n)
+                return (
+                  <Fragment key={n}>
+                    <td className="border-l border-gray-100 px-2 py-3 text-center font-medium whitespace-nowrap text-gray-900">
+                      {fmtCelulaNota(celula.nota, celula.conceito)}
+                    </td>
+                    <td className="px-2 py-3 text-center whitespace-nowrap text-gray-800">
+                      {fmtFaltas(celula.faltas)}
+                    </td>
+                  </Fragment>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+        {total != null && (
+          <tfoot>
+            <tr className="bg-teal-50 font-medium text-gray-900">
+              <td className="sticky left-0 z-10 bg-teal-50 px-3 py-3">Total de faltas</td>
+              {BIMESTRES.map((n) => (
+                <Fragment key={n}>
+                  <td className="border-l border-teal-100" />
+                  <td className="px-2 py-3 text-center">{fmtFaltas(faltasDoBimestre(total, n))}</td>
+                </Fragment>
+              ))}
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  )
 }
 
 function fmtData(isoData: string | null, dataTexto: string) {
@@ -215,7 +307,9 @@ export default function Avaliacoes() {
             Avaliações
           </h1>
           <p className="mt-1 text-sm text-gray-600">
-            Notas lançadas no e-class (varredura semanal). O calendário de provas fica em Provas.
+            {aba === 'boletim'
+              ? 'Nota e faltas de cada bimestre, no mesmo recorte de Notas e Faltas do e-class.'
+              : 'Notas lançadas no e-class (varredura semanal). O calendário de provas fica em Provas.'}
           </p>
         </div>
         <div className="flex rounded-xl border border-gray-200 bg-white p-1 text-sm">
@@ -352,42 +446,7 @@ export default function Avaliacoes() {
               Ainda não há boletim sincronizado. Ele entra com a varredura de Notas e Faltas do e-class.
             </p>
           )}
-          {boletim && (
-            <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-stone-50 text-gray-700">
-                  <tr>
-                    <th className="px-3 py-3 font-medium">Disciplina</th>
-                    {[1, 2, 3, 4].map((n) => (
-                      <th key={n} className="px-3 py-3 font-medium whitespace-nowrap">{n}º</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {boletim.linhas.map((linha) => (
-                    <tr key={linha.id}>
-                      <td className="px-3 py-3 font-medium text-gray-900">
-                        {linha.disciplina}
-                        {linha.professor && (
-                          <span className="mt-0.5 block text-xs font-normal text-gray-500">{linha.professor}</span>
-                        )}
-                      </td>
-                      {([1, 2, 3, 4] as const).map((n) => {
-                        const nota = linha[`b${n}_nota` as const]
-                        const faltas = linha[`b${n}_faltas` as const]
-                        return (
-                          <td key={n} className="px-3 py-3 whitespace-nowrap text-gray-800">
-                            <span className="font-medium">{fmtNota(nota)}</span>
-                            {faltas != null && <span className="text-gray-500"> / {faltas}f</span>}
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {boletim && <TabelaNotasFaltas boletim={boletim} />}
         </>
       )}
 
