@@ -6,16 +6,43 @@ import hashlib
 import json
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy import and_, extract, or_
 from sqlalchemy.orm import Session
 
 from app.models.estudo import Apontamento
 from app.models.user import User
 from app.schemas.apontamento import ApontamentoImportacao, ApontamentoItemIn
 from app.services.provas import aluno_leitura, erro, exigir_adulto, familia_do, filhos_da_familia
+
+# Ano letivo típico BR (e-class não manda bimestre nos apontamentos).
+# B1: jan–abr · B2: mai–jul · B3: ago–set · B4: out–dez
+_MESES_POR_BIMESTRE: dict[int, tuple[int, ...]] = {
+    1: (1, 2, 3, 4),
+    2: (5, 6, 7),
+    3: (8, 9),
+    4: (10, 11, 12),
+}
+
+
+def bimestre_da_data(data: Optional[date]) -> Optional[int]:
+    """Infere bimestre pela data do apontamento quando o e-class não envia o campo."""
+    if data is None:
+        return None
+    mes = data.month
+    for bimestre, meses in _MESES_POR_BIMESTRE.items():
+        if mes in meses:
+            return bimestre
+    return None
+
+
+def bimestre_efetivo(item: Apontamento) -> Optional[int]:
+    if item.bimestre is not None:
+        return item.bimestre
+    return bimestre_da_data(item.data)
 
 
 def _hash(dados: dict) -> str:
@@ -38,6 +65,7 @@ def chave_apontamento(
     if item.chave_origem:
         return item.chave_origem[:160]
     data_txt = item.data.isoformat() if item.data else "sem-data"
+    # Mantém B0 quando o scrape não manda bimestre — evita duplicar chave ao inferir pela data.
     bim = bimestre or item.bimestre or 0
     trecho = hashlib.sha256(
         f"{item.tipo}|{item.titulo}|{item.descricao}".encode("utf-8")
@@ -48,6 +76,14 @@ def chave_apontamento(
     )[:160]
 
 
+def _resolver_bimestre(item: ApontamentoItemIn, bimestre: Optional[int]) -> Optional[int]:
+    if item.bimestre is not None:
+        return item.bimestre
+    if bimestre is not None:
+        return bimestre
+    return bimestre_da_data(item.data)
+
+
 def _pacote(item: ApontamentoItemIn, bimestre: Optional[int], ano_letivo: int) -> dict:
     return {
         "data": item.data.isoformat() if item.data else None,
@@ -56,7 +92,7 @@ def _pacote(item: ApontamentoItemIn, bimestre: Optional[int], ano_letivo: int) -
         "tipo": item.tipo,
         "titulo": item.titulo,
         "descricao": item.descricao,
-        "bimestre": item.bimestre if item.bimestre is not None else bimestre,
+        "bimestre": _resolver_bimestre(item, bimestre),
         "ano_letivo": ano_letivo,
     }
 
@@ -72,7 +108,7 @@ def serial_apontamento(item: Apontamento) -> dict:
         "tipo": item.tipo,
         "titulo": item.titulo,
         "descricao": item.descricao,
-        "bimestre": item.bimestre,
+        "bimestre": bimestre_efetivo(item),
         "ano_letivo": item.ano_letivo,
         "fonte": item.fonte,
         "scraped_at": item.scraped_at,
@@ -175,7 +211,18 @@ def listar_apontamentos(
             filhos_da_familia(db, [escopo], family_id, ["aluno_id"])
         consulta = consulta.filter(Apontamento.aluno_id == escopo)
     if bimestre is not None:
-        consulta = consulta.filter(Apontamento.bimestre == bimestre)
+        meses = _MESES_POR_BIMESTRE.get(bimestre, ())
+        # Inclui linhas com bimestre gravado OU (legado) null com data no intervalo do bimestre.
+        consulta = consulta.filter(
+            or_(
+                Apontamento.bimestre == bimestre,
+                and_(
+                    Apontamento.bimestre.is_(None),
+                    Apontamento.data.isnot(None),
+                    extract("month", Apontamento.data).in_(meses),
+                ),
+            )
+        )
     if ano_letivo is not None:
         consulta = consulta.filter(Apontamento.ano_letivo == ano_letivo)
     if disciplina and disciplina.strip():

@@ -165,7 +165,12 @@ export default function Apontamentos() {
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="font-semibold text-gray-900">{item.titulo || item.tipo || 'Apontamento'}</p>
-                <p className="text-sm text-gray-600">{fmtData(item.data)}</p>
+                <p className="text-sm text-gray-600">
+                  {fmtData(item.data)}
+                  {item.bimestre != null && (
+                    <span className="ml-2 text-amber-800">{item.bimestre}º bim.</span>
+                  )}
+                </p>
               </div>
               <p className="mt-1 text-sm text-gray-700">
                 {[item.tipo, item.disciplina, item.professor ? `Prof.: ${item.professor}` : '']

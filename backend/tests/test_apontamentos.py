@@ -98,3 +98,94 @@ def test_importar_e_listar_apontamentos(ambiente):
     detalhe = cliente.get(f"/api/v1/estudos/apontamentos/{lista.json()[0]['id']}")
     assert detalhe.status_code == 200
     assert "Colaborou" in detalhe.json()["descricao"]
+
+
+def test_filtro_bimestre_infere_pela_data_quando_nulo(ambiente):
+    """e-class costuma não mandar bimestre; filtro deve usar a data do apontamento."""
+    from datetime import date
+
+    cliente, db, estado = ambiente
+    db.add(Apontamento(
+        family_id=1,
+        aluno_id=16,
+        chave_origem="eclass-16-apont-B0-2026-lingua-2026-10-21-abc",
+        data=date(2026, 10, 21),
+        disciplina="Língua Portuguesa",
+        professor="",
+        tipo="Observação",
+        titulo="Conversas em excesso",
+        descricao="x",
+        bimestre=None,
+        ano_letivo=2026,
+        fonte="e-class",
+        hash_conteudo="a",
+        created_by_id=1,
+    ))
+    db.add(Apontamento(
+        family_id=1,
+        aluno_id=16,
+        chave_origem="eclass-16-apont-B0-2026-lingua-2026-05-11-def",
+        data=date(2026, 5, 11),
+        disciplina="Língua Inglesa",
+        professor="",
+        tipo="Produtividade",
+        titulo="Não fez avaliação",
+        descricao="y",
+        bimestre=None,
+        ano_letivo=2026,
+        fonte="e-class",
+        hash_conteudo="b",
+        created_by_id=1,
+    ))
+    db.commit()
+
+    todos = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 16, "ano_letivo": 2026})
+    assert todos.status_code == 200
+    assert len(todos.json()) == 2
+    assert {item["bimestre"] for item in todos.json()} == {2, 4}
+
+    b4 = cliente.get(
+        "/api/v1/estudos/apontamentos",
+        params={"aluno_id": 16, "ano_letivo": 2026, "bimestre": 4},
+    )
+    assert b4.status_code == 200
+    assert len(b4.json()) == 1
+    assert b4.json()[0]["titulo"] == "Conversas em excesso"
+    assert b4.json()[0]["bimestre"] == 4
+
+    b2 = cliente.get(
+        "/api/v1/estudos/apontamentos",
+        params={"aluno_id": 16, "ano_letivo": 2026, "bimestre": 2},
+    )
+    assert len(b2.json()) == 1
+    assert b2.json()[0]["bimestre"] == 2
+
+    b3 = cliente.get(
+        "/api/v1/estudos/apontamentos",
+        params={"aluno_id": 16, "ano_letivo": 2026, "bimestre": 3},
+    )
+    assert b3.json() == []
+
+
+def test_import_preenche_bimestre_pela_data(ambiente):
+    cliente, db, estado = ambiente
+    payload = {
+        "fonte": "e-class",
+        "aluno": {"aluno_id": 16, "nome": "Guilherme"},
+        "ano_letivo": 2026,
+        "itens": [
+            {
+                "data": "2026-09-30",
+                "disciplina": "Ensino Religioso",
+                "tipo": "Nota inferior a média",
+                "titulo": "Produtividade - Coragem para ser fiel (TB1)",
+                "descricao": "",
+            }
+        ],
+    }
+    resp = cliente.post("/api/v1/estudos/apontamentos/importar", json=payload)
+    assert resp.status_code == 200, resp.text
+    item = db.query(Apontamento).one()
+    assert item.bimestre == 3
+    lista = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 16, "bimestre": 3})
+    assert len(lista.json()) == 1
