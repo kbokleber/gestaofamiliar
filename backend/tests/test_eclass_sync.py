@@ -11,7 +11,7 @@ from app.api.deps import get_current_user
 from app.api.v1.endpoints.provas import router
 from app.db.base import Base, get_db
 from app.models.family import Family
-from app.models.prova import Avaliacao, Boletim, Cronograma
+from app.models.prova import Avaliacao, Boletim, BoletimLinha, Cronograma
 from app.models.user import User
 from app.services.eclass import chave_item_eclass, mapear_categoria
 
@@ -182,6 +182,9 @@ def test_sincronizar_avaliacoes_e_boletim(ambiente):
     assert len(dados["linhas"]) == 2
     ciencias = next(item for item in dados["linhas"] if item["disciplina"] == "Ciências")
     assert ciencias["b3_nota"] == 8.8
+    assert ciencias["b1_faltas"] == 0
+    assert ciencias["b2_faltas"] == 1
+    assert ciencias["b3_faltas"] == 0
     assert ciencias["nota_parcial"] == 8.8
     assert ciencias["bimestre_nota_parcial"] == 3
     assert ciencias["professor"] == "Prof. Teste"
@@ -197,3 +200,206 @@ def test_sincronizar_avaliacoes_e_boletim(ambiente):
         "Recuperação Única - mundo microscópio (RC1)",
     )
     assert rc.chave_origem == esperado
+
+
+def _item(disciplina: str, atividade: str) -> dict:
+    return {
+        "disciplina": disciplina,
+        "professor": f"Prof. {disciplina}",
+        "nota_parcial": 7.5,
+        "itens": [
+            {
+                "data": "2026-08-12",
+                "tipo_codigo": "TB1",
+                "atividade": atividade,
+                "alcancado": 8.0,
+                "valor": 10.0,
+            }
+        ],
+    }
+
+
+def _payload_giovana() -> dict:
+    return {
+        "fonte": "e-class",
+        "scraped_at": "2026-11-05T13:55:00-03:00",
+        "aluno": {"profile": "Gio", "aluno_id": 16, "turma_portal": "EFUND09MA", "nome": "Giovana"},
+        "bimestre": 3,
+        "ano_letivo": 2026,
+        "disciplinas": [
+            _item("Arte", "Trabalho de Arte"),
+            _item("Arte A", "Cartaz Arte A"),
+            _item("Arte R", "Cartaz Arte R"),
+            _item("Cultura Geral A", "Debate Cultura Geral A"),
+            _item("Cultura Geral R", "Debate Cultura Geral R"),
+        ],
+        "boletim": {
+            "linhas": [
+                {"disciplina": "Arte", "b1_nota": 10.0, "b2_nota": 8.0, "b3_nota": 10.0},
+                {
+                    "disciplina": "Cultura Geral",
+                    "b1_nota": "A",
+                    "b1_faltas": 0,
+                    "b2_conceito": "R",
+                    "b2_faltas": 1,
+                    "b3_faltas": 0,
+                },
+            ],
+            "total_faltas_por_bimestre": {"1": 2, "2": 4, "3": 5},
+        },
+    }
+
+
+def _nomes(cliente) -> list[str]:
+    resp = cliente.get("/api/v1/estudos/boletim", params={"aluno_id": 16, "ano_letivo": 2026})
+    assert resp.status_code == 200, resp.text
+    return [linha["disciplina"] for linha in resp.json()["linhas"]]
+
+
+def test_cartoes_de_avaliacao_nao_criam_linha_de_boletim(ambiente):
+    cliente, db, _estado, _filho = ambiente
+    so_cartoes = _payload_giovana()
+    so_cartoes.pop("boletim")
+
+    sem_boletim = cliente.post("/api/v1/estudos/eclass/sincronizar", json=so_cartoes)
+    assert sem_boletim.status_code == 200, sem_boletim.text
+    assert sem_boletim.json()["boletim"] is None
+    assert sem_boletim.json()["avaliacoes"]["criadas"] == 5
+    assert db.query(Boletim).count() == 0
+    assert db.query(Avaliacao).count() == 5
+
+    criado = cliente.post("/api/v1/estudos/eclass/sincronizar", json=_payload_giovana())
+    assert criado.status_code == 200, criado.text
+    assert criado.json()["boletim"]["linhas"] == 2
+    assert criado.json()["boletim"]["removidas"] == 0
+    assert set(_nomes(cliente)) == {"Arte", "Cultura Geral"}
+
+    boletim = cliente.get("/api/v1/estudos/boletim", params={"aluno_id": 16, "ano_letivo": 2026})
+    corpo = boletim.json()
+    assert corpo["total_faltas_por_bimestre"] == {"1": 2, "2": 4, "3": 5}
+    arte = next(item for item in corpo["linhas"] if item["disciplina"] == "Arte")
+    assert arte["b1_nota"] == 10.0
+    assert arte["b1_faltas"] is None
+    assert arte["nota_parcial"] == 7.5
+    assert arte["professor"] == "Prof. Arte"
+
+    cultura = next(item for item in corpo["linhas"] if item["disciplina"] == "Cultura Geral")
+    assert cultura["b1_nota"] is None
+    assert cultura["b1_conceito"] == "A"
+    assert cultura["b1_faltas"] == 0
+    assert cultura["b2_conceito"] == "R"
+    assert cultura["b2_faltas"] == 1
+    assert cultura["b3_nota"] is None
+    assert cultura["b3_conceito"] is None
+    assert cultura["b3_faltas"] == 0
+    assert cultura["nota_parcial"] is None
+
+    assert {item.disciplina for item in db.query(Avaliacao).all()} == {
+        "Arte", "Arte A", "Arte R", "Cultura Geral A", "Cultura Geral R",
+    }
+    assert "Cultura Geral" not in {item.disciplina for item in db.query(Avaliacao).all()}
+
+
+def test_substituir_linhas_remove_orfas_e_delete_pontual(ambiente):
+    cliente, db, estado, filho = ambiente
+    adulto = estado["user"]
+    primeiro = cliente.post("/api/v1/estudos/eclass/sincronizar", json=_payload_giovana())
+    assert primeiro.status_code == 200, primeiro.text
+    boletim = db.query(Boletim).one()
+
+    def semear_orfas():
+        existentes = {
+            linha.disciplina
+            for linha in db.query(BoletimLinha).filter(BoletimLinha.boletim_id == boletim.id)
+        }
+        for nome in ("Arte A", "Arte R", "Cultura Geral A", "Cultura Geral R"):
+            if nome in existentes:
+                continue
+            db.add(BoletimLinha(
+                family_id=boletim.family_id,
+                boletim_id=boletim.id,
+                disciplina=nome,
+                created_by_id=1,
+            ))
+        db.commit()
+
+    semear_orfas()
+    assert set(_nomes(cliente)) == {
+        "Arte", "Arte A", "Arte R", "Cultura Geral", "Cultura Geral A", "Cultura Geral R",
+    }
+
+    mantem = cliente.post("/api/v1/estudos/eclass/sincronizar", json=_payload_giovana())
+    assert mantem.status_code == 200, mantem.text
+    assert mantem.json()["boletim"]["removidas"] == 0
+    assert set(_nomes(cliente)) == {
+        "Arte", "Arte A", "Arte R", "Cultura Geral", "Cultura Geral A", "Cultura Geral R",
+    }
+
+    seco = cliente.post(
+        "/api/v1/estudos/eclass/sincronizar?dry_run=true&substituir_linhas=true",
+        json=_payload_giovana(),
+    )
+    assert seco.status_code == 200, seco.text
+    assert seco.json()["dry_run"] is True
+    assert seco.json()["boletim"]["removidas"] == 4
+    assert set(_nomes(cliente)) == {
+        "Arte", "Arte A", "Arte R", "Cultura Geral", "Cultura Geral A", "Cultura Geral R",
+    }
+
+    limpo = cliente.post(
+        "/api/v1/estudos/eclass/sincronizar?substituir_linhas=true",
+        json=_payload_giovana(),
+    )
+    assert limpo.status_code == 200, limpo.text
+    assert limpo.json()["boletim"]["removidas"] == 4
+    assert limpo.json()["boletim"]["linhas"] == 2
+    assert set(_nomes(cliente)) == {"Arte", "Cultura Geral"}
+    assert {item.disciplina for item in db.query(Avaliacao).all()} == {
+        "Arte", "Arte A", "Arte R", "Cultura Geral A", "Cultura Geral R",
+    }
+
+    semear_orfas()
+    assert "Arte A" in set(_nomes(cliente))
+    por_modo = cliente.post(
+        "/api/v1/estudos/eclass/sincronizar?modo=substituir",
+        json=_payload_giovana(),
+    )
+    assert por_modo.status_code == 200, por_modo.text
+    assert por_modo.json()["boletim"]["removidas"] == 4
+    assert set(_nomes(cliente)) == {"Arte", "Cultura Geral"}
+
+    semear_orfas()
+    corpo = dict(_payload_giovana())
+    corpo["substituir_linhas"] = True
+    por_corpo = cliente.post("/api/v1/estudos/eclass/sincronizar", json=corpo)
+    assert por_corpo.status_code == 200, por_corpo.text
+    assert por_corpo.json()["boletim"]["removidas"] == 4
+    assert set(_nomes(cliente)) == {"Arte", "Cultura Geral"}
+
+    semear_orfas()
+    lista = cliente.get("/api/v1/estudos/boletim", params={"aluno_id": 16, "ano_letivo": 2026}).json()
+    orfas = [
+        linha for linha in lista["linhas"]
+        if linha["disciplina"] in ("Arte A", "Arte R", "Cultura Geral A", "Cultura Geral R")
+    ]
+    assert len(orfas) == 4
+
+    estado["user"] = filho
+    negado = cliente.delete(f"/api/v1/estudos/boletim/linhas/{orfas[0]['id']}")
+    assert negado.status_code == 403, negado.text
+    estado["user"] = adulto
+
+    apagada = cliente.delete(f"/api/v1/estudos/boletim/linhas/{orfas[0]['id']}")
+    assert apagada.status_code == 200, apagada.text
+    assert apagada.json()["apagada"] is True
+    assert apagada.json()["disciplina"] == orfas[0]["disciplina"]
+    for orfa in orfas[1:]:
+        segunda = cliente.delete(f"/api/v1/estudos/boletim/linhas/{orfa['id']}")
+        assert segunda.status_code == 200, segunda.text
+    assert set(_nomes(cliente)) == {"Arte", "Cultura Geral"}
+    assert {item.disciplina for item in db.query(Avaliacao).all()} == {
+        "Arte", "Arte A", "Arte R", "Cultura Geral A", "Cultura Geral R",
+    }
+
+    sumiu = cliente.delete(f"/api/v1/estudos/boletim/linhas/{orfas[0]['id']}")
+    assert sumiu.status_code == 404

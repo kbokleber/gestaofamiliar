@@ -237,6 +237,8 @@ class BoletimLinha(Base):
     b3_faltas = Column(Integer, nullable=True)
     b4_nota = Column(Numeric(5, 2), nullable=True)
     b4_faltas = Column(Integer, nullable=True)
+    # Conceitos A/R (ou MB/B/…) por bimestre — Cultura Geral e afins no e-class.
+    conceitos_por_bimestre = Column(JSON, nullable=True)
     nota_parcial = Column(Numeric(5, 2), nullable=True)
     bimestre_nota_parcial = Column(Integer, nullable=True)
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
