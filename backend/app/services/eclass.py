@@ -11,7 +11,7 @@ from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.prova import Avaliacao, Boletim, BoletimLinha, Cronograma
+from app.models.prova import Avaliacao, Boletim, BoletimLinha, Cronograma, NotaParcial
 from app.models.user import User
 from app.schemas.prova import (
     AvaliacaoIn,
@@ -278,9 +278,8 @@ def _gravar_boletim(
             del por_disciplina[disciplina]
             removidas += 1
 
-    # Enriquecimento opcional: professor / nota_parcial só em linhas já existentes
-    # com o mesmo nome (ex.: "Arte" no boletim ← cartão "Arte" nas Avaliações).
-    # "Arte A" / "Arte R" não batem e não viram linha.
+    # Espelho do bimestre em curso no boletim: só avança ou atualiza o mesmo bimestre.
+    # Backfill de B1–B3 NÃO sobrescreve parcial já espelhada do B4.
     for disc in payload.disciplinas:
         disciplina = (disc.disciplina or "").strip()
         if not disciplina:
@@ -290,9 +289,13 @@ def _gravar_boletim(
             continue
         if disc.professor:
             linha.professor = disc.professor
-        if disc.nota_parcial is not None:
-            linha.nota_parcial = disc.nota_parcial
-            linha.bimestre_nota_parcial = payload.bimestre
+        if disc.nota_parcial is None:
+            continue
+        atual = linha.bimestre_nota_parcial
+        if atual is not None and payload.bimestre < atual:
+            continue
+        linha.nota_parcial = disc.nota_parcial
+        linha.bimestre_nota_parcial = payload.bimestre
 
     db.flush()
     return {
@@ -302,6 +305,75 @@ def _gravar_boletim(
         "removidas": removidas,
         "substituir_linhas": bool(payload.boletim.substituir_linhas),
     }
+
+
+def chave_nota_parcial(aluno_id: int, bimestre: int, disciplina: str) -> str:
+    return f"eclass-parcial-{aluno_id}-B{bimestre}-{slug_disciplina(disciplina)}"[:160]
+
+
+def _gravar_notas_parciais(
+    db: Session,
+    family_id: int,
+    aluno: User,
+    usuario: User,
+    payload: EclassSyncIn,
+) -> dict:
+    """Upsert histórico de Nota Parcial por bimestre (cartões de Avaliações).
+
+    Não apaga parciais de outros bimestres. Não cria linhas de boletim.
+    """
+    scraped_at = _parse_scraped_at(payload.scraped_at) or datetime.now(timezone.utc)
+    criadas = atualizadas = inalteradas = 0
+
+    for disc in payload.disciplinas:
+        disciplina = (disc.disciplina or "").strip()
+        if not disciplina:
+            continue
+        # Só grava quando o cartão trouxe nota_parcial (mesmo que 0.0).
+        if disc.nota_parcial is None:
+            continue
+
+        chave = chave_nota_parcial(aluno.id, payload.bimestre, disciplina)
+        atual = (
+            db.query(NotaParcial)
+            .filter(NotaParcial.family_id == family_id, NotaParcial.chave_origem == chave)
+            .first()
+        )
+        if atual is None:
+            db.add(NotaParcial(
+                family_id=family_id,
+                aluno_id=aluno.id,
+                chave_origem=chave,
+                ano_letivo=payload.ano_letivo,
+                bimestre=payload.bimestre,
+                disciplina=disciplina,
+                professor=(disc.professor or None),
+                nota_parcial=disc.nota_parcial,
+                fonte=payload.fonte or "e-class",
+                scraped_at=scraped_at,
+                created_by_id=usuario.id,
+            ))
+            criadas += 1
+            continue
+
+        mudou = (
+            (float(atual.nota_parcial) if atual.nota_parcial is not None else None) != float(disc.nota_parcial)
+            or (atual.professor or "") != (disc.professor or "")
+            or atual.ano_letivo != payload.ano_letivo
+        )
+        if not mudou:
+            inalteradas += 1
+            continue
+
+        atual.nota_parcial = disc.nota_parcial
+        atual.professor = disc.professor or atual.professor
+        atual.ano_letivo = payload.ano_letivo
+        atual.fonte = payload.fonte or atual.fonte or "e-class"
+        atual.scraped_at = scraped_at
+        atualizadas += 1
+
+    db.flush()
+    return {"criadas": criadas, "atualizadas": atualizadas, "inalteradas": inalteradas}
 
 
 def sincronizar_eclass(db: Session, usuario: User, payload: EclassSyncIn) -> dict:
@@ -404,6 +476,7 @@ def sincronizar_eclass(db: Session, usuario: User, payload: EclassSyncIn) -> dic
         relatorio[{"criada": "criadas", "atualizada": "atualizadas", "inalterada": "inalteradas"}[acao]] += 1
         detalhes.append({"chave_origem": chave, "acao": acao, "tipo": "paaeb"})
 
+    notas_parciais_info = _gravar_notas_parciais(db, family_id, aluno, usuario, payload)
     boletim_info = _gravar_boletim(db, family_id, aluno, usuario, payload)
     db.flush()
     return {
@@ -413,6 +486,7 @@ def sincronizar_eclass(db: Session, usuario: User, payload: EclassSyncIn) -> dic
         "ano_letivo": payload.ano_letivo,
         "avaliacoes": relatorio,
         "detalhes": detalhes,
+        "notas_parciais": notas_parciais_info,
         "boletim": boletim_info,
     }
 
@@ -494,3 +568,46 @@ def excluir_linha_boletim(db: Session, usuario: User, linha_id: int) -> None:
     exigir_adulto(usuario)
     linha = obter_linha_boletim(db, usuario, linha_id)
     db.delete(linha)
+
+
+def serial_nota_parcial(item: NotaParcial) -> dict:
+    return {
+        "id": item.id,
+        "aluno_id": item.aluno_id,
+        "ano_letivo": item.ano_letivo,
+        "bimestre": item.bimestre,
+        "disciplina": item.disciplina,
+        "professor": item.professor,
+        "nota_parcial": float(item.nota_parcial) if item.nota_parcial is not None else None,
+        "fonte": item.fonte,
+        "chave_origem": item.chave_origem,
+        "atualizado_em": item.updated_at,
+        "scraped_at": item.scraped_at,
+    }
+
+
+def listar_notas_parciais(
+    db: Session,
+    usuario: User,
+    aluno_id: Optional[int] = None,
+    ano_letivo: Optional[int] = None,
+    bimestre: Optional[int] = None,
+) -> list[NotaParcial]:
+    family_id = familia_do(usuario)
+    consulta = db.query(NotaParcial).filter(NotaParcial.family_id == family_id)
+    escopo = aluno_leitura(usuario, aluno_id)
+    if escopo is not None:
+        if not usuario.is_child:
+            filhos_da_familia(db, [escopo], family_id, ["aluno_id"])
+        consulta = consulta.filter(NotaParcial.aluno_id == escopo)
+    elif usuario.is_child:
+        consulta = consulta.filter(NotaParcial.aluno_id == usuario.id)
+    if ano_letivo is not None:
+        consulta = consulta.filter(NotaParcial.ano_letivo == ano_letivo)
+    if bimestre is not None:
+        consulta = consulta.filter(NotaParcial.bimestre == bimestre)
+    return (
+        consulta
+        .order_by(NotaParcial.bimestre.asc(), NotaParcial.disciplina.asc(), NotaParcial.id.asc())
+        .all()
+    )

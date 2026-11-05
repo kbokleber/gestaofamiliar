@@ -54,6 +54,21 @@ Alunos: Guilherme `aluno_id=16`, Giovana `aluno_id=17`.
 - Não reusar layout/fluxo de Provas como solução da aba Avaliações.
 - Não deixar um filho ler avaliação ou apontamento do outro.
 
+## Nota Parcial por bimestre (05/11/2026)
+
+### Problema
+O sync guardava só um par `nota_parcial` + `bimestre_nota_parcial` na linha do boletim; o último sync (ex.: 4º) sobrescrevia e o filtro 1º/2º/3º na tela Avaliações perdia a parcial.
+
+### Regras
+1. Tabela `estudo_nota_parcial`: upsert por `(aluno, ano, bimestre, disciplina)` / `chave_origem` `eclass-parcial-{id}-B{n}-{slug}`.
+2. `POST /estudos/eclass/sincronizar` grava histórico do bimestre do payload **sem** apagar outros bimestres.
+3. `GET /estudos/notas-parciais?aluno_id=&ano_letivo=&bimestre=` — fonte da tela Avaliações (cartão).
+4. Slot do boletim continua como **espelho do bimestre em curso**; backfill de bimestre menor **não** sobrescreve espelho de bimestre maior (protege B4).
+5. Não criar linha de boletim a partir de Arte A / Arte R / Cultura Geral (só parcial histórica + avaliações).
+
+### Backfill
+Reenviar scrape completo Gui+Gi B1–B4 via sync; o histórico preenche e o espelho B4 permanece.
+
 ## Boletim (Notas e Faltas) — anti-órfãs (05/11/2026)
 
 ### Causa das órfãs

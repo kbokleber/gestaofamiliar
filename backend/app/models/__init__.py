@@ -23,6 +23,7 @@ from app.models.prova import (
     Cronograma,
     CronogramaAluno,
     EventoEscolar,
+    NotaParcial,
 )
 from app.models.finance import (
     FinanceCategory,
@@ -68,4 +69,5 @@ __all__ = [
     "AvaliacaoHistorico",
     "Boletim",
     "BoletimLinha",
+    "NotaParcial",
 ]

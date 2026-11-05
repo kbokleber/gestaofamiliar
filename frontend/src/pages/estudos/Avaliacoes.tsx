@@ -66,6 +66,16 @@ interface Boletim {
   }[]
 }
 
+interface NotaParcial {
+  id: number
+  aluno_id: number
+  ano_letivo: number
+  bimestre: number
+  disciplina: string
+  professor: string | null
+  nota_parcial: number | null
+}
+
 function fmtNota(valor: number | null | undefined) {
   if (valor == null) return '—'
   return valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -162,21 +172,30 @@ export default function Avaliacoes() {
     queryFn: async () => (await api.get('/estudos/boletim', {
       params: { aluno_id: Number(alunoAtivo), ano_letivo: Number(anoLetivo || anoAtual) },
     })).data,
-    enabled: !!alunoAtivo && !!anoLetivo,
+    enabled: aba === 'boletim' && !!alunoAtivo && !!anoLetivo,
     retry: false,
+  })
+
+  const { data: notasParciais = [] } = useQuery<NotaParcial[]>({
+    queryKey: ['notas-parciais', alunoAtivo, anoLetivo, bimestre],
+    queryFn: async () => {
+      const params: Record<string, string | number> = {
+        aluno_id: Number(alunoAtivo),
+        ano_letivo: Number(anoLetivo || anoAtual),
+      }
+      if (bimestre) params.bimestre = Number(bimestre)
+      return (await api.get('/estudos/notas-parciais', { params })).data
+    },
+    enabled: aba === 'avaliacoes' && !!alunoAtivo && !!anoLetivo,
   })
 
   const notaParcialPorDisciplina = useMemo(() => {
     const mapa = new Map<string, number | null>()
-    if (!boletim) return mapa
-    const bim = bimestre ? Number(bimestre) : null
-    boletim.linhas.forEach((linha) => {
-      if (linha.nota_parcial != null && (bim == null || linha.bimestre_nota_parcial === bim)) {
-        mapa.set(linha.disciplina, linha.nota_parcial)
-      }
+    notasParciais.forEach((item) => {
+      if (item.disciplina) mapa.set(item.disciplina, item.nota_parcial)
     })
     return mapa
-  }, [boletim, bimestre])
+  }, [notasParciais])
 
   const disciplinas = useMemo(
     () => Array.from(new Set(avaliacoes.map((item) => item.disciplina))).sort((a, b) => a.localeCompare(b, 'pt-BR')),

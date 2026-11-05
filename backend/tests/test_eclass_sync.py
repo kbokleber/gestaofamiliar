@@ -11,7 +11,7 @@ from app.api.deps import get_current_user
 from app.api.v1.endpoints.provas import router
 from app.db.base import Base, get_db
 from app.models.family import Family
-from app.models.prova import Avaliacao, Boletim, BoletimLinha, Cronograma
+from app.models.prova import Avaliacao, Boletim, BoletimLinha, Cronograma, NotaParcial
 from app.models.user import User
 from app.services.eclass import chave_item_eclass, mapear_categoria
 
@@ -284,6 +284,84 @@ def test_sync_substituir_linhas_remove_orfas(ambiente):
     assert corpo["linhas"] == 1
     nomes = {linha.disciplina for linha in db.query(BoletimLinha).all()}
     assert nomes == {"Arte"}
+
+
+def test_notas_parciais_por_bimestre_nao_sobrescreve_historico(ambiente):
+    """Cada sync grava parcial daquele bimestre; B1 não some ao sincronizar B4."""
+    cliente, db, estado, filho = ambiente
+
+    def payload(bimestre: int, disciplina: str, nota: float, com_boletim: bool = False):
+        corpo = {
+            "fonte": "e-class",
+            "aluno": {"profile": "Gui", "aluno_id": 16, "turma_portal": "EFUND09MB", "nome": "Guilherme"},
+            "bimestre": bimestre,
+            "ano_letivo": 2026,
+            "disciplinas": [
+                {
+                    "disciplina": disciplina,
+                    "professor": "Prof. X",
+                    "nota_parcial": nota,
+                    "itens": [
+                        {
+                            "data": f"2026-{bimestre * 2:02d}-10",
+                            "tipo_codigo": "TB1",
+                            "atividade": f"Atividade {disciplina} B{bimestre}",
+                            "alcancado": nota,
+                            "valor": 10.0,
+                        }
+                    ],
+                }
+            ],
+        }
+        if com_boletim:
+            corpo["boletim"] = {
+                "linhas": [
+                    {"disciplina": "Arte", "b1_nota": 5.0, "b4_nota": 9.0},
+                ],
+            }
+        return corpo
+
+    assert cliente.post("/api/v1/estudos/eclass/sincronizar", json=payload(1, "Arte", 5.0, True)).status_code == 200
+    assert cliente.post("/api/v1/estudos/eclass/sincronizar", json=payload(1, "Ciências", 10.0)).status_code == 200
+    assert cliente.post("/api/v1/estudos/eclass/sincronizar", json=payload(4, "Arte", 8.5, True)).status_code == 200
+
+    b1 = cliente.get(
+        "/api/v1/estudos/notas-parciais",
+        params={"aluno_id": 16, "ano_letivo": 2026, "bimestre": 1},
+    )
+    assert b1.status_code == 200, b1.text
+    por_disc = {item["disciplina"]: item["nota_parcial"] for item in b1.json()}
+    assert por_disc["Arte"] == 5.0
+    assert por_disc["Ciências"] == 10.0
+
+    b4 = cliente.get(
+        "/api/v1/estudos/notas-parciais",
+        params={"aluno_id": 16, "ano_letivo": 2026, "bimestre": 4},
+    )
+    assert len(b4.json()) == 1
+    assert b4.json()[0]["disciplina"] == "Arte"
+    assert b4.json()[0]["nota_parcial"] == 8.5
+
+    assert db.query(NotaParcial).count() == 3
+
+    # Espelho do boletim: B4 atualizou Arte; backfill B1 não rebaixa o espelho.
+    boletim = cliente.get("/api/v1/estudos/boletim", params={"aluno_id": 16, "ano_letivo": 2026}).json()
+    arte = next(item for item in boletim["linhas"] if item["disciplina"] == "Arte")
+    assert arte["nota_parcial"] == 8.5
+    assert arte["bimestre_nota_parcial"] == 4
+
+    # Sync antigo B1 de novo não sobrescreve espelho B4.
+    assert cliente.post("/api/v1/estudos/eclass/sincronizar", json=payload(1, "Arte", 5.0, True)).status_code == 200
+    boletim2 = cliente.get("/api/v1/estudos/boletim", params={"aluno_id": 16, "ano_letivo": 2026}).json()
+    arte2 = next(item for item in boletim2["linhas"] if item["disciplina"] == "Arte")
+    assert arte2["nota_parcial"] == 8.5
+    assert arte2["bimestre_nota_parcial"] == 4
+    # Histórico B1 permanece.
+    b1_de_novo = cliente.get(
+        "/api/v1/estudos/notas-parciais",
+        params={"aluno_id": 16, "ano_letivo": 2026, "bimestre": 1},
+    ).json()
+    assert next(item for item in b1_de_novo if item["disciplina"] == "Arte")["nota_parcial"] == 5.0
 
 
 def test_delete_linha_boletim(ambiente):

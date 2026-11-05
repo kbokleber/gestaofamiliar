@@ -22,8 +22,10 @@ from app.schemas.prova import (
 )
 from app.services.eclass import (
     excluir_linha_boletim,
+    listar_notas_parciais,
     obter_boletim,
     serial_boletim,
+    serial_nota_parcial,
     sincronizar_eclass,
 )
 from app.services.provas import (
@@ -466,6 +468,29 @@ def apagar_linha_boletim(
     """
     excluir_linha_boletim(db, current_user, linha_id)
     db.commit()
+
+
+@router.get("/notas-parciais")
+def ler_notas_parciais(
+    aluno_id: Optional[int] = None,
+    ano_letivo: Optional[int] = None,
+    bimestre: Optional[int] = Query(None, ge=1, le=4),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Nota Parcial do cartão e-class por disciplina × bimestre (histórico B1–B4).
+
+    Preferir esta leitura na tela Avaliações; o slot do boletim é só espelho do bimestre atual.
+    """
+    return [
+        serial_nota_parcial(item)
+        for item in listar_notas_parciais(
+            db, current_user,
+            aluno_id=aluno_id,
+            ano_letivo=ano_letivo,
+            bimestre=bimestre,
+        )
+    ]
 
 
 @router.post("/avaliacoes", status_code=status.HTTP_201_CREATED)

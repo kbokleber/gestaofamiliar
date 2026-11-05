@@ -237,6 +237,7 @@ class BoletimLinha(Base):
     b3_faltas = Column(Integer, nullable=True)
     b4_nota = Column(Numeric(5, 2), nullable=True)
     b4_faltas = Column(Integer, nullable=True)
+    # Espelho do bimestre em curso (não é histórico B1–B4).
     nota_parcial = Column(Numeric(5, 2), nullable=True)
     bimestre_nota_parcial = Column(Integer, nullable=True)
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
@@ -244,3 +245,36 @@ class BoletimLinha(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     boletim = relationship("Boletim", back_populates="linhas")
+
+
+class NotaParcial(Base):
+    """Nota Parcial do cartão e-class por aluno × ano × bimestre × disciplina.
+
+    Histórico independente do slot único em BoletimLinha (espelho do bimestre atual).
+    """
+
+    __tablename__ = "estudo_nota_parcial"
+    __table_args__ = (
+        UniqueConstraint("family_id", "chave_origem", name="uq_estudo_nota_parcial_origem"),
+        UniqueConstraint(
+            "family_id", "aluno_id", "ano_letivo", "bimestre", "disciplina",
+            name="uq_estudo_nota_parcial_natural",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    aluno_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
+    chave_origem = Column(String(160), nullable=False)
+    ano_letivo = Column(Integer, nullable=False, index=True)
+    bimestre = Column(Integer, nullable=False, index=True)
+    disciplina = Column(String(120), nullable=False)
+    professor = Column(String(150), nullable=True)
+    nota_parcial = Column(Numeric(5, 2), nullable=True)
+    fonte = Column(String(20), nullable=False, default="e-class")
+    scraped_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    aluno = relationship("User", foreign_keys=[aluno_id])
