@@ -3,7 +3,7 @@ import { keycloakEnabled, logoutKeycloak } from '../lib/keycloak'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen, ClipboardList, FileText, Megaphone
+  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen, ClipboardList, ClipboardCheck, FileText, Megaphone, StickyNote
 } from 'lucide-react'
 import { canSeeMenu, type MenuKey } from '../lib/menus'
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -84,6 +84,8 @@ export default function Layout() {
         { name: 'Atividades', href: '/estudos/atividades', icon: ClipboardList },
         { name: 'Comunicados', href: '/estudos/comunicados', icon: Megaphone },
         { name: 'Provas', href: '/estudos/provas', icon: FileText },
+        { name: 'Avaliações', href: '/estudos/avaliacoes', icon: ClipboardCheck },
+        { name: 'Apontamentos', href: '/estudos/apontamentos', icon: StickyNote },
       ]
     },
   ]

@@ -1071,6 +1071,8 @@ async def delete_atividade(
     return {"message": "Atividade excluída com sucesso"}
 
 
+from app.api.v1.endpoints.apontamentos import router as apontamentos_router
 from app.api.v1.endpoints.provas import router as provas_router
 
 router.include_router(provas_router)
+router.include_router(apontamentos_router)

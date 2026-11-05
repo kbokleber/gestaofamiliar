@@ -114,17 +114,33 @@ class DocumentoIn(BaseModel):
         return self
 
 
+class ComposicaoItemIn(BaseModel):
+    realizado_em: Optional[date] = None
+    avaliacao: Optional[str] = Field(None, max_length=40)
+    nota_final: Optional[float] = None
+
+    @model_validator(mode="after")
+    def limpar(self):
+        self.avaliacao = _ponta(self.avaliacao) or None
+        return self
+
+
 class AvaliacaoIn(BaseModel):
     chave_origem: str = Field(..., max_length=160)
     disciplina: str = Field(..., max_length=120)
     categoria: CategoriaAvaliacao
     categoria_rotulo: Optional[str] = Field(None, max_length=40)
+    tipo_codigo_eclass: Optional[str] = Field(None, max_length=20)
     sequencia: int = Field(1, ge=1)
     titulo: str = Field(..., max_length=200)
     data_texto: str = Field("", max_length=120)
     ocorrencias: list[OcorrenciaIn] = []
     valor: Optional[float] = None
     valor_texto: Optional[str] = Field(None, max_length=20)
+    nota_alcancada: Optional[float] = None
+    professor: Optional[str] = Field(None, max_length=150)
+    composicao: Optional[list[ComposicaoItemIn]] = None
+    fonte: Optional[str] = Field(None, max_length=20)
     objeto_conhecimento: str = ""
     criterio_correcao: str = ""
     itens_criterio: list[ItemIn] = []
@@ -137,9 +153,14 @@ class AvaliacaoIn(BaseModel):
         self.chave_origem = _ponta(self.chave_origem) or ""
         self.disciplina = _ponta(self.disciplina) or ""
         self.categoria_rotulo = _ponta(self.categoria_rotulo) or None
+        self.tipo_codigo_eclass = (_ponta(self.tipo_codigo_eclass) or None)
+        if self.tipo_codigo_eclass:
+            self.tipo_codigo_eclass = self.tipo_codigo_eclass.upper()
         self.titulo = _ponta(self.titulo) or ""
         self.data_texto = _ponta(self.data_texto) or ""
         self.valor_texto = _ponta(self.valor_texto) or None
+        self.professor = _ponta(self.professor) or None
+        self.fonte = (_ponta(self.fonte) or None)
         self.objeto_conhecimento = _ponta(self.objeto_conhecimento) or ""
         self.criterio_correcao = _ponta(self.criterio_correcao) or ""
         self.material_necessario = _ponta(self.material_necessario) or None
@@ -166,11 +187,16 @@ class AvaliacaoPatch(BaseModel):
     disciplina: Optional[str] = None
     categoria: Optional[CategoriaAvaliacao] = None
     categoria_rotulo: Optional[str] = None
+    tipo_codigo_eclass: Optional[str] = None
     titulo: Optional[str] = None
     data_texto: Optional[str] = None
     ocorrencias: Optional[list[OcorrenciaIn]] = None
     valor: Optional[float] = None
     valor_texto: Optional[str] = None
+    nota_alcancada: Optional[float] = None
+    professor: Optional[str] = None
+    composicao: Optional[list[ComposicaoItemIn]] = None
+    fonte: Optional[str] = None
     objeto_conhecimento: Optional[str] = None
     criterio_correcao: Optional[str] = None
     itens_criterio: Optional[list[ItemIn]] = None
@@ -194,3 +220,75 @@ class CronogramaCreate(BaseModel):
     escola: Optional[str] = None
     aviso: str = ""
     introducao: str = ""
+
+
+class EclassAlunoIn(BaseModel):
+    profile: Optional[str] = None
+    aluno_id: int
+    turma_portal: Optional[str] = None
+    nome: Optional[str] = None
+
+
+class EclassDetalheIn(BaseModel):
+    codigo: Optional[str] = None
+    nome: Optional[str] = None
+    descricao: Optional[str] = None
+    realizado_em: Optional[date] = None
+    nota_final: Optional[float] = None
+    composicao: list[ComposicaoItemIn] = []
+
+
+class EclassItemIn(BaseModel):
+    data: Optional[date] = None
+    tipo_codigo: str = Field(..., max_length=20)
+    atividade: str = Field(..., max_length=200)
+    alcancado: Optional[float] = None
+    valor: Optional[float] = None
+    chave_origem: Optional[str] = Field(None, max_length=160)
+    detalhe: Optional[EclassDetalheIn] = None
+
+
+class EclassDisciplinaIn(BaseModel):
+    disciplina: str = Field(..., max_length=120)
+    professor: Optional[str] = Field(None, max_length=150)
+    nota_parcial: Optional[float] = None
+    itens: list[EclassItemIn] = []
+
+
+class EclassBoletimLinhaIn(BaseModel):
+    disciplina: str = Field(..., max_length=120)
+    b1_nota: Optional[float] = None
+    b1_faltas: Optional[int] = None
+    b2_nota: Optional[float] = None
+    b2_faltas: Optional[int] = None
+    b3_nota: Optional[float] = None
+    b3_faltas: Optional[int] = None
+    b4_nota: Optional[float] = None
+    b4_faltas: Optional[int] = None
+
+
+class EclassBoletimIn(BaseModel):
+    colunas: list[str] = []
+    linhas: list[EclassBoletimLinhaIn] = []
+    total_faltas_por_bimestre: Optional[dict] = None
+
+
+class EclassProvaAgendaIn(BaseModel):
+    titulo: str = Field(..., max_length=200)
+    tipo_badge: Optional[str] = None
+    prazo: Optional[date] = None
+    modalidade: Optional[str] = None
+    codigo: Optional[str] = Field(None, max_length=40)
+    questoes: Optional[int] = None
+
+
+class EclassSyncIn(BaseModel):
+    fonte: str = "e-class"
+    scraped_at: Optional[datetime] = None
+    aluno: EclassAlunoIn
+    bimestre: int = Field(..., ge=1, le=4)
+    ano_letivo: int
+    cronograma_id_sugerido: Optional[int] = None
+    disciplinas: list[EclassDisciplinaIn] = []
+    boletim: Optional[EclassBoletimIn] = None
+    provas_agenda: list[EclassProvaAgendaIn] = []

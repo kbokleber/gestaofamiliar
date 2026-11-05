@@ -1,4 +1,6 @@
+import ApontamentosPage from './Apontamentos'
 import AtividadesPage from './Atividades'
+import AvaliacoesPage from './Avaliacoes'
 import ProvasPage from './Provas'
 
 export function Atividades() {
@@ -11,6 +13,14 @@ export function Comunicados() {
 
 export function Provas() {
   return <ProvasPage />
+}
+
+export function Avaliacoes() {
+  return <AvaliacoesPage />
+}
+
+export function Apontamentos() {
+  return <ApontamentosPage />
 }
 
 export function SemMenu() {

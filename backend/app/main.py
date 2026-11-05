@@ -105,6 +105,26 @@ def startup_create_tables():
                 "ALTER TABLE estudo_atividade ADD COLUMN IF NOT EXISTS "
                 "criado_pelo_app BOOLEAN NOT NULL DEFAULT FALSE"
             ))
+            conn.execute(text(
+                "ALTER TABLE estudo_avaliacao ADD COLUMN IF NOT EXISTS "
+                "tipo_codigo_eclass VARCHAR(20)"
+            ))
+            conn.execute(text(
+                "ALTER TABLE estudo_avaliacao ADD COLUMN IF NOT EXISTS "
+                "nota_alcancada NUMERIC(5, 2)"
+            ))
+            conn.execute(text(
+                "ALTER TABLE estudo_avaliacao ADD COLUMN IF NOT EXISTS "
+                "professor VARCHAR(150)"
+            ))
+            conn.execute(text(
+                "ALTER TABLE estudo_avaliacao ADD COLUMN IF NOT EXISTS "
+                "composicao JSON"
+            ))
+            conn.execute(text(
+                "ALTER TABLE estudo_avaliacao ADD COLUMN IF NOT EXISTS "
+                "fonte VARCHAR(20) NOT NULL DEFAULT 'pdf'"
+            ))
         from app.db.base import SessionLocal
         from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
         db = SessionLocal()

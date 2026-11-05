@@ -27,6 +27,7 @@ interface AvaliacaoDetalhe {
   disciplina: string
   categoria: string
   categoria_rotulo: string | null
+  tipo_codigo_eclass?: string | null
   titulo: string
   data_texto: string
   data_inicio: string | null
@@ -34,6 +35,10 @@ interface AvaliacaoDetalhe {
   ocorrencias: { data_inicio: string, data_fim: string, turma: string | null }[]
   valor: number | null
   valor_texto: string | null
+  nota_alcancada?: number | null
+  professor?: string | null
+  composicao?: { realizado_em?: string | null, avaliacao?: string | null, nota_final?: number | null }[] | null
+  fonte?: string | null
   objeto_conhecimento: string
   criterio_correcao: string
   itens_criterio: { ordem: number, descricao: string, pontos: number | null, por_unidade: boolean, quantidade: number | null }[]
@@ -393,7 +398,33 @@ export default function Provas() {
               </p>
             )}
             <p>{detalhe.data_texto}</p>
+            {detalhe.professor && <p>Prof.: {detalhe.professor}</p>}
+            {detalhe.tipo_codigo_eclass && <p>Tipo e-class: {detalhe.tipo_codigo_eclass}</p>}
             {detalhe.valor_texto && <p>Valor: {detalhe.valor_texto}</p>}
+            {detalhe.valor != null && !detalhe.valor_texto && (
+              <p>Valor: {detalhe.valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</p>
+            )}
+            {detalhe.nota_alcancada != null && (
+              <p>
+                Alcançado: {detalhe.nota_alcancada.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+              </p>
+            )}
+            {detalhe.composicao && detalhe.composicao.length > 0 && (
+              <div>
+                <p className="font-medium">Composição</p>
+                <ul className="list-disc space-y-1 pl-5">
+                  {detalhe.composicao.map((item, idx) => (
+                    <li key={idx}>
+                      {item.avaliacao || '—'}
+                      {item.realizado_em ? ` em ${item.realizado_em}` : ''}
+                      {item.nota_final != null
+                        ? ` → ${item.nota_final.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`
+                        : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {detalhe.objeto_conhecimento && (
               <p className="whitespace-pre-wrap"><span className="font-medium">Conteúdo</span>{'\n'}{detalhe.objeto_conhecimento}</p>
             )}

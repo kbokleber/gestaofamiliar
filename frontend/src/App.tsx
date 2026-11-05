@@ -21,7 +21,7 @@ import FinanceEntries from './pages/finance/FinanceEntries'
 import FinanceRecurrences from './pages/finance/FinanceRecurrences'
 import FinanceCategories from './pages/finance/FinanceCategories'
 import FinanceImportRules from './pages/finance/FinanceImportRules'
-import { Atividades, Comunicados, Provas, SemMenu } from './pages/estudos/Estudos'
+import { Apontamentos, Atividades, Avaliacoes, Comunicados, Provas, SemMenu } from './pages/estudos/Estudos'
 import { canSeeMenu, firstAllowedPath, type MenuKey } from './lib/menus'
 
 function ProfileRoute({ children }: { children: React.ReactNode }) {
@@ -59,6 +59,8 @@ function App() {
         <Route path="/estudos/atividades" element={<MenuRoute menu="estudos"><Atividades /></MenuRoute>} />
         <Route path="/estudos/comunicados" element={<MenuRoute menu="estudos"><Comunicados /></MenuRoute>} />
         <Route path="/estudos/provas" element={<MenuRoute menu="estudos"><Provas /></MenuRoute>} />
+        <Route path="/estudos/avaliacoes" element={<MenuRoute menu="estudos"><Avaliacoes /></MenuRoute>} />
+        <Route path="/estudos/apontamentos" element={<MenuRoute menu="estudos"><Apontamentos /></MenuRoute>} />
         
         {/* Healthcare Routes */}
         <Route path="/healthcare/members" element={<MenuRoute menu="saude"><FamilyMembers /></MenuRoute>} />

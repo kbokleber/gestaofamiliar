@@ -76,6 +76,7 @@ class Avaliacao(Base):
     disciplina = Column(String(120), nullable=False)
     categoria = Column(String(20), nullable=False)
     categoria_rotulo = Column(String(40), nullable=True)
+    tipo_codigo_eclass = Column(String(20), nullable=True, index=True)
     sequencia = Column(Integer, nullable=False, default=1)
     ordem = Column(Integer, nullable=False, default=1)
     titulo = Column(String(200), nullable=False)
@@ -85,6 +86,10 @@ class Avaliacao(Base):
     data_fim = Column(Date, nullable=True)
     valor = Column(Numeric(5, 2), nullable=True)
     valor_texto = Column(String(20), nullable=True)
+    nota_alcancada = Column(Numeric(5, 2), nullable=True)
+    professor = Column(String(150), nullable=True)
+    composicao = Column(JSON, nullable=True)
+    fonte = Column(String(20), nullable=False, default="pdf")
     objeto_conhecimento = Column(Text, nullable=False, default="")
     criterio_correcao = Column(Text, nullable=False, default="")
     material_necessario = Column(Text, nullable=True)
@@ -186,3 +191,56 @@ class AvaliacaoHistorico(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     avaliacao = relationship("Avaliacao", back_populates="historico")
+
+
+class Boletim(Base):
+    """Boletim (Notas e Faltas) sincronizado do e-class, por aluno × ano letivo."""
+
+    __tablename__ = "estudo_boletim"
+    __table_args__ = (
+        UniqueConstraint("family_id", "aluno_id", "ano_letivo", name="uq_estudo_boletim_aluno_ano"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    aluno_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
+    ano_letivo = Column(Integer, nullable=False)
+    scraped_at = Column(DateTime(timezone=True), nullable=True)
+    fonte = Column(String(20), nullable=False, default="e-class")
+    total_faltas_por_bimestre = Column(JSON, nullable=True)
+    created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    aluno = relationship("User", foreign_keys=[aluno_id])
+    linhas = relationship("BoletimLinha", cascade="all, delete-orphan", back_populates="boletim")
+
+
+class BoletimLinha(Base):
+    """Uma disciplina no boletim, com nota/faltas por bimestre."""
+
+    __tablename__ = "estudo_boletim_linha"
+    __table_args__ = (
+        UniqueConstraint("boletim_id", "disciplina", name="uq_estudo_boletim_linha_disciplina"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    boletim_id = Column(Integer, ForeignKey("estudo_boletim.id", ondelete="CASCADE"), nullable=False, index=True)
+    disciplina = Column(String(120), nullable=False)
+    professor = Column(String(150), nullable=True)
+    b1_nota = Column(Numeric(5, 2), nullable=True)
+    b1_faltas = Column(Integer, nullable=True)
+    b2_nota = Column(Numeric(5, 2), nullable=True)
+    b2_faltas = Column(Integer, nullable=True)
+    b3_nota = Column(Numeric(5, 2), nullable=True)
+    b3_faltas = Column(Integer, nullable=True)
+    b4_nota = Column(Numeric(5, 2), nullable=True)
+    b4_faltas = Column(Integer, nullable=True)
+    nota_parcial = Column(Numeric(5, 2), nullable=True)
+    bimestre_nota_parcial = Column(Integer, nullable=True)
+    created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    boletim = relationship("Boletim", back_populates="linhas")

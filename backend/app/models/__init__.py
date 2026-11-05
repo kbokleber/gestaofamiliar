@@ -10,7 +10,7 @@ from app.models.telegram import (
     TelegramUserLink,
     TelegramLinkCode,
 )
-from app.models.estudo import Atividade, ComunicadoLido
+from app.models.estudo import Apontamento, Atividade, ComunicadoLido
 from app.models.whatsapp import FamilyWhatsAppConfig
 from app.models.lembrete import FamilyLembreteConfig, PushInscricao
 from app.models.prova import (
@@ -18,6 +18,8 @@ from app.models.prova import (
     AvaliacaoHistorico,
     AvaliacaoItem,
     AvaliacaoOcorrencia,
+    Boletim,
+    BoletimLinha,
     Cronograma,
     CronogramaAluno,
     EventoEscolar,
@@ -52,6 +54,7 @@ __all__ = [
     "FinanceRecurrence",
     "FinanceImportCategoryRule",
     "Atividade",
+    "Apontamento",
     "ComunicadoLido",
     "FamilyWhatsAppConfig",
     "FamilyLembreteConfig",
@@ -63,4 +66,6 @@ __all__ = [
     "AvaliacaoItem",
     "EventoEscolar",
     "AvaliacaoHistorico",
+    "Boletim",
+    "BoletimLinha",
 ]

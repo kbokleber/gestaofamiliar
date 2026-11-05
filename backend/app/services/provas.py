@@ -84,6 +84,25 @@ def _ocorrencias_json(ocorrencias: list) -> list[dict]:
     ]
 
 
+def _composicao_json(composicao) -> Optional[list]:
+    if not composicao:
+        return None
+    saida = []
+    for item in composicao:
+        if hasattr(item, "model_dump"):
+            bruto = item.model_dump(mode="json")
+        elif isinstance(item, dict):
+            bruto = item
+        else:
+            continue
+        saida.append({
+            "realizado_em": bruto.get("realizado_em"),
+            "avaliacao": bruto.get("avaliacao"),
+            "nota_final": bruto.get("nota_final"),
+        })
+    return saida or None
+
+
 def _pacote_avaliacao(dados: AvaliacaoIn, ordem: int) -> dict:
     ocorrencias = _ocorrencias_json(dados.ocorrencias)
     inicios = [item.data_inicio for item in dados.ocorrencias]
@@ -93,6 +112,7 @@ def _pacote_avaliacao(dados: AvaliacaoIn, ordem: int) -> dict:
         "disciplina": dados.disciplina,
         "categoria": dados.categoria,
         "categoria_rotulo": dados.categoria_rotulo,
+        "tipo_codigo_eclass": dados.tipo_codigo_eclass,
         "sequencia": dados.sequencia,
         "ordem": ordem,
         "titulo": dados.titulo,
@@ -103,6 +123,10 @@ def _pacote_avaliacao(dados: AvaliacaoIn, ordem: int) -> dict:
         "ocorrencias": ocorrencias,
         "valor": _numero(dados.valor),
         "valor_texto": dados.valor_texto,
+        "nota_alcancada": _numero(dados.nota_alcancada),
+        "professor": dados.professor,
+        "composicao": _composicao_json(dados.composicao),
+        "fonte": dados.fonte or "pdf",
         "objeto_conhecimento": dados.objeto_conhecimento,
         "criterio_correcao": dados.criterio_correcao,
         "itens_criterio": [
@@ -165,6 +189,23 @@ def exigir_adulto(usuario: User) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Somente um adulto pode alterar as avaliações.",
         )
+
+
+def aluno_leitura(usuario: User, aluno_id: Optional[int] = None) -> Optional[int]:
+    """Escopo de leitura: filho sempre o próprio id; adulto/admin usa o filtro pedido."""
+    if usuario.is_child:
+        return usuario.id
+    return aluno_id
+
+
+def avaliacao_visivel_para(avaliacao: Avaliacao, usuario: User) -> bool:
+    """Filho não lê linha e-class de outro aluno (chave eclass-{id}-…)."""
+    if not usuario.is_child:
+        return True
+    chave = avaliacao.chave_origem or ""
+    if chave.startswith("eclass-"):
+        return chave.startswith(f"eclass-{usuario.id}-")
+    return True
 
 
 def filhos_da_familia(db: Session, aluno_ids: list[int], family_id: int, loc: list) -> list[User]:
@@ -314,6 +355,7 @@ def _aplicar_avaliacao(avaliacao: Avaliacao, dados: AvaliacaoIn, ordem: int, pac
     avaliacao.disciplina = dados.disciplina
     avaliacao.categoria = dados.categoria
     avaliacao.categoria_rotulo = dados.categoria_rotulo
+    avaliacao.tipo_codigo_eclass = dados.tipo_codigo_eclass
     avaliacao.sequencia = dados.sequencia
     avaliacao.ordem = ordem
     avaliacao.titulo = dados.titulo
@@ -323,6 +365,10 @@ def _aplicar_avaliacao(avaliacao: Avaliacao, dados: AvaliacaoIn, ordem: int, pac
     avaliacao.data_fim = date.fromisoformat(pacote["data_fim"]) if pacote["data_fim"] else None
     avaliacao.valor = dados.valor
     avaliacao.valor_texto = dados.valor_texto
+    avaliacao.nota_alcancada = dados.nota_alcancada
+    avaliacao.professor = dados.professor
+    avaliacao.composicao = pacote.get("composicao")
+    avaliacao.fonte = dados.fonte or avaliacao.fonte or "pdf"
     avaliacao.objeto_conhecimento = dados.objeto_conhecimento
     avaliacao.criterio_correcao = dados.criterio_correcao
     avaliacao.material_necessario = dados.material_necessario
@@ -587,6 +633,7 @@ def serial_avaliacao(avaliacao: Avaliacao, usuario: User, completo: bool = False
         "disciplina": avaliacao.disciplina,
         "categoria": avaliacao.categoria,
         "categoria_rotulo": avaliacao.categoria_rotulo,
+        "tipo_codigo_eclass": avaliacao.tipo_codigo_eclass,
         "sequencia": avaliacao.sequencia,
         "ordem": avaliacao.ordem,
         "titulo": avaliacao.titulo,
@@ -597,6 +644,10 @@ def serial_avaliacao(avaliacao: Avaliacao, usuario: User, completo: bool = False
         "ocorrencias": [serial_ocorrencia(item) for item in avaliacao.ocorrencias],
         "valor": _float(avaliacao.valor),
         "valor_texto": avaliacao.valor_texto,
+        "nota_alcancada": _float(avaliacao.nota_alcancada),
+        "professor": avaliacao.professor,
+        "composicao": avaliacao.composicao,
+        "fonte": avaliacao.fonte or "pdf",
         "objeto_conhecimento": avaliacao.objeto_conhecimento,
         "criterio_correcao": avaliacao.criterio_correcao,
         "itens_criterio": [serial_item(item) for item in avaliacao.itens],
@@ -640,11 +691,13 @@ def carregar_avaliacao(db: Session, avaliacao_id: int, usuario: User) -> Avaliac
     if avaliacao is None or avaliacao.cronograma is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Avaliação não encontrada.")
     pode_ver_cronograma(avaliacao.cronograma, usuario)
+    if not avaliacao_visivel_para(avaliacao, usuario):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Avaliação não encontrada.")
     return avaliacao
 
 
 def aplicar_patch(db: Session, avaliacao: Avaliacao, payload: AvaliacaoPatch, usuario: User) -> None:
-    campos = payload.model_dump(exclude_unset=True)
+    campos = payload.model_dump(exclude_unset=True, mode="json")
     motivo = campos.pop("alteracao_motivo", None)
     comunicado_id = campos.pop("alteracao_comunicado_id", None)
     ocorrencias = campos.pop("ocorrencias", None)
@@ -652,6 +705,8 @@ def aplicar_patch(db: Session, avaliacao: Avaliacao, payload: AvaliacaoPatch, us
     for campo, valor in campos.items():
         if isinstance(valor, str):
             valor = valor.strip()
+            if campo == "tipo_codigo_eclass" and valor:
+                valor = valor.upper()
         setattr(avaliacao, campo, valor)
     antes = _ocorrencias_json(avaliacao.ocorrencias)
     if ocorrencias is not None:

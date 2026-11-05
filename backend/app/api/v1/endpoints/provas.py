@@ -12,7 +12,15 @@ from app.db.base import get_db
 from app.models.estudo import Atividade
 from app.models.prova import Avaliacao, AvaliacaoOcorrencia, Cronograma, CronogramaAluno, EventoEscolar
 from app.models.user import User
-from app.schemas.prova import AvaliacaoCreate, AvaliacaoPatch, AvaliacaoPut, CronogramaCreate, Importacao
+from app.schemas.prova import (
+    AvaliacaoCreate,
+    AvaliacaoPatch,
+    AvaliacaoPut,
+    CronogramaCreate,
+    EclassSyncIn,
+    Importacao,
+)
+from app.services.eclass import obter_boletim, serial_boletim, sincronizar_eclass
 from app.services.provas import (
     ORDEM_CATEGORIA,
     CORES_CATEGORIA,
@@ -22,6 +30,7 @@ from app.services.provas import (
     _gravar_ocorrencias,
     _pacote_avaliacao,
     _vincular,
+    aluno_leitura,
     alunos_do,
     aplicar_patch,
     carregar_avaliacao,
@@ -325,6 +334,8 @@ def listar_avaliacoes(
     ate: Optional[date] = None,
     disciplina: Optional[list[str]] = Query(None),
     categoria: Optional[list[str]] = Query(None),
+    fonte: Optional[str] = Query(None, description="Filtrar por origem: eclass, pdf, agenda"),
+    so_eclass: bool = Query(False, description="Só linhas do sync e-class (fonte=eclass ou tipo_codigo_eclass)"),
     cronograma_id: Optional[int] = None,
     bimestre: Optional[int] = None,
     ano_letivo: Optional[int] = None,
@@ -336,17 +347,16 @@ def listar_avaliacoes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Lista avaliações. O intervalo de e até inclui quem tem qualquer dia dentro dele."""
+    """Lista avaliações. Filho só vê as próprias (e-class do seu aluno_id); adulto filtra se pedir."""
+    escopo = aluno_leitura(current_user, aluno_id)
     consulta = (
         db.query(Avaliacao)
         .join(Cronograma)
         .options(*_opcoes_avaliacao())
         .filter(Cronograma.family_id == familia_do(current_user), Cronograma.status == "ativo")
     )
-    if current_user.is_child:
-        consulta = consulta.filter(Cronograma.vinculos.any(CronogramaAluno.aluno_id == current_user.id))
-    elif aluno_id is not None:
-        consulta = consulta.filter(Cronograma.vinculos.any(CronogramaAluno.aluno_id == aluno_id))
+    if escopo is not None:
+        consulta = consulta.filter(Cronograma.vinculos.any(CronogramaAluno.aluno_id == escopo))
     if cronograma_id is not None:
         consulta = consulta.filter(Avaliacao.cronograma_id == cronograma_id)
     if bimestre is not None:
@@ -357,6 +367,18 @@ def listar_avaliacoes(
         consulta = consulta.filter(Avaliacao.disciplina.in_(disciplina))
     if categoria:
         consulta = consulta.filter(Avaliacao.categoria.in_(categoria))
+    if so_eclass:
+        consulta = consulta.filter(or_(
+            Avaliacao.fonte == "eclass",
+            Avaliacao.tipo_codigo_eclass.isnot(None),
+        ))
+        # Isola por aluno via chave eclass-{id}-… (cronograma compartilhado não pode vazar irmão).
+        if escopo is not None:
+            consulta = consulta.filter(Avaliacao.chave_origem.like(f"eclass-{escopo}-%"))
+    elif fonte:
+        consulta = consulta.filter(Avaliacao.fonte == fonte.strip().lower())
+        if fonte.strip().lower() == "eclass" and escopo is not None:
+            consulta = consulta.filter(Avaliacao.chave_origem.like(f"eclass-{escopo}-%"))
     if de is not None or ate is not None:
         consulta = consulta.join(AvaliacaoOcorrencia)
         if de is not None:
@@ -394,6 +416,35 @@ def listar_avaliacoes(
         .all()
     )
     return [serial_avaliacao(item, current_user) for item in itens]
+
+
+@router.post("/eclass/sincronizar")
+def sincronizar_portal_eclass(
+    payload: EclassSyncIn,
+    dry_run: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Recebe o JSON do scrape e-class (Avaliações + boletim + PAAEB) e grava com dedup por chave_origem."""
+    exigir_adulto(current_user)
+    if dry_run:
+        relatorio = sincronizar_eclass(db, current_user, payload)
+        db.rollback()
+        return {"dry_run": True, **relatorio}
+    relatorio = sincronizar_eclass(db, current_user, payload)
+    db.commit()
+    return {"dry_run": False, **relatorio}
+
+
+@router.get("/boletim")
+def ler_boletim(
+    aluno_id: int = Query(...),
+    ano_letivo: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Boletim (Notas e Faltas) sincronizado do e-class para um filho × ano letivo."""
+    return serial_boletim(obter_boletim(db, current_user, aluno_id, ano_letivo))
 
 
 @router.post("/avaliacoes", status_code=status.HTTP_201_CREATED)

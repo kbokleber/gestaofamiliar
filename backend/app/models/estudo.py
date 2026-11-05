@@ -4,6 +4,36 @@ from sqlalchemy.orm import relationship
 from app.db.base import Base
 
 
+class Apontamento(Base):
+    """Observação/apontamento do portal e-class sobre o aluno."""
+
+    __tablename__ = "estudo_apontamento"
+    __table_args__ = (
+        UniqueConstraint("family_id", "chave_origem", name="uq_estudo_apontamento_origem"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    aluno_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
+    chave_origem = Column(String(160), nullable=False)
+    data = Column(Date, nullable=True, index=True)
+    disciplina = Column(String(120), nullable=False, default="")
+    professor = Column(String(150), nullable=False, default="")
+    tipo = Column(String(80), nullable=False, default="")
+    titulo = Column(String(200), nullable=False, default="")
+    descricao = Column(Text, nullable=False, default="")
+    bimestre = Column(Integer, nullable=True)
+    ano_letivo = Column(Integer, nullable=False)
+    fonte = Column(String(20), nullable=False, default="e-class")
+    scraped_at = Column(DateTime(timezone=True), nullable=True)
+    hash_conteudo = Column(String(64), nullable=False, default="")
+    created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    aluno = relationship("User", foreign_keys=[aluno_id])
+
+
 class Atividade(Base):
     """Atividade de estudo de um filho."""
 
