@@ -315,7 +315,35 @@ export default function Avaliacoes() {
                     <span className="text-base font-semibold">{fmtNota(cartao.notaParcial)}</span>
                   </p>
                 </header>
-                <div className="overflow-x-auto">
+                <ul className="divide-y divide-gray-100 md:hidden">
+                  {cartao.itens.map((item) => (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => setAvaliacaoId(item.id)}
+                        className="flex w-full items-start gap-3 px-4 py-3 text-left active:bg-teal-50/60"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-gray-500">
+                            {fmtData(item.data_inicio, item.data_texto)}
+                            <span className="mx-1">·</span>
+                            <span className="font-medium text-teal-800">
+                              {item.tipo_codigo_eclass || item.categoria_rotulo || item.categoria}
+                            </span>
+                          </p>
+                          <p className="mt-1 text-sm leading-snug text-gray-900">{item.titulo}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-semibold text-gray-900">{fmtNota(item.nota_alcancada)}</p>
+                          <p className="text-xs text-gray-500">
+                            de {item.valor != null ? fmtNota(item.valor) : (item.valor_texto || '—')}
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="hidden overflow-x-auto md:block">
                   <table className="min-w-full text-left text-sm">
                     <thead className="bg-white text-xs uppercase tracking-wide text-gray-500">
                       <tr>
@@ -339,7 +367,7 @@ export default function Avaliacoes() {
                           <td className="whitespace-nowrap px-3 py-2.5 font-medium text-teal-800">
                             {item.tipo_codigo_eclass || item.categoria_rotulo || item.categoria}
                           </td>
-                          <td className="max-w-[14rem] px-3 py-2.5 text-gray-900 sm:max-w-md">
+                          <td className="max-w-md px-3 py-2.5 text-gray-900">
                             <span className="line-clamp-2">{item.titulo}</span>
                           </td>
                           <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-gray-900">
@@ -373,7 +401,47 @@ export default function Avaliacoes() {
             </p>
           )}
           {boletim && (
-            <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+            <>
+            <ul className="space-y-3 md:hidden">
+              {boletim.linhas.map((linha) => (
+                <li key={linha.id} className="rounded-2xl border border-gray-200 bg-white p-4">
+                  <p className="font-semibold text-gray-900">{linha.disciplina}</p>
+                  {linha.professor && <p className="text-xs text-gray-500">{linha.professor}</p>}
+                  <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                    {([1, 2, 3, 4] as const).map((n) => {
+                      const nota = linha[`b${n}_nota` as const]
+                      const faltas = linha[`b${n}_faltas` as const]
+                      return (
+                        <div key={n} className="rounded-lg bg-stone-50 px-1 py-2">
+                          <p className="text-[11px] uppercase text-gray-500">{n}º</p>
+                          <p className="text-sm font-semibold text-gray-900">{fmtNota(nota)}</p>
+                          <p className="text-[11px] text-gray-500">{faltas != null ? `${faltas} faltas` : '—'}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </li>
+              ))}
+              {boletim.total_faltas_por_bimestre && (
+                <li className="rounded-2xl border border-gray-200 bg-stone-50 p-4 text-sm text-gray-700">
+                  <p className="font-medium">Total de faltas</p>
+                  <div className="mt-2 grid grid-cols-4 gap-2 text-center">
+                    {([1, 2, 3, 4] as const).map((n) => {
+                      const total = boletim.total_faltas_por_bimestre?.[String(n)]
+                        ?? boletim.total_faltas_por_bimestre?.[`b${n}`]
+                        ?? null
+                      return (
+                        <p key={n}>
+                          <span className="block text-[11px] text-gray-500">{n}º</span>
+                          <span className="font-medium">{total != null ? total : '—'}</span>
+                        </p>
+                      )
+                    })}
+                  </div>
+                </li>
+              )}
+            </ul>
+            <div className="hidden overflow-x-auto rounded-2xl border border-gray-200 bg-white md:block">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-gray-700">
                   <tr>
@@ -441,6 +509,7 @@ export default function Avaliacoes() {
                 )}
               </table>
             </div>
+            </>
           )}
         </>
       )}
