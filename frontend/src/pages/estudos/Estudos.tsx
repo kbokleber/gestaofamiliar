@@ -1,7 +1,12 @@
 import ApontamentosPage from './Apontamentos'
 import AtividadesPage from './Atividades'
 import AvaliacoesPage from './Avaliacoes'
+import PainelPage from './Painel'
 import ProvasPage from './Provas'
+
+export function Painel() {
+  return <PainelPage />
+}
 
 export function Atividades() {
   return <AtividadesPage modo="atividade" />
