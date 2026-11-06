@@ -48,7 +48,7 @@ interface Boletim {
   id: number
   aluno_id: number
   ano_letivo: number
-  total_faltas_por_bimestre?: Record<string, number> | null
+  total_faltas_por_bimestre?: Record<string, number | string | null> | Array<number | string | null> | null
   linhas: {
     id: number
     disciplina: string
@@ -74,6 +74,33 @@ interface NotaParcial {
   disciplina: string
   professor: string | null
   nota_parcial: number | null
+}
+
+function temTotais(
+  valor: Boletim['total_faltas_por_bimestre'],
+): valor is NonNullable<Boletim['total_faltas_por_bimestre']> {
+  return valor != null
+}
+
+function totalDoBimestre(mapa: Boletim['total_faltas_por_bimestre'], bimestre: number): number | null {
+  if (mapa == null) return null
+  const bruto = Array.isArray(mapa) ? mapa[bimestre - 1] : lerTotal(mapa, bimestre)
+  if (bruto == null || bruto === '') return null
+  if (typeof bruto === 'number') return Number.isFinite(bruto) ? bruto : null
+  const numero = Number(String(bruto).trim().replace(',', '.'))
+  return Number.isFinite(numero) ? numero : null
+}
+
+function lerTotal(mapa: Record<string, number | string | null>, bimestre: number): number | string | null | undefined {
+  const diretas = [String(bimestre), `b${bimestre}`, `B${bimestre}`, `${bimestre}º`, `bimestre_${bimestre}`, `b${bimestre}_faltas`]
+  for (const chave of diretas) {
+    if (Object.prototype.hasOwnProperty.call(mapa, chave)) return mapa[chave]
+  }
+  const encontrada = Object.keys(mapa).find((chave) => {
+    const normal = chave.trim().toLowerCase()
+    return normal === String(bimestre) || normal.startsWith(`${bimestre}º`) || normal === `b${bimestre}`
+  })
+  return encontrada ? mapa[encontrada] : undefined
 }
 
 function fmtNota(valor: number | null | undefined) {
@@ -422,14 +449,12 @@ export default function Avaliacoes() {
                   </div>
                 </li>
               ))}
-              {boletim.total_faltas_por_bimestre && (
+              {temTotais(boletim.total_faltas_por_bimestre) && (
                 <li className="rounded-2xl border border-gray-200 bg-stone-50 p-4 text-sm text-gray-700">
                   <p className="font-medium">Total de faltas</p>
                   <div className="mt-2 grid grid-cols-4 gap-2 text-center">
                     {([1, 2, 3, 4] as const).map((n) => {
-                      const total = boletim.total_faltas_por_bimestre?.[String(n)]
-                        ?? boletim.total_faltas_por_bimestre?.[`b${n}`]
-                        ?? null
+                      const total = totalDoBimestre(boletim.total_faltas_por_bimestre, n)
                       return (
                         <p key={n}>
                           <span className="block text-[11px] text-gray-500">{n}º</span>
@@ -487,14 +512,12 @@ export default function Avaliacoes() {
                     </tr>
                   ))}
                 </tbody>
-                {boletim.total_faltas_por_bimestre && (
+                {temTotais(boletim.total_faltas_por_bimestre) && (
                   <tfoot className="border-t border-gray-200 bg-stone-50 text-sm text-gray-700">
                     <tr>
                       <td className="px-3 py-3 font-medium">Total de faltas</td>
                       {([1, 2, 3, 4] as const).map((n) => {
-                        const total = boletim.total_faltas_por_bimestre?.[String(n)]
-                          ?? boletim.total_faltas_por_bimestre?.[`b${n}`]
-                          ?? null
+                        const total = totalDoBimestre(boletim.total_faltas_por_bimestre, n)
                         return (
                           <Fragment key={n}>
                             <td className="border-l border-gray-100 px-2 py-3" />

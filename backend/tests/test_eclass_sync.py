@@ -392,3 +392,29 @@ def test_delete_linha_boletim(ambiente):
 
     inexistente = cliente.delete("/api/v1/estudos/boletim/linhas/99999")
     assert inexistente.status_code == 404
+
+
+def test_total_faltas_nao_preenche_disciplina(ambiente):
+    """O total do boletim volta no GET mesmo com faltas de disciplina vazias, e null não vira zero."""
+    cliente, db, estado, filho = ambiente
+    payload = {
+        "fonte": "e-class",
+        "aluno": {"profile": "Gio", "aluno_id": 16, "nome": "Giovana"},
+        "bimestre": 4,
+        "ano_letivo": 2026,
+        "disciplinas": [],
+        "boletim": {
+            "linhas": [
+                {"disciplina": "Arte", "b1_nota": 8.0, "b1_faltas": None, "b4_faltas": None},
+            ],
+            "total_faltas_por_bimestre": {"1": 2, "2": 4, "3": 5, "4": None},
+        },
+    }
+    assert cliente.post("/api/v1/estudos/eclass/sincronizar", json=payload).status_code == 200
+    boletim = cliente.get("/api/v1/estudos/boletim", params={"aluno_id": 16, "ano_letivo": 2026})
+    assert boletim.status_code == 200, boletim.text
+    corpo = boletim.json()
+    assert corpo["total_faltas_por_bimestre"] == {"1": 2, "2": 4, "3": 5, "4": None}
+    arte = corpo["linhas"][0]
+    assert arte["b1_faltas"] is None
+    assert arte["b4_faltas"] is None
