@@ -5,6 +5,7 @@ import { authService } from '../services/authService'
 import { keycloak, keycloakEnabled } from '../lib/keycloak'
 import { Heart } from 'lucide-react'
 import { useAppVersion } from '../hooks/useAppVersion'
+import { entradaAposLogin } from '../lib/menus'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -62,7 +63,7 @@ export default function Login() {
       console.log('Dados do usuário:', userData)
       
       setAuth(userData, access_token)
-      navigate('/')
+      navigate(entradaAposLogin(userData))
     } catch (err: any) {
       if (import.meta.env.DEV) {
         console.error('Erro no login:', err)

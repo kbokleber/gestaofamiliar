@@ -10,6 +10,7 @@ export type MenuKey = (typeof MENUS)[number]['key']
 
 type MenuUser = {
   is_superuser?: boolean
+  is_child?: boolean
   allowed_menus?: string[] | null
 } | null | undefined
 
@@ -28,5 +29,13 @@ export function canSeeMenu(user: MenuUser, menu: MenuKey): boolean {
 export function firstAllowedPath(user: MenuUser): string {
   const keys = visibleMenuKeys(user)
   const match = MENUS.find((menu) => keys.includes(menu.key))
-  return match?.href ?? '/sem-menu'
+  if (!match) return '/sem-menu'
+  if (user?.is_child && match.key === 'estudos') return '/estudos/atividades'
+  return match.href
+}
+
+/** Tela inicial depois do login. Filho entra em Atividades, não no Painel. */
+export function entradaAposLogin(user: MenuUser): string {
+  if (user?.is_child && canSeeMenu(user, 'estudos')) return '/estudos/atividades'
+  return firstAllowedPath(user)
 }

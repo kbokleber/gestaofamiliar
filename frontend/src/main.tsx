@@ -8,6 +8,7 @@ import { rememberBlockedMessage } from './pages/AcessoNegado'
 import { initKeycloak, keycloak, keycloakEnabled } from './lib/keycloak'
 import { authService } from './services/authService'
 import { useAuthStore } from './stores/authStore'
+import { canSeeMenu } from './lib/menus'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 
@@ -61,6 +62,12 @@ async function prepareKeycloakSession() {
   try {
     const user = await authService.getMe()
     useAuthStore.getState().setAuth(user, client.token)
+    if (user.is_child && canSeeMenu(user, 'estudos')) {
+      const path = window.location.pathname
+      if (path === '/' || path === '/estudos') {
+        window.history.replaceState({}, '', '/estudos/atividades')
+      }
+    }
   } catch (error: unknown) {
     const response = (error as { response?: { status?: number; data?: { detail?: unknown } } }).response
     const detail = response?.data?.detail

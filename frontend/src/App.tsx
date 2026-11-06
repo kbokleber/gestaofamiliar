@@ -45,6 +45,11 @@ function MenuRoute({ menu, children }: { menu: MenuKey; children: React.ReactNod
   return <>{children}</>
 }
 
+function EstudosInicio() {
+  const user = useAuthStore((state) => state.user)
+  return <Navigate to={user?.is_child ? '/estudos/atividades' : '/estudos/painel'} replace />
+}
+
 function App() {
   return (
     <Routes>
@@ -55,7 +60,7 @@ function App() {
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route path="/" element={<MenuRoute menu="dashboard"><Dashboard /></MenuRoute>} />
         <Route path="/sem-menu" element={<SemMenu />} />
-        <Route path="/estudos" element={<Navigate to="/estudos/painel" replace />} />
+        <Route path="/estudos" element={<EstudosInicio />} />
         <Route path="/estudos/painel" element={<MenuRoute menu="estudos"><Painel /></MenuRoute>} />
         <Route path="/estudos/atividades" element={<MenuRoute menu="estudos"><Atividades /></MenuRoute>} />
         <Route path="/estudos/comunicados" element={<MenuRoute menu="estudos"><Comunicados /></MenuRoute>} />
