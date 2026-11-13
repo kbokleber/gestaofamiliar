@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText, X, Megaphone } from 'lucide-react'
 import api from '../../lib/api'
+import { baixarBlob, nomeParaDownload } from '../../utils/baixarArquivo'
 import { useAuthStore } from '../../stores/authStore'
 import Button from '../../components/Button'
 import Modal from '../../components/Modal'
@@ -395,9 +396,25 @@ function GaleriaAnexos({
     const anexo = anexos[indice]
     if (!anexo) return
     const imagem = anexo.type.startsWith('image/')
-    const janela = imagem ? null : window.open('', '_blank')
     setErro('')
-    setAberto(imagem ? indice : null)
+    if (!imagem) {
+      try {
+        const resposta = await api.get(
+          `/estudos/atividades/${atividade.id}/anexos/${indice}/download`,
+          { responseType: 'blob' },
+        )
+        const tipo = anexo.type || 'application/pdf'
+        baixarBlob(
+          new Blob([resposta.data], { type: tipo }),
+          nomeParaDownload(anexo.name, tipo),
+          tipo,
+        )
+      } catch (error: any) {
+        setErro(error.response?.data?.detail || 'Não foi possível abrir o PDF.')
+      }
+      return
+    }
+    setAberto(indice)
     setUrlAberta('')
     try {
       const resposta = await api.get(
@@ -405,14 +422,8 @@ function GaleriaAnexos({
         { params: { inline: 1 }, responseType: 'blob' },
       )
       const endereco = URL.createObjectURL(new Blob([resposta.data], { type: anexo.type || 'application/octet-stream' }))
-      if (janela) {
-        janela.location.href = endereco
-        return
-      }
-      if (!imagem) setAberto(indice)
       setUrlAberta(endereco)
     } catch (error: any) {
-      janela?.close()
       setAberto(null)
       setErro(error.response?.data?.detail || 'Não foi possível abrir o arquivo.')
     }
@@ -508,17 +519,10 @@ function GaleriaAnexos({
             </button>
           </div>
           {!urlAberta && <p className="px-4 py-6 text-center text-sm text-white">Abrindo arquivo...</p>}
-          {urlAberta && anexos[aberto]?.type.startsWith('image/') && (
+          {urlAberta && (
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-neutral-800 p-2">
               <img src={urlAberta} alt={anexos[aberto]?.name || 'Imagem'} className="max-h-full max-w-full object-contain" />
             </div>
-          )}
-          {urlAberta && !anexos[aberto]?.type.startsWith('image/') && (
-            <iframe
-              title={anexos[aberto]?.name || 'PDF'}
-              src={urlAberta}
-              className="h-0 w-full flex-1 border-0 bg-white"
-            />
           )}
         </div>,
         document.body,

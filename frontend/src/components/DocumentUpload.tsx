@@ -7,6 +7,7 @@ import {
   IMAGE_AND_DOCUMENT_ACCEPT,
   isAllowedUploadFile,
 } from '../utils/uploadValidation'
+import { baixarBlob, nomeParaDownload } from '../utils/baixarArquivo'
 
 export interface Document {
   name: string
@@ -119,19 +120,19 @@ export default function DocumentUpload({
     throw new Error('Arquivo sem dados')
   }
 
+  const salvarArquivo = async (doc: Document, index: number) => {
+    const { mimeType } = getDisplayType(doc)
+    const blob = await fileBlob(doc, index)
+    baixarBlob(blob, nomeParaDownload(doc.name, mimeType), mimeType)
+  }
+
   const downloadDocument = async (doc: Document, index: number) => {
     if (!doc.data && !resolveFile) {
       alert('Arquivo sem dados para download.')
       return
     }
     try {
-      const blob = await fileBlob(doc, index)
-      const blobUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = blobUrl
-      link.download = doc.name
-      link.click()
-      URL.revokeObjectURL(blobUrl)
+      await salvarArquivo(doc, index)
     } catch (e) {
       console.error('Erro ao fazer download:', e)
       alert('Não foi possível fazer o download do arquivo.')
@@ -174,33 +175,35 @@ export default function DocumentUpload({
       alert('Arquivo sem dados para visualização. Pode ter sido salvo em formato antigo.')
       return
     }
-    const safeName = String(doc.name).replace(/</g, '&lt;').replace(/"/g, '&quot;')
     const { isPdf, isHeic } = getDisplayType(doc)
-    
+
     if (isHeic) {
       alert('Arquivos HEIC (fotos de iPhone) não podem ser visualizados diretamente no navegador. Por favor, use o botão de Download para baixar e ver no seu aparelho.')
       return
     }
 
+    // PDF em iframe/blob abre about:blank no Chrome do Android, com nome UUID e sem mostrar o arquivo.
+    if (isPdf) {
+      try {
+        await salvarArquivo(doc, index)
+      } catch (e) {
+        console.error('Erro ao abrir PDF:', e)
+        alert('Não foi possível abrir o PDF.')
+      }
+      return
+    }
+
+    const safeName = String(doc.name).replace(/</g, '&lt;').replace(/"/g, '&quot;')
     const newWindow = window.open('', '_blank')
     if (newWindow) {
       try {
         const blob = await fileBlob(doc, index)
         const blobUrl = URL.createObjectURL(blob)
-        if (isPdf) {
-          newWindow.document.write(`
-            <!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeName}</title></head>
-            <body style="margin:0;overflow:hidden">
-              <iframe src="${blobUrl}" style="width:100%;height:100vh;border:none;" title="${safeName}"></iframe>
-            </body></html>
-          `)
-        } else {
-          newWindow.document.write(`
-            <!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeName}</title>
-            <style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1a1a1a}</style></head>
-            <body><img src="${blobUrl}" alt="${safeName}" style="max-width:100%;max-height:100vh;object-fit:contain" /></body></html>
-          `)
-        }
+        newWindow.document.write(`
+          <!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeName}</title>
+          <style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1a1a1a}</style></head>
+          <body><img src="${blobUrl}" alt="${safeName}" style="max-width:100%;max-height:100vh;object-fit:contain" /></body></html>
+        `)
         newWindow.document.close()
         newWindow.addEventListener('beforeunload', () => URL.revokeObjectURL(blobUrl))
       } catch (e) {

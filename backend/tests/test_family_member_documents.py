@@ -24,6 +24,15 @@ ANEXO_JSON = json.dumps(ANEXO)
 TOKEN = "token-integracao"
 
 
+def test_content_disposition_usa_o_nome_real():
+    from app.utils.file_response import content_disposition
+
+    header = content_disposition("exame do joão.pdf")
+    assert header.startswith("attachment;")
+    assert "filename*=UTF-8''exame%20do%20jo%C3%A3o.pdf" in header
+    assert 'filename="carteirinha.pdf"' in content_disposition("carteirinha.pdf")
+
+
 def test_update_sem_documents_nao_inclui_o_campo():
     data = FamilyMemberUpdate(name="Ana")
     dumped = data.model_dump(exclude_unset=True)

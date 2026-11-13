@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import api from '../../lib/api'
+import { baixarBlob, nomeParaDownload } from '../../utils/baixarArquivo'
 import { useAuthStore } from '../../stores/authStore'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
@@ -243,10 +244,13 @@ export default function Provas() {
 
   const abrirPdf = async () => {
     if (!detalhe?.cronograma) return
-    const resposta = await api.get(`/estudos/cronogramas/${detalhe.cronograma.id}/pdf`, { responseType: 'blob' })
-    const url = URL.createObjectURL(new Blob([resposta.data], { type: 'application/pdf' }))
-    const aba = window.open(url)
-    if (!aba) window.location.assign(url)
+    try {
+      const resposta = await api.get(`/estudos/cronogramas/${detalhe.cronograma.id}/pdf`, { responseType: 'blob' })
+      const nome = nomeParaDownload(detalhe.pdf?.nome || 'cronograma.pdf', 'application/pdf')
+      baixarBlob(new Blob([resposta.data], { type: 'application/pdf' }), nome, 'application/pdf')
+    } catch {
+      alert('Não foi possível baixar o PDF.')
+    }
   }
 
   return (

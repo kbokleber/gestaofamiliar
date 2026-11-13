@@ -732,7 +732,13 @@ async def get_receipt(
         doc = docs[0]
         content = base64.b64decode(doc['content'])
         media_type = doc.get('type', 'application/octet-stream')
-        return Response(content=content, media_type=media_type)
+        from app.utils.file_response import content_disposition
+        nome = str(doc.get('name') or 'comprovante')
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={"Content-Disposition": content_disposition(nome)},
+        )
     except Exception as e:
         import logging
         logging.error(f"Erro ao ler comprovante: {e}")

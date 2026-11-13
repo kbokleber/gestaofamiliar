@@ -1,8 +1,17 @@
 import base64
 import io
 import json
+from urllib.parse import quote
 from fastapi import HTTPException, status
 from fastapi.responses import StreamingResponse
+
+
+def content_disposition(filename: str, disposition: str = "attachment") -> str:
+    """Content-Disposition com o nome real. filename* cobre acentos; filename é o fallback ASCII."""
+    nome = (filename or "arquivo").replace("\r", "").replace("\n", "").replace('"', "").strip() or "arquivo"
+    ascii_nome = nome.encode("ascii", "ignore").decode().strip() or "arquivo"
+    utf8 = quote(nome, safe="")
+    return f"{disposition}; filename=\"{ascii_nome}\"; filename*=UTF-8''{utf8}"
 
 def get_document_response(documents_json: str, doc_index: int, item_name: str = "Item"):
     """
@@ -48,7 +57,7 @@ def get_document_response(documents_json: str, doc_index: int, item_name: str = 
             file_io,
             media_type=doc_type,
             headers={
-                "Content-Disposition": f'attachment; filename="{doc_name}"'
+                "Content-Disposition": content_disposition(doc_name)
             }
         )
     except Exception as e:

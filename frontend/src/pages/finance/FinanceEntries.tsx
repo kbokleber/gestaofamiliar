@@ -23,6 +23,7 @@ import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import api from '../../lib/api'
+import { baixarBlob, ehPdf, nomeParaDownload } from '../../utils/baixarArquivo'
 import { useAuthStore } from '../../stores/authStore'
 import BankImportModal from '../../components/finance/BankImportModal'
 
@@ -559,15 +560,41 @@ export default function FinanceEntries() {
     )
   }
 
+  const abrirComprovante = (blob: Blob, nome: string, tipo: string) => {
+    if (ehPdf(tipo, nome)) {
+      baixarBlob(blob, nomeParaDownload(nome, tipo), tipo || 'application/pdf')
+      return
+    }
+    const url = URL.createObjectURL(blob)
+    const aba = window.open(url, '_blank')
+    if (!aba) {
+      baixarBlob(blob, nomeParaDownload(nome, tipo), tipo)
+      return
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  }
+
   const handleViewReceipt = async (documentsJson: string) => {
     try {
+      let nome = 'comprovante'
+      let tipo = ''
+      try {
+        const docs = JSON.parse(documentsJson)
+        if (docs?.[0]) {
+          nome = docs[0].name || nome
+          tipo = docs[0].type || ''
+        }
+      } catch {
+        /* o endpoint autenticado ainda pode entregar o arquivo */
+      }
+
       if (selectedEntry && formData.documents === selectedEntry.documents) {
         const tokenStr = localStorage.getItem('auth-storage');
         const token = tokenStr ? JSON.parse(tokenStr).state?.token : '';
         if (token) {
           const response = await api.get(`/finance/entries/${selectedEntry.id}/receipt`, { responseType: 'blob' });
-          const url = URL.createObjectURL(response.data);
-          window.open(url, '_blank');
+          const blob = response.data as Blob
+          abrirComprovante(blob, nome, tipo || blob.type || 'image/jpeg')
           return;
         }
       }
@@ -585,9 +612,8 @@ export default function FinanceEntries() {
         for (let i = 0; i < byteString.length; i++) {
           ia[i] = byteString.charCodeAt(i)
         }
-        const blob = new Blob([ab], { type: doc.type || 'image/jpeg' })
-        const url = URL.createObjectURL(blob)
-        window.open(url, '_blank')
+        const mime = doc.type || 'image/jpeg'
+        abrirComprovante(new Blob([ab], { type: mime }), doc.name || nome, mime)
       }
     } catch (error) {
       console.error('Erro ao visualizar comprovante:', error)
