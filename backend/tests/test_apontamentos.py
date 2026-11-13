@@ -191,6 +191,49 @@ def test_import_preenche_bimestre_pela_data(ambiente):
     assert len(lista.json()) == 1
 
 
+def test_lista_sem_aluno_id_reune_os_filhos_com_nome(ambiente):
+    from datetime import date
+
+    cliente, db, estado = ambiente
+    agora = datetime.now(timezone.utc)
+    giovana = User(
+        id=17, username="giovana", password="x", email="", first_name="Giovana", last_name="Bueno",
+        is_staff=False, is_superuser=False, is_active=True, is_child=True, date_joined=agora,
+        family_id=1, allowed_menus=["estudos"],
+    )
+    db.add(giovana)
+    db.add(Apontamento(
+        family_id=1, aluno_id=16, chave_origem="eclass-16-todos",
+        data=date(2026, 10, 21), disciplina="Língua Portuguesa", professor="",
+        tipo="Observação", titulo="Do Guilherme", descricao="g",
+        bimestre=4, ano_letivo=2026, fonte="e-class", hash_conteudo="g", created_by_id=1,
+    ))
+    db.add(Apontamento(
+        family_id=1, aluno_id=17, chave_origem="eclass-17-todos",
+        data=date(2026, 10, 22), disciplina="Matemática", professor="",
+        tipo="Observação", titulo="Da Giovana", descricao="v",
+        bimestre=4, ano_letivo=2026, fonte="e-class", hash_conteudo="v", created_by_id=1,
+    ))
+    db.commit()
+
+    todos = cliente.get("/api/v1/estudos/apontamentos", params={"ano_letivo": 2026})
+    assert todos.status_code == 200
+    por_titulo = {item["titulo"]: item for item in todos.json()}
+    assert set(por_titulo) == {"Do Guilherme", "Da Giovana"}
+    assert por_titulo["Do Guilherme"]["aluno_id"] == 16
+    assert por_titulo["Do Guilherme"]["aluno_nome"] == "Guilherme"
+    assert por_titulo["Da Giovana"]["aluno_id"] == 17
+    assert por_titulo["Da Giovana"]["aluno_nome"] == "Giovana Bueno"
+
+    so_giovana = cliente.get("/api/v1/estudos/apontamentos", params={"aluno_id": 17, "ano_letivo": 2026})
+    assert [item["titulo"] for item in so_giovana.json()] == ["Da Giovana"]
+
+    estado["user"] = db.get(User, 16)
+    do_filho = cliente.get("/api/v1/estudos/apontamentos", params={"ano_letivo": 2026})
+    assert [item["titulo"] for item in do_filho.json()] == ["Do Guilherme"]
+    assert do_filho.json()[0]["aluno_nome"] == "Guilherme"
+
+
 def test_lido_por_pessoa_e_filtro(ambiente):
     from datetime import date
 

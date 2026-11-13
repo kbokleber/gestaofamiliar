@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, extract, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.estudo import Apontamento, ApontamentoLido
 from app.models.user import User
@@ -97,11 +97,19 @@ def _pacote(item: ApontamentoItemIn, bimestre: Optional[int], ano_letivo: int) -
     }
 
 
+def _nome_aluno(aluno: Optional[User]) -> str:
+    if aluno is None:
+        return ""
+    nome = f"{aluno.first_name or ''} {aluno.last_name or ''}".strip()
+    return nome or aluno.username or ""
+
+
 def serial_apontamento(item: Apontamento, lido: bool = False) -> dict:
     return {
         "id": item.id,
         "chave_origem": item.chave_origem,
         "aluno_id": item.aluno_id,
+        "aluno_nome": _nome_aluno(item.aluno),
         "data": item.data,
         "disciplina": item.disciplina,
         "professor": item.professor,
@@ -228,7 +236,11 @@ def listar_apontamentos(
     lidos: bool = False,
 ) -> list[Apontamento]:
     family_id = familia_do(usuario)
-    consulta = db.query(Apontamento).filter(Apontamento.family_id == family_id)
+    consulta = (
+        db.query(Apontamento)
+        .options(joinedload(Apontamento.aluno))
+        .filter(Apontamento.family_id == family_id)
+    )
     escopo = aluno_leitura(usuario, aluno_id)
     if escopo is not None:
         if not usuario.is_child:

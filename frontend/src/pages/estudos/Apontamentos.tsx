@@ -26,6 +26,7 @@ interface Apontamento {
   id: number
   chave_origem: string
   aluno_id: number
+  aluno_nome?: string
   data: string | null
   disciplina: string
   professor: string
@@ -39,10 +40,17 @@ interface Apontamento {
   lido?: boolean
 }
 
+const FILTRO_TODOS = 'todos'
+
 function fmtData(isoData: string | null) {
   if (!isoData) return '—'
   const [y, m, d] = isoData.split('-')
   return `${d}/${m}/${y}`
+}
+
+function nomeDoFilho(item: Apontamento, filhos: { id: number; nome: string }[]) {
+  const cadastrado = filhos.find((aluno) => aluno.id === item.aluno_id)?.nome
+  return (item.aluno_nome || cadastrado || '').trim()
 }
 
 export default function Apontamentos() {
@@ -93,21 +101,24 @@ export default function Apontamentos() {
     return Array.from(mapa, ([id, nome]) => ({ id, nome }))
   }, [usuarios, cronogramas, user?.family_id])
 
+  const verTodos = !filho && alunoId === FILTRO_TODOS
   const alunoAtivo = filho
     ? String(user?.id || '')
-    : (alunoId || (filhos[0] ? String(filhos[0].id) : ''))
+    : verTodos
+      ? ''
+      : (alunoId || (filhos[0] ? String(filhos[0].id) : ''))
 
   const { data: itens = [], isLoading, isError } = useQuery<Apontamento[]>({
-    queryKey: ['apontamentos', alunoAtivo, bimestre, anoLetivo, podeMarcarLido && mostrarLidas],
+    queryKey: ['apontamentos', verTodos ? FILTRO_TODOS : alunoAtivo, bimestre, anoLetivo, podeMarcarLido && mostrarLidas],
     queryFn: async () => {
       const params: Record<string, string | number> = { limite: 200 }
-      if (alunoAtivo) params.aluno_id = Number(alunoAtivo)
+      if (!verTodos && alunoAtivo) params.aluno_id = Number(alunoAtivo)
       if (bimestre) params.bimestre = Number(bimestre)
       if (anoLetivo) params.ano_letivo = Number(anoLetivo)
       if (podeMarcarLido && mostrarLidas) params.lidos = 1
       return (await api.get('/estudos/apontamentos', { params })).data
     },
-    enabled: !!alunoAtivo,
+    enabled: verTodos || !!alunoAtivo,
   })
 
   const toggleLido = useMutation({
@@ -143,11 +154,12 @@ export default function Apontamentos() {
       <div className="mb-4 grid gap-2 sm:grid-cols-3">
         {!filho && (
           <select
-            value={alunoAtivo}
+            value={verTodos ? FILTRO_TODOS : alunoAtivo}
             onChange={(e) => setAlunoId(e.target.value)}
             className={campo}
             aria-label="Filho"
           >
+            <option value={FILTRO_TODOS}>Todos os filhos</option>
             {filhos.map((aluno) => (
               <option key={aluno.id} value={aluno.id}>{aluno.nome}</option>
             ))}
@@ -175,14 +187,14 @@ export default function Apontamentos() {
         )}
       </div>
 
-      {!alunoAtivo && (
+      {!verTodos && !alunoAtivo && (
         <p className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-gray-600">
           Selecione um filho para ver os apontamentos.
         </p>
       )}
-      {alunoAtivo && isLoading && <p className="text-gray-600">Carregando apontamentos…</p>}
-      {alunoAtivo && isError && <p className="text-red-700">Não foi possível carregar os apontamentos.</p>}
-      {alunoAtivo && !isLoading && !isError && itens.length === 0 && (
+      {(verTodos || alunoAtivo) && isLoading && <p className="text-gray-600">Carregando apontamentos…</p>}
+      {(verTodos || alunoAtivo) && isError && <p className="text-red-700">Não foi possível carregar os apontamentos.</p>}
+      {(verTodos || alunoAtivo) && !isLoading && !isError && itens.length === 0 && (
         <p className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-gray-600">
           {mostrarLidas
             ? 'Nenhum apontamento lido neste filtro.'
@@ -201,7 +213,12 @@ export default function Apontamentos() {
               className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left hover:border-amber-300 hover:bg-amber-50/40"
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="font-semibold text-gray-900">{item.titulo || item.tipo || 'Apontamento'}</p>
+                <div>
+                  {verTodos && (
+                    <p className="text-sm font-semibold text-amber-900">{nomeDoFilho(item, filhos) || 'Filho'}</p>
+                  )}
+                  <p className="font-semibold text-gray-900">{item.titulo || item.tipo || 'Apontamento'}</p>
+                </div>
                 <p className="text-sm text-gray-600">
                   {fmtData(item.data)}
                   {item.bimestre != null && (
@@ -229,6 +246,7 @@ export default function Apontamentos() {
       >
         {selecionado && (
           <div className="space-y-2 text-left text-sm text-gray-800">
+            <p><span className="text-gray-500">Filho:</span> {nomeDoFilho(selecionado, filhos) || 'Filho'}</p>
             <p><span className="text-gray-500">Data:</span> {fmtData(selecionado.data)}</p>
             {selecionado.tipo && <p><span className="text-gray-500">Tipo:</span> {selecionado.tipo}</p>}
             {selecionado.disciplina && <p><span className="text-gray-500">Disciplina:</span> {selecionado.disciplina}</p>}
