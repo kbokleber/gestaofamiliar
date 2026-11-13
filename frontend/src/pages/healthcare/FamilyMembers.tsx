@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical, Camera, Image } from 'lucide-react'
+import { Users, Plus, Edit2, Trash2, Calendar, User, ArrowLeft, GripVertical, Camera, Image, Paperclip } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 import DateInput from '../../components/DateInput'
+import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import Loading from '../../components/Loading'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateBR, calculateAge, toDateInputValue } from '../../utils/dateUtils'
@@ -39,6 +40,8 @@ interface FamilyMember {
   blood_type?: string
   notes?: string
   photo?: string
+  documents?: string | null
+  has_documents?: boolean
   order: number
   created_at: string
   updated_at: string
@@ -56,6 +59,7 @@ export default function FamilyMembers() {
   const photoTimingRef = useRef<{ start: number; end?: number } | null>(null)
   const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [documents, setDocuments] = useState<Document[]>([])
   const [formData, setFormData] = useState({
     name: '',
     birth_date: '',
@@ -156,6 +160,9 @@ export default function FamilyMembers() {
         dataToSend.photo = base64
       }
 
+      // Serializar anexos no mesmo formato das consultas/procedimentos/medicamentos
+      dataToSend.documents = documents.length > 0 ? JSON.stringify(documents) : null
+
       // Remover order do dataToSend - a ordem será gerenciada pelo drag and drop
       delete dataToSend.order
 
@@ -196,25 +203,44 @@ export default function FamilyMembers() {
     }
   }
 
-  const startEdit = (member: FamilyMember) => {
-    setEditingMember(member)
-    setPhotoPreview(getPhotoUrl(member.photo))
-    setPhotoFile(null)
-    setFormData({
-      name: member.name,
-      birth_date: toDateInputValue(member.birth_date) || '',
-      gender: member.gender || 'M',
-      relationship_type: member.relationship_type || '',
-      blood_type: member.blood_type || '',
-      allergies: (member as any).allergies || '',
-      chronic_conditions: (member as any).chronic_conditions || '',
-      emergency_contact: (member as any).emergency_contact || '',
-      emergency_phone: (member as any).emergency_phone || '',
-      notes: member.notes || '',
-      order: member.order || 0
-    })
-    console.log('Editando membro - Parentesco:', member.relationship_type)
-    setIsEditingInline(true)
+  const applyDocuments = (raw: string | null | undefined) => {
+    if (!raw) {
+      setDocuments([])
+      return
+    }
+    try {
+      setDocuments(JSON.parse(raw))
+    } catch {
+      setDocuments([])
+    }
+  }
+
+  const startEdit = async (member: FamilyMember) => {
+    try {
+      const response = await api.get(`/healthcare/members/${member.id}`)
+      const fullMember: FamilyMember = response.data
+      setEditingMember(fullMember)
+      setPhotoPreview(getPhotoUrl(fullMember.photo))
+      setPhotoFile(null)
+      setFormData({
+        name: fullMember.name,
+        birth_date: toDateInputValue(fullMember.birth_date) || '',
+        gender: fullMember.gender || 'M',
+        relationship_type: fullMember.relationship_type || '',
+        blood_type: fullMember.blood_type || '',
+        allergies: (fullMember as any).allergies || '',
+        chronic_conditions: (fullMember as any).chronic_conditions || '',
+        emergency_contact: (fullMember as any).emergency_contact || '',
+        emergency_phone: (fullMember as any).emergency_phone || '',
+        notes: fullMember.notes || '',
+        order: fullMember.order || 0
+      })
+      applyDocuments(fullMember.documents)
+      setIsEditingInline(true)
+    } catch (err: any) {
+      console.error('Erro ao carregar membro:', err)
+      alert(err.response?.data?.detail || 'Erro ao carregar os anexos do membro')
+    }
   }
 
   const cancelEdit = () => {
@@ -223,6 +249,7 @@ export default function FamilyMembers() {
     setPhotoPreview(null)
     setPhotoFile(null)
     setShowPhotoMenu(false)
+    setDocuments([])
     setFormData({
       name: '',
       birth_date: '',
@@ -255,6 +282,7 @@ export default function FamilyMembers() {
     setEditingMember(null)
     setPhotoPreview(null)
     setPhotoFile(null)
+    setDocuments([])
     setViewMode('create')
   }
 
@@ -276,6 +304,7 @@ export default function FamilyMembers() {
     setEditingMember(null)
     setPhotoPreview(null)
     setPhotoFile(null)
+    setDocuments([])
   }
 
 
@@ -482,8 +511,11 @@ export default function FamilyMembers() {
           </div>
 
           {/* Nome */}
-          <h3 className="text-xl font-semibold text-gray-900 text-center mb-4">
-            {member.name}
+          <h3 className="text-xl font-semibold text-gray-900 text-center mb-4 flex items-center justify-center gap-2">
+            <span>{member.name}</span>
+            {(member.documents || member.has_documents) && (
+              <Paperclip className="h-4 w-4 text-blue-500 shrink-0" aria-label="Possui documentos anexados" />
+            )}
           </h3>
 
           {/* Informações */}
@@ -786,6 +818,15 @@ export default function FamilyMembers() {
                 </p>
               </div>
 
+              <div>
+                <DocumentUpload
+                  documents={documents}
+                  onChange={setDocuments}
+                  maxFiles={10}
+                  maxSizeMB={10}
+                />
+              </div>
+
               <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t border-gray-200">
                 <button 
                   type="button" 
@@ -1056,6 +1097,15 @@ export default function FamilyMembers() {
                 rows={3} 
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Informações adicionais..."
+              />
+            </div>
+
+            <div>
+              <DocumentUpload
+                documents={documents}
+                onChange={setDocuments}
+                maxFiles={10}
+                maxSizeMB={10}
               />
             </div>
 

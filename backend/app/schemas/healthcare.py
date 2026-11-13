@@ -16,6 +16,7 @@ class FamilyMemberBase(BaseModel):
     emergency_phone: Optional[str] = None
     notes: str = ""
     order: int = 0
+    documents: Optional[str] = None  # JSON string com array de documentos
 
 class FamilyMemberCreate(FamilyMemberBase):
     photo: Optional[str] = None  # Base64 string da foto
@@ -33,6 +34,7 @@ class FamilyMemberUpdate(BaseModel):
     notes: Optional[str] = None
     order: Optional[int] = None
     photo: Optional[str] = None
+    documents: Optional[str] = None  # JSON string com array de documentos
 
 def _parse_datetime(v: Any) -> datetime:
     """Aceita datetime ou string ISO do banco."""
@@ -63,6 +65,8 @@ def _parse_date(v: Any) -> date:
 class FamilyMember(FamilyMemberBase):
     id: int
     photo: Optional[Any] = None
+    documents: Optional[str] = None
+    has_documents: Optional[bool] = None
     created_at: datetime
     updated_at: datetime
 

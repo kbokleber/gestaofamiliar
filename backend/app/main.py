@@ -69,6 +69,9 @@ def startup_create_tables():
                 "ALTER TABLE auth_user ADD COLUMN IF NOT EXISTS allowed_menus JSON"
             ))
             conn.execute(text(
+                "ALTER TABLE healthcare_familymember ADD COLUMN IF NOT EXISTS documents TEXT"
+            ))
+            conn.execute(text(
                 "ALTER TABLE auth_user ADD COLUMN IF NOT EXISTS is_child BOOLEAN NOT NULL DEFAULT FALSE"
             ))
             conn.execute(text(

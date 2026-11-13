@@ -84,10 +84,12 @@ async def list_family_members(
     family_id: Optional[int] = Depends(get_current_family),
     include_photos: bool = True,
     photo_thumb: bool = True,
+    include_documents: bool = False,
 ):
     """Listar todos os membros da família (compartilhados entre usuários da mesma família) ordenados por 'order' e depois nome.
     Use include_photos=false para carregamento mais rápido (sem fotos).
-    Com include_photos=true, photo_thumb=true (padrão) retorna fotos redimensionadas para listagem (melhor em mobile)."""
+    Com include_photos=true, photo_thumb=true (padrão) retorna fotos redimensionadas para listagem (melhor em mobile).
+    Use include_documents=true para trazer o JSON dos anexos; o padrão omite o conteúdo e devolve has_documents."""
     from app.api.deps import get_user_family_ids
     from app.utils.image import resize_photo_base64
 
@@ -105,7 +107,31 @@ async def list_family_members(
         if not include_photos:
             query = query.options(defer(FamilyMember.photo))
 
-        members = query.order_by(FamilyMember.order, FamilyMember.name).all()
+        has_documents_flags: List[bool] = []
+        if not include_documents:
+            from sqlalchemy.orm.attributes import set_committed_value
+
+            has_docs_col = (
+                func.coalesce(func.length(FamilyMember.documents), 0) > 2
+            ).label("has_documents")
+            rows = (
+                query.options(defer(FamilyMember.documents))
+                .add_columns(has_docs_col)
+                .order_by(FamilyMember.order, FamilyMember.name)
+                .all()
+            )
+            members = []
+            for row in rows:
+                member = row[0]
+                # Evita carregar o TEXT dos anexos na listagem.
+                set_committed_value(member, "documents", None)
+                members.append(member)
+                has_documents_flags.append(bool(row[1]))
+        else:
+            members = query.order_by(FamilyMember.order, FamilyMember.name).all()
+            has_documents_flags = [
+                bool(m.documents and len(m.documents) > 2) for m in members
+            ]
 
         if not include_photos:
             return [
@@ -123,17 +149,23 @@ async def list_family_members(
                     "notes": m.notes,
                     "order": m.order,
                     "photo": None,
+                    "documents": m.documents if include_documents else None,
+                    "has_documents": has_documents_flags[i],
                     "created_at": m.created_at,
                     "updated_at": m.updated_at,
                 }
-                for m in members
+                for i, m in enumerate(members)
             ]
 
         result: List[FamilyMemberSchema] = []
         member_index_in_result: List[int] = []
         for i, m in enumerate(members):
             try:
-                result.append(FamilyMemberSchema.model_validate(m))
+                result.append(
+                    FamilyMemberSchema.model_validate(m).model_copy(
+                        update={"has_documents": has_documents_flags[i]}
+                    )
+                )
                 member_index_in_result.append(i)
             except Exception as e:
                 logger.warning("list_family_members: skip member id=%s: %s", getattr(m, "id", "?"), e)
@@ -210,6 +242,45 @@ async def get_family_member(
         )
     
     return member
+
+@router.get("/members/{member_id}/documents/{doc_index}/download")
+async def download_family_member_document(
+    member_id: int,
+    doc_index: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    family_id: Optional[int] = Depends(get_current_family)
+):
+    """Baixar um anexo de um membro da família"""
+    from app.api.deps import get_user_family_ids
+    from app.utils.file_response import get_document_response
+
+    if (current_user.is_superuser or current_user.is_staff) and family_id is None:
+        family_ids = get_user_family_ids(current_user, db)
+        if not family_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Membro da família não encontrado"
+            )
+        member = db.query(FamilyMember).filter(
+            FamilyMember.id == member_id,
+            FamilyMember.family_id.in_(family_ids)
+        ).first()
+    else:
+        if family_id is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não especificada")
+        member = db.query(FamilyMember).filter(
+            FamilyMember.id == member_id,
+            FamilyMember.family_id == family_id
+        ).first()
+
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Membro da família não encontrado"
+        )
+
+    return get_document_response(member.documents, doc_index, "Membro da família")
 
 # IMPORTANTE: Rota específica /members/reorder DEVE vir ANTES de /members/{member_id}
 @router.put("/members/reorder", status_code=status.HTTP_200_OK)
@@ -290,17 +361,27 @@ async def update_family_member(
             detail="Membro da família não encontrado"
         )
     
+    # Só altera documents se o campo veio no payload. PUT parcial sem
+    # documents preserva os anexos já gravados (exclude_unset).
     update_dict = member_data.model_dump(exclude_unset=True)
     
-    # Log especial para foto (não mostrar a string inteira pois é muito grande)
+    # Log especial para foto e anexos (não mostrar a string inteira)
     log_dict = update_dict.copy()
     if 'photo' in log_dict and log_dict['photo']:
         log_dict['photo'] = f"<base64 string com {len(log_dict['photo'])} caracteres>"
+    if 'documents' in log_dict:
+        docs_val = log_dict['documents']
+        log_dict['documents'] = f"<json com {len(docs_val)} caracteres>" if docs_val else None
     logger.info(f"🔄 Atualizando membro {member_id} com dados: {log_dict}")
     
     for field, value in update_dict.items():
         if field == 'photo' and value:
             logger.info(f"   ➡️ Setando {field} = <base64 string com {len(value)} caracteres>")
+        elif field == 'documents':
+            logger.info(
+                "   ➡️ Setando documents = %s",
+                f"<json com {len(value)} caracteres>" if value else None,
+            )
         else:
             logger.info(f"   ➡️ Setando {field} = {value} (tipo: {type(value)})")
         setattr(member, field, value)

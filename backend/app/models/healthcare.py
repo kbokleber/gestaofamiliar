@@ -24,9 +24,14 @@ class FamilyMember(Base):
     emergency_contact = Column(String(100), nullable=True)
     emergency_phone = Column(String(20), nullable=True)
     notes = Column(Text, nullable=False, default='')
+    documents = Column(Text, nullable=True)  # JSON com array de documentos em base64
     order = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    @property
+    def has_documents(self):
+        return bool(self.documents and len(self.documents) > 2)
     
     # Relacionamentos
     family = relationship("Family", back_populates="family_members")
