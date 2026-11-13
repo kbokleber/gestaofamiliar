@@ -1,7 +1,22 @@
-from pydantic import BaseModel, field_serializer, field_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator
 from typing import Optional, List, Any
 from datetime import date, datetime
 import base64
+
+# Mesmo formato de consultas, procedimentos e medicamentos.
+DOCUMENTS_DESCRIPTION = (
+    "JSON string com a lista de anexos. Cada item é um objeto "
+    "{name, type, size, data}: name é o nome do arquivo, type o MIME, "
+    "size o tamanho em bytes e data o conteúdo em base64 puro, sem o prefixo data:. "
+    "Exemplo: "
+    '[{\"name\":\"carteirinha.pdf\",\"type\":\"application/pdf\",\"size\":4,\"data\":\"YQ==\"}].'
+)
+DOCUMENTS_EXAMPLE = '[{"name":"carteirinha.pdf","type":"application/pdf","size":4,"data":"YQ=="}]'
+DOCUMENTS_UPDATE_DESCRIPTION = (
+    DOCUMENTS_DESCRIPTION
+    + " No PUT, omitir o campo preserva os anexos já gravados; "
+    "enviar null remove todos; enviar a string JSON substitui a lista."
+)
 
 # FamilyMember Schemas
 class FamilyMemberBase(BaseModel):
@@ -16,7 +31,11 @@ class FamilyMemberBase(BaseModel):
     emergency_phone: Optional[str] = None
     notes: str = ""
     order: int = 0
-    documents: Optional[str] = None  # JSON string com array de documentos
+    documents: Optional[str] = Field(
+        default=None,
+        description=DOCUMENTS_DESCRIPTION,
+        examples=[DOCUMENTS_EXAMPLE],
+    )
 
 class FamilyMemberCreate(FamilyMemberBase):
     photo: Optional[str] = None  # Base64 string da foto
@@ -34,7 +53,11 @@ class FamilyMemberUpdate(BaseModel):
     notes: Optional[str] = None
     order: Optional[int] = None
     photo: Optional[str] = None
-    documents: Optional[str] = None  # JSON string com array de documentos
+    documents: Optional[str] = Field(
+        default=None,
+        description=DOCUMENTS_UPDATE_DESCRIPTION,
+        examples=[DOCUMENTS_EXAMPLE],
+    )
 
 def _parse_datetime(v: Any) -> datetime:
     """Aceita datetime ou string ISO do banco."""
@@ -65,8 +88,15 @@ def _parse_date(v: Any) -> date:
 class FamilyMember(FamilyMemberBase):
     id: int
     photo: Optional[Any] = None
-    documents: Optional[str] = None
-    has_documents: Optional[bool] = None
+    documents: Optional[str] = Field(
+        default=None,
+        description=DOCUMENTS_DESCRIPTION,
+        examples=[DOCUMENTS_EXAMPLE],
+    )
+    has_documents: Optional[bool] = Field(
+        default=None,
+        description="Verdadeiro quando o membro tem anexos. Na listagem sem include_documents, documents vem nulo e este indicador permanece.",
+    )
     created_at: datetime
     updated_at: datetime
 

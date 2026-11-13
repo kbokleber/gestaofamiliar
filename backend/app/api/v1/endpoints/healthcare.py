@@ -1,6 +1,6 @@
 import base64
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session, defer
@@ -34,7 +34,11 @@ async def create_family_member(
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Criar novo membro da família (compartilhado entre todos os usuários da mesma família)"""
+    """Criar novo membro da família (compartilhado entre todos os usuários da mesma família).
+
+    Autenticação: Bearer ou header X-API-Token.
+    Anexos vão no campo documents, uma string JSON com a lista de {name, type, size, data}.
+    """
     from app.api.deps import get_user_family_ids
     
     # Se for admin sem family_id especificado, usar a primeira família do admin
@@ -84,9 +88,14 @@ async def list_family_members(
     family_id: Optional[int] = Depends(get_current_family),
     include_photos: bool = True,
     photo_thumb: bool = True,
-    include_documents: bool = False,
+    include_documents: bool = Query(
+        False,
+        description="Quando true, devolve o JSON dos anexos em documents. O padrão omite o conteúdo e preenche has_documents.",
+    ),
 ):
     """Listar todos os membros da família (compartilhados entre usuários da mesma família) ordenados por 'order' e depois nome.
+
+    Autenticação: Bearer ou header X-API-Token.
     Use include_photos=false para carregamento mais rápido (sem fotos).
     Com include_photos=true, photo_thumb=true (padrão) retorna fotos redimensionadas para listagem (melhor em mobile).
     Use include_documents=true para trazer o JSON dos anexos; o padrão omite o conteúdo e devolve has_documents."""
@@ -211,7 +220,10 @@ async def get_family_member(
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Obter detalhes de um membro da família"""
+    """Obter detalhes de um membro da família, inclusive o JSON completo dos anexos.
+
+    Autenticação: Bearer ou header X-API-Token.
+    """
     from app.api.deps import get_user_family_ids
     
     # Se for admin sem family_id especificado, verificar se o membro pertence a alguma das famílias do admin
@@ -243,7 +255,19 @@ async def get_family_member(
     
     return member
 
-@router.get("/members/{member_id}/documents/{doc_index}/download")
+@router.get(
+    "/members/{member_id}/documents/{doc_index}/download",
+    responses={
+        200: {
+            "description": "Arquivo do anexo. O Content-Type é o type gravado e o Content-Disposition traz o name.",
+            "content": {
+                "application/octet-stream": {
+                    "schema": {"type": "string", "format": "binary"}
+                }
+            },
+        }
+    },
+)
 async def download_family_member_document(
     member_id: int,
     doc_index: int,
@@ -251,7 +275,11 @@ async def download_family_member_document(
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Baixar um anexo de um membro da família"""
+    """Baixar um anexo de um membro da família.
+
+    Autenticação: Bearer ou header X-API-Token.
+    doc_index é a posição do item na lista documents (começa em 0).
+    """
     from app.api.deps import get_user_family_ids
     from app.utils.file_response import get_document_response
 
@@ -329,7 +357,13 @@ async def update_family_member(
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Atualizar membro da família"""
+    """Atualizar membro da família.
+
+    Autenticação: Bearer ou header X-API-Token.
+    Anexos: envie documents com a string JSON para substituir a lista.
+    Se o campo não vier no payload, os anexos já gravados são preservados.
+    Enviar documents null remove todos.
+    """
     import logging
     from app.api.deps import get_user_family_ids
     logger = logging.getLogger("uvicorn")
