@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session, defer
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime, timezone
 from app.db.base import get_db
 
@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.healthcare import FamilyMember, MedicalAppointment, MedicalProcedure, Medication
 from app.schemas.healthcare import (
     FamilyMember as FamilyMemberSchema, 
-    FamilyMemberCreate, FamilyMemberUpdate, FamilyMemberDetail,
+    FamilyMemberCreate, FamilyMemberUpdate, FamilyMemberEdit, FamilyMemberDetail,
     FamilyMemberOrderItem,
     MedicalAppointment as MedicalAppointmentSchema,
     MedicalAppointmentCreate, MedicalAppointmentUpdate,
@@ -213,19 +213,41 @@ async def list_family_members(
         logger.exception("list_family_members failed: %s", e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@router.get("/members/{member_id}", response_model=FamilyMemberDetail)
+@router.get(
+    "/members/{member_id}",
+    response_model=Union[FamilyMemberEdit, FamilyMemberDetail],
+)
 async def get_family_member(
     member_id: int,
+    include_history: bool = Query(
+        False,
+        description="Quando true, inclui consultas, procedimentos e medicamentos. O padrão omite o histórico.",
+    ),
+    include_documents: bool = Query(
+        False,
+        description="Quando true, documents traz o JSON com data em base64. O padrão devolve só index, name, type e size.",
+    ),
+    photo_thumb: bool = Query(
+        True,
+        description="Quando true (padrão), photo é uma miniatura. false devolve a foto original.",
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     family_id: Optional[int] = Depends(get_current_family)
 ):
-    """Obter detalhes de um membro da família, inclusive o JSON completo dos anexos.
+    """Obter o cadastro de um membro para edição.
 
     Autenticação: Bearer ou header X-API-Token.
+    O padrão não traz consultas, procedimentos nem medicamentos, reduz a foto
+    e devolve os anexos do membro só com index, name, type e size.
+    include_history=true devolve o histórico. include_documents=true devolve
+    o base64 dos anexos do membro. photo_thumb=false devolve a foto original.
     """
+    import asyncio
     from app.api.deps import get_user_family_ids
-    
+    from app.utils.image import resize_photo_base64
+    from app.utils.member_documents import documents_metadata
+
     # Se for admin sem family_id especificado, verificar se o membro pertence a alguma das famílias do admin
     if (current_user.is_superuser or current_user.is_staff) and family_id is None:
         family_ids = get_user_family_ids(current_user, db)
@@ -246,14 +268,29 @@ async def get_family_member(
             FamilyMember.id == member_id,
             FamilyMember.family_id == family_id
         ).first()
-    
+
     if not member:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Membro da família não encontrado"
         )
-    
-    return member
+
+    photo_value = _member_photo_for_list(member.photo)
+    if photo_thumb and photo_value:
+        photo_value = await asyncio.to_thread(resize_photo_base64, photo_value)
+    documents_value = member.documents if include_documents else documents_metadata(member.documents)
+    has_documents = bool(member.documents and len(member.documents) > 2)
+    updates = {
+        "photo": photo_value,
+        "documents": documents_value,
+        "has_documents": has_documents,
+    }
+    # JSONResponse evita o response_model preencher o histórico com listas vazias.
+    if include_history:
+        detail = FamilyMemberDetail.model_validate(member).model_copy(update=updates)
+        return JSONResponse(content=detail.model_dump(mode="json"))
+    edit = FamilyMemberEdit.model_validate(member).model_copy(update=updates)
+    return JSONResponse(content=edit.model_dump(mode="json"))
 
 @router.get(
     "/members/{member_id}/documents/{doc_index}/download",
@@ -360,9 +397,10 @@ async def update_family_member(
     """Atualizar membro da família.
 
     Autenticação: Bearer ou header X-API-Token.
-    Anexos: envie documents com a string JSON para substituir a lista.
-    Se o campo não vier no payload, os anexos já gravados são preservados.
-    Enviar documents null remove todos.
+    Anexos: se o campo não vier no payload, os anexos já gravados são preservados.
+    Enviar documents null ou uma lista vazia remove todos.
+    Um item com data substitui o conteúdo. Um item sem data e com index
+    reaproveita o arquivo já gravado nessa posição, sem reenviar o base64.
     """
     import logging
     from app.api.deps import get_user_family_ids
@@ -398,6 +436,14 @@ async def update_family_member(
     # Só altera documents se o campo veio no payload. PUT parcial sem
     # documents preserva os anexos já gravados (exclude_unset).
     update_dict = member_data.model_dump(exclude_unset=True)
+    if "documents" in update_dict and update_dict["documents"] is not None:
+        from app.utils.member_documents import merge_member_documents
+        try:
+            update_dict["documents"] = merge_member_documents(
+                member.documents, update_dict["documents"]
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     
     # Log especial para foto e anexos (não mostrar a string inteira)
     log_dict = update_dict.copy()

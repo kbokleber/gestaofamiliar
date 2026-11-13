@@ -15,8 +15,20 @@ DOCUMENTS_EXAMPLE = '[{"name":"carteirinha.pdf","type":"application/pdf","size":
 DOCUMENTS_UPDATE_DESCRIPTION = (
     DOCUMENTS_DESCRIPTION
     + " No PUT, omitir o campo preserva os anexos já gravados; "
-    "enviar null remove todos; enviar a string JSON substitui a lista."
+    "enviar null ou uma lista vazia remove todos; "
+    "enviar a string JSON substitui a lista. "
+    "Um item com data grava esse conteúdo. "
+    "Um item sem data e com index reaproveita o arquivo já gravado nessa posição, "
+    "sem reenviar o base64."
 )
+DOCUMENTS_EDIT_DESCRIPTION = (
+    "No GET /members/{id}, o padrão é uma lista JSON sem o conteúdo, "
+    "com index, name, type e size. O arquivo sai em "
+    "GET /members/{id}/documents/{index}/download. "
+    "include_documents=true devolve o JSON completo, com data em base64. "
+    + DOCUMENTS_DESCRIPTION
+)
+DOCUMENTS_META_EXAMPLE = '[{"index":0,"name":"carteirinha.pdf","type":"application/pdf","size":4}]'
 
 # FamilyMember Schemas
 class FamilyMemberBase(BaseModel):
@@ -258,7 +270,16 @@ class FamilyMemberOrderItem(BaseModel):
 class FamilyMemberReorder(BaseModel):
     items: List[FamilyMemberOrderItem]
 
-# Schemas com relacionamentos
+class FamilyMemberEdit(FamilyMember):
+    """GET /members/{id} padrão: cadastro e anexos sem conteúdo nem histórico."""
+    documents: Optional[str] = Field(
+        default=None,
+        description=DOCUMENTS_EDIT_DESCRIPTION,
+        examples=[DOCUMENTS_META_EXAMPLE],
+    )
+
+
+# Histórico completo, só com include_history=true
 class FamilyMemberDetail(FamilyMember):
     appointments: List[MedicalAppointment] = []
     procedures: List[MedicalProcedure] = []

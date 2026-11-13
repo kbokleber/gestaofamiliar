@@ -60,6 +60,8 @@ export default function FamilyMembers() {
   const [memberToDelete, setMemberToDelete] = useState<FamilyMember | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [documents, setDocuments] = useState<Document[]>([])
+  const [documentsDirty, setDocumentsDirty] = useState(false)
+  const [openingMemberId, setOpeningMemberId] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     birth_date: '',
@@ -160,8 +162,21 @@ export default function FamilyMembers() {
         dataToSend.photo = base64
       }
 
-      // Serializar anexos no mesmo formato das consultas/procedimentos/medicamentos
-      dataToSend.documents = documents.length > 0 ? JSON.stringify(documents) : null
+      // Anexos já gravados não voltam no PUT se ninguém mexeu na lista.
+      // Itens antigos seguem só com index; o servidor preserva o base64.
+      if (!editingMember || documentsDirty) {
+        if (documents.some((doc) => !doc.data && doc.index === undefined)) {
+          alert('Não foi possível identificar um anexo já gravado. Abra a edição de novo.')
+          return
+        }
+        dataToSend.documents = documents.length > 0
+          ? JSON.stringify(documents.map((doc) => (
+            doc.data
+              ? { name: doc.name, type: doc.type, size: doc.size, data: doc.data }
+              : { index: doc.index, name: doc.name, type: doc.type, size: doc.size }
+          )))
+          : null
+      }
 
       // Remover order do dataToSend - a ordem será gerenciada pelo drag and drop
       delete dataToSend.order
@@ -216,6 +231,7 @@ export default function FamilyMembers() {
   }
 
   const startEdit = async (member: FamilyMember) => {
+    setOpeningMemberId(member.id)
     try {
       const response = await api.get(`/healthcare/members/${member.id}`)
       const fullMember: FamilyMember = response.data
@@ -236,11 +252,24 @@ export default function FamilyMembers() {
         order: fullMember.order || 0
       })
       applyDocuments(fullMember.documents)
+      setDocumentsDirty(false)
       setIsEditingInline(true)
     } catch (err: any) {
       console.error('Erro ao carregar membro:', err)
       alert(err.response?.data?.detail || 'Erro ao carregar os anexos do membro')
+    } finally {
+      setOpeningMemberId(null)
     }
+  }
+
+  const fetchMemberDocument = async (doc: Document, index: number): Promise<Blob> => {
+    if (!editingMember) throw new Error('Membro não encontrado')
+    const docIndex = doc.index ?? index
+    const response = await api.get(
+      `/healthcare/members/${editingMember.id}/documents/${docIndex}/download`,
+      { responseType: 'blob' }
+    )
+    return response.data as Blob
   }
 
   const cancelEdit = () => {
@@ -250,6 +279,7 @@ export default function FamilyMembers() {
     setPhotoFile(null)
     setShowPhotoMenu(false)
     setDocuments([])
+    setDocumentsDirty(false)
     setFormData({
       name: '',
       birth_date: '',
@@ -283,6 +313,7 @@ export default function FamilyMembers() {
     setPhotoPreview(null)
     setPhotoFile(null)
     setDocuments([])
+    setDocumentsDirty(false)
     setViewMode('create')
   }
 
@@ -305,6 +336,7 @@ export default function FamilyMembers() {
     setPhotoPreview(null)
     setPhotoFile(null)
     setDocuments([])
+    setDocumentsDirty(false)
   }
 
 
@@ -541,10 +573,11 @@ export default function FamilyMembers() {
           <div className="flex gap-2 pt-4 border-t border-gray-100">
             <button
               onClick={() => startEdit(member)}
-              className="flex-1 flex items-center justify-center px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+              disabled={openingMemberId !== null}
+              className="flex-1 flex items-center justify-center px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-60 disabled:cursor-wait"
             >
               <Edit2 className="h-4 w-4 mr-1" />
-              Editar
+              {openingMemberId === member.id ? 'Abrindo...' : 'Editar'}
             </button>
             <button
               onClick={() => setMemberToDelete(member)}
@@ -1103,9 +1136,13 @@ export default function FamilyMembers() {
             <div>
               <DocumentUpload
                 documents={documents}
-                onChange={setDocuments}
+                onChange={(next) => {
+                  setDocuments(next)
+                  setDocumentsDirty(true)
+                }}
                 maxFiles={10}
                 maxSizeMB={10}
+                resolveFile={fetchMemberDocument}
               />
             </div>
 

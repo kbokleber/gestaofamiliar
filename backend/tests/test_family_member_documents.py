@@ -128,6 +128,14 @@ def test_openapi_documenta_anexos_e_api_token():
         campo = schemas[nome]["properties"]["documents"]
         assert "base64" in campo["description"]
         assert campo["examples"] == [DOCUMENTS_EXAMPLE]
+    edicao = schemas["FamilyMemberEdit"]["properties"]["documents"]
+    assert "index" in edicao["description"]
+    assert "base64" in edicao["description"]
+    parametros_edicao = {
+        parametro["name"]
+        for parametro in spec["paths"]["/api/v1/healthcare/members/{member_id}"]["get"]["parameters"]
+    }
+    assert {"include_history", "include_documents", "photo_thumb"} <= parametros_edicao
     assert "preserva" in schemas["FamilyMemberUpdate"]["properties"]["documents"]["description"]
     assert "include_documents" in {
         parametro["name"]
@@ -165,7 +173,21 @@ def test_api_token_envia_lista_baixa_e_preserva_anexo():
 
     detalhe = cliente.get(f"/api/v1/healthcare/members/{member_id}", headers=headers)
     assert detalhe.status_code == 200
-    assert json.loads(detalhe.json()["documents"]) == ANEXO
+    corpo = detalhe.json()
+    assert "appointments" not in corpo
+    assert "procedures" not in corpo
+    assert "medications" not in corpo
+    assert json.loads(corpo["documents"]) == [
+        {"index": 0, "name": "carteirinha.pdf", "type": "application/pdf", "size": 1}
+    ]
+    completo = cliente.get(
+        f"/api/v1/healthcare/members/{member_id}",
+        headers=headers,
+        params={"include_documents": True, "include_history": True},
+    )
+    assert completo.status_code == 200
+    assert json.loads(completo.json()["documents"]) == ANEXO
+    assert completo.json()["appointments"] == []
 
     download = cliente.get(
         f"/api/v1/healthcare/members/{member_id}/documents/0/download",
@@ -208,4 +230,176 @@ def test_api_token_envia_lista_baixa_e_preserva_anexo():
     )
     assert limpo.status_code == 200
     assert limpo.json()["documents"] is None
+    db.close()
+
+
+def _jpeg_base64(largura: int, altura: int) -> str:
+    import base64
+    import os
+    from io import BytesIO
+    from PIL import Image
+
+    imagem = Image.frombytes("RGB", (largura, altura), os.urandom(largura * altura * 3))
+    buffer = BytesIO()
+    imagem.save(buffer, format="JPEG", quality=85)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def test_editar_membro_com_anexo_nao_traz_historico_e_salvar_preserva_o_arquivo():
+    """Abre a edição, altera o cadastro sem reenviar o anexo e confere o download."""
+    from app.models.healthcare import MedicalAppointment, MedicalProcedure, Medication
+
+    cliente, db = _cliente()
+    headers = {"X-API-Token": TOKEN}
+    foto = _jpeg_base64(900, 700)
+    anexo = [{"name": "carteirinha.pdf", "type": "application/pdf", "size": 4, "data": "YQ=="}]
+    criado = cliente.post(
+        "/api/v1/healthcare/members",
+        headers=headers,
+        json={
+            "name": "Ana",
+            "birth_date": "1990-04-02",
+            "documents": json.dumps(anexo),
+            "photo": foto,
+        },
+    )
+    assert criado.status_code == 201, criado.text
+    member_id = criado.json()["id"]
+
+    agora = datetime.now(timezone.utc)
+    blob_consulta = "C" * 80_000
+    blob_exame = "E" * 80_000
+    blob_remedio = "R" * 40_000
+    db.add(MedicalAppointment(
+        family_member_id=member_id,
+        doctor_name="Dra. Luz",
+        specialty="Clínica",
+        appointment_date=agora,
+        location="Clínica",
+        reason="retorno",
+        diagnosis="",
+        prescription="",
+        notes="",
+        documents=json.dumps([{"name": "consulta.pdf", "type": "application/pdf", "size": 80_000, "data": blob_consulta}]),
+        created_at=agora,
+        updated_at=agora,
+    ))
+    db.add(MedicalProcedure(
+        family_member_id=member_id,
+        procedure_name="Hemograma",
+        procedure_date=agora,
+        doctor_name="Dra. Luz",
+        location="Lab",
+        description="coleta",
+        results="",
+        follow_up_notes="",
+        documents=json.dumps([{"name": "exame.pdf", "type": "application/pdf", "size": 80_000, "data": blob_exame}]),
+        created_at=agora,
+        updated_at=agora,
+    ))
+    db.add(Medication(
+        family_member_id=member_id,
+        name="Vitamina",
+        dosage="1cp",
+        frequency="once",
+        start_date=date(2026, 1, 1),
+        prescribed_by="",
+        prescription_number="",
+        instructions="",
+        side_effects="",
+        notes="",
+        documents=json.dumps([{"name": "receita.pdf", "type": "application/pdf", "size": 40_000, "data": blob_remedio}]),
+        created_at=agora,
+        updated_at=agora,
+    ))
+    db.commit()
+    db.expire_all()
+
+    leve = cliente.get(f"/api/v1/healthcare/members/{member_id}", headers=headers)
+    assert leve.status_code == 200, leve.text
+    corpo = leve.json()
+    assert "appointments" not in corpo
+    assert "procedures" not in corpo
+    assert "medications" not in corpo
+    assert blob_consulta not in leve.text
+    assert blob_exame not in leve.text
+    assert blob_remedio not in leve.text
+    meta = json.loads(corpo["documents"])
+    assert meta == [{"index": 0, "name": "carteirinha.pdf", "type": "application/pdf", "size": 4}]
+    assert "data" not in meta[0]
+    assert corpo["photo"]
+    assert len(corpo["photo"]) < len(foto) / 5
+
+    antigo = cliente.get(
+        f"/api/v1/healthcare/members/{member_id}",
+        headers=headers,
+        params={"include_history": True, "include_documents": True, "photo_thumb": False},
+    )
+    assert antigo.status_code == 200
+    assert blob_consulta in antigo.text
+    assert blob_exame in antigo.text
+    assert blob_remedio in antigo.text
+    assert antigo.json()["photo"] == foto
+    assert len(leve.content) < len(antigo.content) / 5, (len(leve.content), len(antigo.content))
+
+    # Salvar o cadastro sem o campo documents, como a tela faz quando a lista não mudou.
+    salvo = cliente.put(
+        f"/api/v1/healthcare/members/{member_id}",
+        headers=headers,
+        json={"name": "Ana Maria", "notes": "sem mexer nos anexos"},
+    )
+    assert salvo.status_code == 200, salvo.text
+    assert salvo.json()["name"] == "Ana Maria"
+    assert json.loads(salvo.json()["documents"]) == anexo
+    baixado = cliente.get(
+        f"/api/v1/healthcare/members/{member_id}/documents/0/download",
+        headers=headers,
+    )
+    assert baixado.status_code == 200
+    assert baixado.content == b"a"
+
+    # Reenviar só os metadados que a edição recebeu também não pode apagar o arquivo.
+    reenvio = cliente.put(
+        f"/api/v1/healthcare/members/{member_id}",
+        headers=headers,
+        json={"documents": corpo["documents"]},
+    )
+    assert reenvio.status_code == 200, reenvio.text
+    assert cliente.get(
+        f"/api/v1/healthcare/members/{member_id}/documents/0/download",
+        headers=headers,
+    ).content == b"a"
+
+    # Troca de lista: o antigo segue pelo index e o novo vai com data.
+    novo = {
+        "name": "receita-nova.pdf",
+        "type": "application/pdf",
+        "size": 1,
+        "data": "Yg==",
+    }
+    troca = cliente.put(
+        f"/api/v1/healthcare/members/{member_id}",
+        headers=headers,
+        json={"documents": json.dumps([meta[0], novo])},
+    )
+    assert troca.status_code == 200, troca.text
+    assert cliente.get(
+        f"/api/v1/healthcare/members/{member_id}/documents/0/download",
+        headers=headers,
+    ).content == b"a"
+    assert cliente.get(
+        f"/api/v1/healthcare/members/{member_id}/documents/1/download",
+        headers=headers,
+    ).content == b"b"
+
+    invalido = cliente.put(
+        f"/api/v1/healthcare/members/{member_id}",
+        headers=headers,
+        json={"documents": json.dumps([{"index": 9, "name": "sumiu.pdf", "type": "application/pdf", "size": 1}])},
+    )
+    assert invalido.status_code == 400
+    assert cliente.get(
+        f"/api/v1/healthcare/members/{member_id}/documents/0/download",
+        headers=headers,
+    ).content == b"a"
     db.close()

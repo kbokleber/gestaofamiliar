@@ -12,7 +12,8 @@ export interface Document {
   name: string
   type: string
   size: number
-  data: string // base64
+  data?: string // base64; ausente quando o arquivo já está no servidor
+  index?: number // posição gravada, usada para baixar sem reenviar o conteúdo
 }
 
 interface DocumentUploadProps {
@@ -20,13 +21,16 @@ interface DocumentUploadProps {
   onChange: (documents: Document[]) => void
   maxFiles?: number
   maxSizeMB?: number
+  /** Busca o arquivo quando ele não veio no cadastro (só metadados). */
+  resolveFile?: (doc: Document, index: number) => Promise<Blob>
 }
 
 export default function DocumentUpload({ 
   documents, 
   onChange, 
   maxFiles = 10,
-  maxSizeMB = 10
+  maxSizeMB = 10,
+  resolveFile,
 }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [docToDelete, setDocToDelete] = useState<{ doc: Document; index: number } | null>(null)
@@ -108,14 +112,20 @@ export default function DocumentUpload({
     setDocToDelete(null)
   }
 
-  const downloadDocument = (doc: Document) => {
-    if (!doc.data) {
+  const fileBlob = async (doc: Document, index: number): Promise<Blob> => {
+    const { mimeType } = getDisplayType(doc)
+    if (doc.data) return base64ToBlob(doc.data, mimeType)
+    if (resolveFile) return resolveFile(doc, index)
+    throw new Error('Arquivo sem dados')
+  }
+
+  const downloadDocument = async (doc: Document, index: number) => {
+    if (!doc.data && !resolveFile) {
       alert('Arquivo sem dados para download.')
       return
     }
     try {
-      const { mimeType } = getDisplayType(doc)
-      const blob = base64ToBlob(doc.data, mimeType)
+      const blob = await fileBlob(doc, index)
       const blobUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = blobUrl
@@ -159,13 +169,13 @@ export default function DocumentUpload({
     return new Blob([new Uint8Array(byteNumbers)], { type: mimeType })
   }
 
-  const viewDocument = (doc: Document) => {
-    if (!doc.data) {
+  const viewDocument = async (doc: Document, index: number) => {
+    if (!doc.data && !resolveFile) {
       alert('Arquivo sem dados para visualização. Pode ter sido salvo em formato antigo.')
       return
     }
     const safeName = String(doc.name).replace(/</g, '&lt;').replace(/"/g, '&quot;')
-    const { isPdf, mimeType, isHeic } = getDisplayType(doc)
+    const { isPdf, isHeic } = getDisplayType(doc)
     
     if (isHeic) {
       alert('Arquivos HEIC (fotos de iPhone) não podem ser visualizados diretamente no navegador. Por favor, use o botão de Download para baixar e ver no seu aparelho.')
@@ -175,7 +185,7 @@ export default function DocumentUpload({
     const newWindow = window.open('', '_blank')
     if (newWindow) {
       try {
-        const blob = base64ToBlob(doc.data, mimeType)
+        const blob = await fileBlob(doc, index)
         const blobUrl = URL.createObjectURL(blob)
         if (isPdf) {
           newWindow.document.write(`
@@ -275,7 +285,7 @@ export default function DocumentUpload({
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  onClick={() => viewDocument(doc)}
+                  onClick={() => { void viewDocument(doc, index) }}
                   className="p-1 text-blue-600 hover:text-blue-800"
                   title="Visualizar"
                 >
@@ -283,7 +293,7 @@ export default function DocumentUpload({
                 </button>
                 <button
                   type="button"
-                  onClick={() => downloadDocument(doc)}
+                  onClick={() => { void downloadDocument(doc, index) }}
                   className="p-1 text-green-600 hover:text-green-800"
                   title="Download"
                 >
