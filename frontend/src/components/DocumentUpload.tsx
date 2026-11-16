@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Upload, X, FileText, Image, Download, Eye } from 'lucide-react'
 import ConfirmDeleteModal from './ConfirmDeleteModal'
+import FileViewerModal, { type ArquivoVisualizado } from './FileViewerModal'
 import {
   getFileExtension,
   getNormalizedMimeType,
@@ -35,6 +36,7 @@ export default function DocumentUpload({
 }: DocumentUploadProps) {
   const [uploading, setUploading] = useState(false)
   const [docToDelete, setDocToDelete] = useState<{ doc: Document; index: number } | null>(null)
+  const [arquivoAberto, setArquivoAberto] = useState<ArquivoVisualizado | null>(null)
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -175,44 +177,20 @@ export default function DocumentUpload({
       alert('Arquivo sem dados para visualização. Pode ter sido salvo em formato antigo.')
       return
     }
-    const { isPdf, isHeic } = getDisplayType(doc)
+    const { isPdf, isHeic, mimeType } = getDisplayType(doc)
 
     if (isHeic) {
       alert('Arquivos HEIC (fotos de iPhone) não podem ser visualizados diretamente no navegador. Por favor, use o botão de Download para baixar e ver no seu aparelho.')
       return
     }
 
-    // PDF em iframe/blob abre about:blank no Chrome do Android, com nome UUID e sem mostrar o arquivo.
-    if (isPdf) {
-      try {
-        await salvarArquivo(doc, index)
-      } catch (e) {
-        console.error('Erro ao abrir PDF:', e)
-        alert('Não foi possível abrir o PDF.')
-      }
-      return
-    }
-
-    const safeName = String(doc.name).replace(/</g, '&lt;').replace(/"/g, '&quot;')
-    const newWindow = window.open('', '_blank')
-    if (newWindow) {
-      try {
-        const blob = await fileBlob(doc, index)
-        const blobUrl = URL.createObjectURL(blob)
-        newWindow.document.write(`
-          <!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeName}</title>
-          <style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1a1a1a}</style></head>
-          <body><img src="${blobUrl}" alt="${safeName}" style="max-width:100%;max-height:100vh;object-fit:contain" /></body></html>
-        `)
-        newWindow.document.close()
-        newWindow.addEventListener('beforeunload', () => URL.revokeObjectURL(blobUrl))
-      } catch (e) {
-        console.error('Erro ao visualizar:', e)
-        newWindow.close()
-        alert('Não foi possível abrir o arquivo. Tente fazer o download.')
-      }
-    } else {
-      alert('O navegador bloqueou a janela de visualização. Permita pop-ups ou use o botão de download.')
+    // Abre na própria tela: o PDF é desenhado pelo pdf.js, sem depender do leitor do navegador.
+    try {
+      const blob = await fileBlob(doc, index)
+      setArquivoAberto({ blob, nome: doc.name, tipo: mimeType })
+    } catch (e) {
+      console.error('Erro ao visualizar:', e)
+      alert(isPdf ? 'Não foi possível abrir o PDF.' : 'Não foi possível abrir o arquivo. Tente fazer o download.')
     }
   }
 
@@ -238,6 +216,7 @@ export default function DocumentUpload({
         confirmLabel="Excluir arquivo"
         onConfirm={handleConfirmRemove}
       />
+      <FileViewerModal arquivo={arquivoAberto} onClose={() => setArquivoAberto(null)} />
       {/* Botão de Upload */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">

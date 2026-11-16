@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ClipboardList, Plus, Pencil, Trash2, Search, ImagePlus, Eye, FileText, X, Megaphone } from 'lucide-react'
 import api from '../../lib/api'
-import { baixarBlob, nomeParaDownload } from '../../utils/baixarArquivo'
+import FileViewerModal, { type ArquivoVisualizado } from '../../components/FileViewerModal'
 import { useAuthStore } from '../../stores/authStore'
 import Button from '../../components/Button'
 import Modal from '../../components/Modal'
@@ -350,6 +350,7 @@ function GaleriaAnexos({
   const [erro, setErro] = useState('')
   const [aberto, setAberto] = useState<number | null>(null)
   const [urlAberta, setUrlAberta] = useState('')
+  const [pdfAberto, setPdfAberto] = useState<ArquivoVisualizado | null>(null)
   const anexos = atividade.anexos ?? []
   const podeGerirAnexos = podeEditarExcluir(atividade, isAdmin)
 
@@ -404,11 +405,7 @@ function GaleriaAnexos({
           { responseType: 'blob' },
         )
         const tipo = anexo.type || 'application/pdf'
-        baixarBlob(
-          new Blob([resposta.data], { type: tipo }),
-          nomeParaDownload(anexo.name, tipo),
-          tipo,
-        )
+        setPdfAberto({ blob: new Blob([resposta.data], { type: tipo }), nome: anexo.name, tipo })
       } catch (error: any) {
         setErro(error.response?.data?.detail || 'Não foi possível abrir o PDF.')
       }
@@ -431,6 +428,10 @@ function GaleriaAnexos({
 
   return (
     <div className="space-y-3">
+      {pdfAberto && createPortal(
+        <FileViewerModal arquivo={pdfAberto} onClose={() => setPdfAberto(null)} />,
+        document.body,
+      )}
       {anexos.length > 0 && (
         <div className="space-y-3">
           {anexos.map((anexo, indice) => {

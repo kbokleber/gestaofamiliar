@@ -22,8 +22,8 @@ import Loading from '../../components/Loading'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
+import FileViewerModal, { type ArquivoVisualizado } from '../../components/FileViewerModal'
 import api from '../../lib/api'
-import { baixarBlob, ehPdf, nomeParaDownload } from '../../utils/baixarArquivo'
 import { useAuthStore } from '../../stores/authStore'
 import BankImportModal from '../../components/finance/BankImportModal'
 
@@ -180,6 +180,7 @@ export default function FinanceEntries() {
   const { user: currentUser } = useAuthStore()
   const [searchParams] = useSearchParams()
   const [loading, setLoading] = useState(true)
+  const [comprovanteAberto, setComprovanteAberto] = useState<ArquivoVisualizado | null>(null)
   const [entries, setEntries] = useState<Entry[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -560,18 +561,9 @@ export default function FinanceEntries() {
     )
   }
 
+  // Mostra o comprovante (PDF ou imagem) na própria tela.
   const abrirComprovante = (blob: Blob, nome: string, tipo: string) => {
-    if (ehPdf(tipo, nome)) {
-      baixarBlob(blob, nomeParaDownload(nome, tipo), tipo || 'application/pdf')
-      return
-    }
-    const url = URL.createObjectURL(blob)
-    const aba = window.open(url, '_blank')
-    if (!aba) {
-      baixarBlob(blob, nomeParaDownload(nome, tipo), tipo)
-      return
-    }
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    setComprovanteAberto({ blob, nome, tipo })
   }
 
   const handleViewReceipt = async (documentsJson: string) => {
@@ -651,6 +643,7 @@ export default function FinanceEntries() {
 
   return (
     <div className="space-y-6">
+      <FileViewerModal arquivo={comprovanteAberto} onClose={() => setComprovanteAberto(null)} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Lançamentos Financeiros</h1>

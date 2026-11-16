@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import api from '../../lib/api'
-import { baixarBlob, nomeParaDownload } from '../../utils/baixarArquivo'
+import { nomeParaDownload } from '../../utils/baixarArquivo'
+import FileViewerModal, { type ArquivoVisualizado } from '../../components/FileViewerModal'
 import { useAuthStore } from '../../stores/authStore'
 import Modal from '../../components/Modal'
 import Button from '../../components/Button'
@@ -124,6 +125,7 @@ export default function Provas() {
   const user = useAuthStore((state) => state.user) as { is_child?: boolean, is_superuser?: boolean, family_id?: number | null } | null
   const filho = !!user?.is_child
   const [visao, setVisao] = useState<'mes' | 'semana' | 'lista'>('mes')
+  const [pdfAberto, setPdfAberto] = useState<ArquivoVisualizado | null>(null)
   const [cursor, setCursor] = useState(() => {
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
@@ -247,14 +249,15 @@ export default function Provas() {
     try {
       const resposta = await api.get(`/estudos/cronogramas/${detalhe.cronograma.id}/pdf`, { responseType: 'blob' })
       const nome = nomeParaDownload(detalhe.pdf?.nome || 'cronograma.pdf', 'application/pdf')
-      baixarBlob(new Blob([resposta.data], { type: 'application/pdf' }), nome, 'application/pdf')
+      setPdfAberto({ blob: new Blob([resposta.data], { type: 'application/pdf' }), nome, tipo: 'application/pdf' })
     } catch {
-      alert('Não foi possível baixar o PDF.')
+      alert('Não foi possível abrir o PDF.')
     }
   }
 
   return (
     <div className="mx-auto w-full max-w-lg lg:max-w-5xl">
+      <FileViewerModal arquivo={pdfAberto} onClose={() => setPdfAberto(null)} />
       <div className="mb-4 flex items-center justify-between gap-3">
         <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900 sm:text-2xl">
           <FileText className="h-7 w-7 text-indigo-600" />
