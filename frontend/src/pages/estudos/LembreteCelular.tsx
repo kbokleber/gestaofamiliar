@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Bell } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
+import { formatarResultadoLembrete } from './formatarResultadoLembrete'
 
 function chaveParaBytes(chave: string) {
   const preenchida = chave + '='.repeat((4 - (chave.length % 4)) % 4)
@@ -63,13 +64,7 @@ export default function LembreteCelular() {
     setOcupado(true)
     try {
       const { data } = await api.post('/notificacoes/lembretes/disparar')
-      const partes = []
-      if (data.enviados?.length) {
-        partes.push(data.enviados.map((item: { filho: string; tarefas: string[] }) => `${item.filho}: ${item.tarefas.join(', ')}`).join(' · '))
-      }
-      if (data.sem_inscricao?.length) partes.push(`Sem alerta no celular: ${data.sem_inscricao.join(', ')}`)
-      if (data.sem_tarefa?.length) partes.push(`Sem tarefa de hoje, amanhã ou atrasada: ${data.sem_tarefa.join(', ')}`)
-      setMensagem(partes.join(' ') || 'Nenhum filho para avisar.')
+      setMensagem(formatarResultadoLembrete(data))
     } catch (exc) {
       const detalhe = (exc as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setErro(typeof detalhe === 'string' ? detalhe : 'Não foi possível disparar o alerta.')
@@ -96,7 +91,7 @@ export default function LembreteCelular() {
           </button>
         )}
       </div>
-      {mensagem && <p className="mt-2 text-sm text-amber-950">{mensagem}</p>}
+      {mensagem && <p className="mt-2 whitespace-pre-line break-words text-sm text-amber-950">{mensagem}</p>}
       {erro && <p className="mt-2 text-sm text-red-700">{erro}</p>}
     </div>
   )
