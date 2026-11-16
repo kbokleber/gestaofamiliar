@@ -659,9 +659,9 @@ export default function Procedures() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{procedure.procedure_name}</h3>
+                      <h3 className="min-w-0 break-words text-lg font-semibold text-gray-900">{procedure.procedure_name}</h3>
                       {(procedure.documents || procedure.has_documents) && (
-                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                        <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
                       )}
                     </div>
                     <div className="flex items-center text-sm text-gray-500 mt-1">
@@ -760,9 +760,9 @@ export default function Procedures() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <div className="text-sm font-medium text-gray-900">{procedure.procedure_name}</div>
+                        <div className="min-w-0 break-words text-sm font-medium text-gray-900">{procedure.procedure_name}</div>
                         {(procedure.documents || procedure.has_documents) && (
-                          <Paperclip className="h-4 w-4 text-blue-500 ml-2" aria-label="Possui documentos anexados" />
+                          <Paperclip className="ml-2 h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
                         )}
                       </div>
                     </td>

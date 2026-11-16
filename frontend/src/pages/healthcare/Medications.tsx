@@ -720,9 +720,9 @@ export default function Medications() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{medication.name}</h3>
+                      <h3 className="min-w-0 break-words text-lg font-semibold text-gray-900">{medication.name}</h3>
                       {medication.documents && (
-                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                        <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
                       )}
                     </div>
                     <div className="flex items-center text-sm text-gray-500 mt-1">
@@ -835,9 +835,9 @@ export default function Medications() {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-medium text-gray-900">{medication.name}</div>
+                      <div className="min-w-0 break-words text-sm font-medium text-gray-900">{medication.name}</div>
                       {medication.documents && (
-                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                        <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
                       )}
                     </div>
                     {medication.prescribed_by && (

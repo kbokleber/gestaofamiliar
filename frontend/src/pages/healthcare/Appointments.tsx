@@ -655,9 +655,9 @@ export default function Appointments() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{getMemberName(appointment.family_member_id)}</h3>
+                      <h3 className="min-w-0 break-words text-lg font-semibold text-gray-900">{getMemberName(appointment.family_member_id)}</h3>
                       {(appointment.documents || appointment.has_documents) && (
-                        <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                        <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
                       )}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">
@@ -747,7 +747,7 @@ export default function Appointments() {
                           {getMemberName(appointment.family_member_id)}
                         </div>
                         {(appointment.documents || appointment.has_documents) && (
-                          <Paperclip className="h-4 w-4 text-blue-500" aria-label="Possui documentos anexados" />
+                          <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
                         )}
                       </div>
                     </div>
