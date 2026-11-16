@@ -657,7 +657,7 @@ export default function Procedures() {
               <div key={procedure.id} className="bg-white shadow rounded-lg p-4 space-y-3">
                 {/* Cabeçalho do Card */}
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="min-w-0 break-words text-lg font-semibold text-gray-900">{procedure.procedure_name}</h3>
                       {(procedure.documents || procedure.has_documents) && (
