@@ -10,6 +10,7 @@ import Button from '../../components/Button'
 import Modal from '../../components/Modal'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import LembreteCelular from './LembreteCelular'
+import { formatarCadastro } from './formatarCadastro'
 
 interface Atividade {
   id: number
@@ -29,6 +30,7 @@ interface Atividade {
   criado_pelo_app?: boolean
   anexos: Anexo[]
   concluida_em: string | null
+  created_at?: string | null
 }
 
 interface Anexo {
@@ -242,6 +244,11 @@ function CartaoAtividade({
         )}
         {atividade.professor && (
           <p className="mt-0.5 text-sm text-gray-500">{atividade.professor}</p>
+        )}
+        {atividade.created_at && (
+          <p className="mt-1 break-words text-xs text-gray-400">
+            {formatarCadastro(atividade.created_at, atividade.tipo)}
+          </p>
         )}
       </button>
       {mostraAcoes && (
@@ -1144,6 +1151,11 @@ export default function Atividades({ modo = 'atividade' }: { modo?: 'atividade' 
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">{atividadeAberta.titulo}</h3>
                 <p className="text-sm text-gray-500">Data: {new Date(`${atividadeAberta.data}T12:00:00`).toLocaleDateString('pt-BR')}</p>
+                {atividadeAberta.created_at && (
+                  <p className="break-words text-xs text-gray-400">
+                    {formatarCadastro(atividadeAberta.created_at, atividadeAberta.tipo)}
+                  </p>
+                )}
                 {!ehComunicado(atividadeAberta) && (
                   <p className="mt-2 text-sm text-gray-700">
                     {atividadeAberta.prazo_entrega ? `Prazo: ${formatPrazoCurto(atividadeAberta.prazo_entrega)}` : ''}
