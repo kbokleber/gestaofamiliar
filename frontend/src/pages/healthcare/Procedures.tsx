@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { Activity, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, FileSpreadsheet } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
@@ -8,6 +9,7 @@ import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import Loading from '../../components/Loading'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateTimeBR, toDateTimeInputValue } from '../../utils/dateUtils'
+import { deveAbrirPeloClique, deveAbrirPeloTeclado } from '../../utils/cliqueNaLinha'
 import { exportToExcel } from '../../utils/excelUtils'
 
 interface FamilyMember {
@@ -275,6 +277,18 @@ export default function Procedures() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  const abrirPeloClique = (event: MouseEvent<HTMLElement>, procedure: Procedure) => {
+    const selecionado = window.getSelection()?.toString() ?? ''
+    if (!deveAbrirPeloClique(event.target as Element, selecionado)) return
+    startEdit(procedure)
+  }
+
+  const abrirPeloTeclado = (event: KeyboardEvent<HTMLElement>, procedure: Procedure) => {
+    if (!deveAbrirPeloTeclado(event.key, event.target === event.currentTarget)) return
+    event.preventDefault()
+    startEdit(procedure)
   }
 
   const startEdit = async (procedure: Procedure) => {
@@ -654,14 +668,24 @@ export default function Procedures() {
           {/* Visualização em Cards para Mobile/Tablet */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4 mb-6">
             {filteredProcedures.map((procedure) => (
-              <div key={procedure.id} className="bg-white shadow rounded-lg p-4 space-y-3">
+              <div
+                key={procedure.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Editar procedimento: ${procedure.procedure_name}`}
+                onClick={(event) => abrirPeloClique(event, procedure)}
+                onKeyDown={(event) => abrirPeloTeclado(event, procedure)}
+                className="cursor-pointer bg-white shadow rounded-lg p-4 space-y-3 transition-shadow hover:shadow-md hover:ring-1 hover:ring-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
                 {/* Cabeçalho do Card */}
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="min-w-0 break-words text-lg font-semibold text-gray-900">{procedure.procedure_name}</h3>
                       {(procedure.documents || procedure.has_documents) && (
-                        <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        <span data-no-row-click className="shrink-0 cursor-default">
+                          <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        </span>
                       )}
                     </div>
                     <div className="flex items-center text-sm text-gray-500 mt-1">
@@ -695,15 +719,17 @@ export default function Procedures() {
 
                 {/* Ações do Card */}
                 <div className="flex gap-2 pt-3 border-t border-gray-200">
-                  <button 
-                    onClick={() => startEdit(procedure)}
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); startEdit(procedure) }}
                     className="flex-1 flex items-center justify-center px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
                   >
                     <Edit2 className="h-4 w-4 mr-1" />
                     Editar
                   </button>
-                  <button 
-                    onClick={() => setProcedureToDelete(procedure)}
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); setProcedureToDelete(procedure) }}
                     className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -719,76 +745,97 @@ export default function Procedures() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Data
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Membro
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Procedimento
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Médico
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Médico / Local
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Local
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="hidden 2xl:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Descrição
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="sticky right-0 bg-gray-50 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
                     Ações
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredProcedures.map((procedure) => (
-                  <tr key={procedure.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  <tr
+                    key={procedure.id}
+                    tabIndex={0}
+                    title="Clique para editar"
+                    onClick={(event) => abrirPeloClique(event, procedure)}
+                    onKeyDown={(event) => abrirPeloTeclado(event, procedure)}
+                    className="group cursor-pointer hover:bg-blue-50 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                  >
+                    <td className="px-4 py-4 whitespace-nowrap align-top">
                       <div className="text-sm text-gray-900">
                         {formatDateTimeBR(procedure.procedure_date)}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <User className="h-5 w-5 text-gray-400 mr-2" />
-                        <div className="text-sm font-medium text-gray-900">
+                    <td className="px-4 py-4 align-top">
+                      <div className="flex items-start">
+                        <User className="mr-2 h-5 w-5 shrink-0 text-gray-400" />
+                        <div className="min-w-[8rem] max-w-[11rem] break-words text-sm font-medium text-gray-900">
                           {getMemberName(procedure.family_member_id)}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <div className="min-w-0 break-words text-sm font-medium text-gray-900">{procedure.procedure_name}</div>
+                    <td className="px-4 py-4 align-top">
+                      <div className="flex min-w-[14rem] max-w-md items-start gap-2">
+                        <div
+                          className="min-w-0 break-words text-sm font-medium text-gray-900 line-clamp-3"
+                          title={procedure.procedure_name}
+                        >
+                          {procedure.procedure_name}
+                        </div>
                         {(procedure.documents || procedure.has_documents) && (
-                          <Paperclip className="ml-2 h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                          <span data-no-row-click className="mt-0.5 shrink-0 cursor-default">
+                            <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                          </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{procedure.doctor_name}</div>
+                    <td className="px-4 py-4 align-top">
+                      <div className="min-w-[11rem] max-w-[14rem]">
+                        <div className="break-words text-sm text-gray-900 line-clamp-2" title={procedure.doctor_name}>
+                          {procedure.doctor_name}
+                        </div>
+                        {procedure.location && (
+                          <div className="mt-0.5 break-words text-sm text-gray-600 line-clamp-2" title={procedure.location}>
+                            {procedure.location}
+                          </div>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-600">{procedure.location}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-600 max-w-xs truncate" title={procedure.description}>
+                    <td className="hidden 2xl:table-cell px-4 py-4 align-top">
+                      <div className="max-w-xs break-words text-sm text-gray-600 line-clamp-2" title={procedure.description}>
                         {procedure.description}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button 
-                        onClick={() => startEdit(procedure)}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
+                    <td className="sticky right-0 bg-white px-4 py-4 align-top whitespace-nowrap text-right text-sm font-medium shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)] group-hover:bg-blue-50 group-focus-visible:bg-blue-50">
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); startEdit(procedure) }}
+                        className="rounded p-1.5 text-blue-600 hover:bg-blue-50 hover:text-blue-900"
                         title="Editar"
+                        aria-label="Editar"
                       >
                         <Edit2 className="h-5 w-5" />
                       </button>
-                      <button 
-                        onClick={() => setProcedureToDelete(procedure)}
-                        className="text-red-600 hover:text-red-900"
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); setProcedureToDelete(procedure) }}
+                        className="ml-1 rounded p-1.5 text-red-600 hover:bg-red-50 hover:text-red-900"
                         title="Excluir"
+                        aria-label="Excluir"
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>
