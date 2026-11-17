@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { Pill, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
@@ -8,6 +9,7 @@ import Loading from '../../components/Loading'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateBR, toDateInputValue } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
+import { deveAbrirPeloClique, deveAbrirPeloTeclado } from '../../utils/cliqueNaLinha'
 
 interface FamilyMember {
   id: number
@@ -208,6 +210,18 @@ export default function Medications() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  const abrirPeloClique = (event: MouseEvent<HTMLElement>, medication: Medication) => {
+    const selecionado = window.getSelection()?.toString() ?? ''
+    if (!deveAbrirPeloClique(event.target as Element, selecionado)) return
+    startEdit(medication)
+  }
+
+  const abrirPeloTeclado = (event: KeyboardEvent<HTMLElement>, medication: Medication) => {
+    if (!deveAbrirPeloTeclado(event.key, event.target === event.currentTarget)) return
+    event.preventDefault()
+    startEdit(medication)
   }
 
   const startEdit = (medication: Medication) => {
@@ -715,14 +729,24 @@ export default function Medications() {
           {/* Visualização em Cards para Mobile/Tablet */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4">
             {filteredMedications.map((medication) => (
-              <div key={medication.id} className="bg-white shadow rounded-lg p-4 space-y-3">
+              <div
+                key={medication.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Editar medicamento: ${medication.name}`}
+                onClick={(event) => abrirPeloClique(event, medication)}
+                onKeyDown={(event) => abrirPeloTeclado(event, medication)}
+                className="cursor-pointer bg-white shadow rounded-lg p-4 space-y-3 transition-shadow hover:shadow-md hover:ring-1 hover:ring-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
                 {/* Cabeçalho do Card */}
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="min-w-0 break-words text-lg font-semibold text-gray-900">{medication.name}</h3>
                       {medication.documents && (
-                        <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        <span data-no-row-click className="shrink-0 cursor-default">
+                          <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        </span>
                       )}
                     </div>
                     <div className="flex items-center text-sm text-gray-500 mt-1">
@@ -775,15 +799,17 @@ export default function Medications() {
 
                 {/* Ações do Card */}
                 <div className="flex gap-2 pt-3 border-t border-gray-200">
-                  <button 
-                    onClick={() => startEdit(medication)}
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); startEdit(medication) }}
                     className="flex-1 flex items-center justify-center px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700"
                   >
                     <Edit2 className="h-4 w-4 mr-1" />
                     Editar
                   </button>
-                  <button 
-                    onClick={() => setMedicationToDelete(medication)}
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); setMedicationToDelete(medication) }}
                     className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -799,95 +825,107 @@ export default function Medications() {
             <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Paciente
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Medicamento
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Dosagem
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Dosagem / Frequência
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Frequência
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Período / Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Período
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="sticky right-0 bg-gray-50 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
                   Ações
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredMedications.map((medication) => (
-                <tr key={medication.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <User className="h-5 w-5 text-gray-400 mr-2" />
-                      <div className="text-sm font-medium text-gray-900">
+                  <tr
+                    key={medication.id}
+                    tabIndex={0}
+                    title="Clique para editar"
+                    onClick={(event) => abrirPeloClique(event, medication)}
+                    onKeyDown={(event) => abrirPeloTeclado(event, medication)}
+                    className="group cursor-pointer hover:bg-blue-50 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                  >
+                  <td className="px-4 py-4 align-top">
+                    <div className="flex items-start">
+                      <User className="mr-2 h-5 w-5 shrink-0 text-gray-400" />
+                      <div className="min-w-[8rem] max-w-[11rem] break-words [overflow-wrap:anywhere] text-sm font-medium text-gray-900 line-clamp-2" title={getMemberName(medication.family_member_id)}>
                         {getMemberName(medication.family_member_id)}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="min-w-0 break-words text-sm font-medium text-gray-900">{medication.name}</div>
+                  <td className="px-4 py-4 align-top">
+                    <div className="flex min-w-[13rem] max-w-md items-start gap-2">
+                      <div className="min-w-0 break-words [overflow-wrap:anywhere] text-sm font-medium text-gray-900 line-clamp-3" title={medication.name}>
+                        {medication.name}
+                      </div>
                       {medication.documents && (
-                        <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        <span data-no-row-click className="mt-0.5 shrink-0 cursor-default">
+                          <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        </span>
                       )}
                     </div>
                     {medication.prescribed_by && (
-                      <div className="text-xs text-gray-500">Por: {medication.prescribed_by}</div>
+                      <div className="mt-0.5 max-w-md break-words [overflow-wrap:anywhere] text-xs text-gray-500 line-clamp-2" title={medication.prescribed_by}>
+                        Por: {medication.prescribed_by}
+                      </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{medication.dosage}</div>
+                  <td className="px-4 py-4 align-top">
+                    <div className="min-w-[9rem] max-w-[14rem]">
+                      <div className="break-words [overflow-wrap:anywhere] text-sm text-gray-900 line-clamp-2" title={medication.dosage}>
+                        {medication.dosage}
+                      </div>
+                      <div className="mt-0.5 break-words [overflow-wrap:anywhere] text-sm text-gray-600 line-clamp-2" title={getFrequencyLabel(medication.frequency)}>
+                        {getFrequencyLabel(medication.frequency)}
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{getFrequencyLabel(medication.frequency)}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 align-top">
                     <div className="text-sm text-gray-600">
-                      {formatDateBR(medication.start_date)}
-                      {medication.end_date && (
-                        <> até {formatDateBR(medication.end_date)}</>
-                      )}
-                      {!medication.end_date && (
-                        <span className="text-green-600"> (Contínuo)</span>
+                      <div className="whitespace-nowrap">{formatDateBR(medication.start_date)}</div>
+                      <div className="whitespace-nowrap">
+                        {medication.end_date ? <>até {formatDateBR(medication.end_date)}</> : <span className="text-green-600">Contínuo</span>}
+                      </div>
+                    </div>
+                    <div className="mt-1">
+                      {isActive(medication) ? (
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          Ativo
+                        </span>
+                      ) : (
+                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                          Inativo
+                        </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {isActive(medication) ? (
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        Ativo
-                      </span>
-                    ) : (
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                        Inativo
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button 
-                      onClick={() => startEdit(medication)}
-                      className="text-red-600 hover:text-red-900 mr-3"
-                      title="Editar"
-                    >
-                      <Edit2 className="h-5 w-5" />
-                    </button>
-                    <button 
-                      onClick={() => setMedicationToDelete(medication)}
-                      className="text-red-600 hover:text-red-900"
-                      title="Excluir"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  </td>
+                    <td className="sticky right-0 bg-white px-4 py-4 align-top whitespace-nowrap text-right text-sm font-medium shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)] group-hover:bg-blue-50 group-focus-visible:bg-blue-50">
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); startEdit(medication) }}
+                        className="rounded p-1.5 text-red-600 hover:bg-red-50 hover:text-red-900"
+                        title="Editar"
+                        aria-label="Editar"
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); setMedicationToDelete(medication) }}
+                        className="ml-1 rounded p-1.5 text-red-600 hover:bg-red-50 hover:text-red-900"
+                        title="Excluir"
+                        aria-label="Excluir"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </td>
                 </tr>
               ))}
             </tbody>

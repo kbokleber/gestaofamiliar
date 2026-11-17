@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { Calendar, Plus, Edit2, Trash2, Save, User, Paperclip, ArrowLeft, Filter, FileSpreadsheet } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
@@ -9,6 +10,7 @@ import Loading from '../../components/Loading'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateTimeBR, toDateTimeInputValue, isFutureDateTime } from '../../utils/dateUtils'
 import { exportToExcel } from '../../utils/excelUtils'
+import { deveAbrirPeloClique, deveAbrirPeloTeclado } from '../../utils/cliqueNaLinha'
 
 interface FamilyMember {
   id: number
@@ -267,6 +269,18 @@ export default function Appointments() {
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  const abrirPeloClique = (event: MouseEvent<HTMLElement>, appointment: Appointment) => {
+    const selecionado = window.getSelection()?.toString() ?? ''
+    if (!deveAbrirPeloClique(event.target as Element, selecionado)) return
+    startEdit(appointment)
+  }
+
+  const abrirPeloTeclado = (event: KeyboardEvent<HTMLElement>, appointment: Appointment) => {
+    if (!deveAbrirPeloTeclado(event.key, event.target === event.currentTarget)) return
+    event.preventDefault()
+    startEdit(appointment)
   }
 
   const startEdit = async (appointment: Appointment) => {
@@ -650,14 +664,24 @@ export default function Appointments() {
           {/* Visualização em Cards para Mobile/Tablet */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:hidden gap-4 mb-6">
             {filteredAppointments.map((appointment) => (
-              <div key={appointment.id} className="bg-white shadow rounded-lg p-4 space-y-3">
+              <div
+                key={appointment.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Editar consulta com: ${appointment.doctor_name}`}
+                onClick={(event) => abrirPeloClique(event, appointment)}
+                onKeyDown={(event) => abrirPeloTeclado(event, appointment)}
+                className="cursor-pointer bg-white shadow rounded-lg p-4 space-y-3 transition-shadow hover:shadow-md hover:ring-1 hover:ring-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
                 {/* Cabeçalho do Card */}
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="min-w-0 break-words text-lg font-semibold text-gray-900">{getMemberName(appointment.family_member_id)}</h3>
                       {(appointment.documents || appointment.has_documents) && (
-                        <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        <span data-no-row-click className="shrink-0 cursor-default">
+                          <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        </span>
                       )}
                     </div>
                     <div className="text-sm text-gray-500 mt-1">
@@ -692,15 +716,17 @@ export default function Appointments() {
 
                 {/* Ações do Card */}
                 <div className="flex gap-2 pt-3 border-t border-gray-200">
-                  <button 
-                    onClick={() => startEdit(appointment)}
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); startEdit(appointment) }}
                     className="flex-1 flex items-center justify-center px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700"
                   >
                     <Edit2 className="h-4 w-4 mr-1" />
                     Editar
                   </button>
-                  <button 
-                    onClick={() => setAppointmentToDelete(appointment)}
+                  <button
+                    type="button"
+                    onClick={(event) => { event.stopPropagation(); setAppointmentToDelete(appointment) }}
                     className="flex items-center justify-center px-3 py-2 border border-red-600 text-red-600 text-sm rounded-md hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -716,72 +742,86 @@ export default function Appointments() {
             <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Paciente
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Data/Hora
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Médico
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Médico / Local
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Especialidade
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Local
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="sticky right-0 bg-gray-50 px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
                   Ações
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAppointments.map((appointment) => (
-                <tr key={appointment.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <User className="h-5 w-5 text-gray-400 mr-2" />
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm font-medium text-gray-900">
-                          {getMemberName(appointment.family_member_id)}
-                        </div>
-                        {(appointment.documents || appointment.has_documents) && (
-                          <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
-                        )}
+                  <tr
+                    key={appointment.id}
+                    tabIndex={0}
+                    title="Clique para editar"
+                    onClick={(event) => abrirPeloClique(event, appointment)}
+                    onKeyDown={(event) => abrirPeloTeclado(event, appointment)}
+                    className="group cursor-pointer hover:bg-blue-50 focus:outline-none focus-visible:bg-blue-50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                  >
+                  <td className="px-4 py-4 align-top">
+                    <div className="flex min-w-[9rem] max-w-[14rem] items-start gap-2">
+                      <User className="h-5 w-5 shrink-0 text-gray-400" />
+                      <div className="min-w-0 break-words [overflow-wrap:anywhere] text-sm font-medium text-gray-900 line-clamp-2" title={getMemberName(appointment.family_member_id)}>
+                        {getMemberName(appointment.family_member_id)}
                       </div>
+                      {(appointment.documents || appointment.has_documents) && (
+                        <span data-no-row-click className="mt-0.5 shrink-0 cursor-default">
+                          <Paperclip className="h-4 w-4 shrink-0 text-blue-500" aria-label="Possui documentos anexados" />
+                        </span>
+                      )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-4 align-top whitespace-nowrap">
                     <div className="text-sm text-gray-900">
                       {formatDateTimeBR(appointment.appointment_date)}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{appointment.doctor_name}</div>
+                  <td className="px-4 py-4 align-top">
+                    <div className="min-w-[12rem] max-w-[18rem]">
+                      <div className="break-words [overflow-wrap:anywhere] text-sm text-gray-900 line-clamp-2" title={appointment.doctor_name}>
+                        {appointment.doctor_name}
+                      </div>
+                      <div className="mt-0.5 break-words [overflow-wrap:anywhere] text-sm text-gray-600 line-clamp-2" title={appointment.location || undefined}>
+                        {appointment.location || '-'}
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{appointment.specialty}</div>
+                  <td className="px-4 py-4 align-top">
+                    <div className="min-w-[7rem] max-w-[12rem] break-words [overflow-wrap:anywhere] text-sm text-gray-600 line-clamp-2" title={appointment.specialty}>
+                      {appointment.specialty}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-600">{appointment.location || '-'}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button 
-                      onClick={() => startEdit(appointment)}
-                      className="text-green-600 hover:text-green-900 mr-3"
-                      title="Editar"
-                    >
-                      <Edit2 className="h-5 w-5" />
-                    </button>
-                    <button 
-                      onClick={() => setAppointmentToDelete(appointment)}
-                      className="text-red-600 hover:text-red-900"
-                      title="Excluir"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  </td>
+                    <td className="sticky right-0 bg-white px-4 py-4 align-top whitespace-nowrap text-right text-sm font-medium shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)] group-hover:bg-blue-50 group-focus-visible:bg-blue-50">
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); startEdit(appointment) }}
+                        className="rounded p-1.5 text-green-600 hover:bg-green-50 hover:text-green-900"
+                        title="Editar"
+                        aria-label="Editar"
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); setAppointmentToDelete(appointment) }}
+                        className="ml-1 rounded p-1.5 text-red-600 hover:bg-red-50 hover:text-red-900"
+                        title="Excluir"
+                        aria-label="Excluir"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </td>
                 </tr>
               ))}
             </tbody>
