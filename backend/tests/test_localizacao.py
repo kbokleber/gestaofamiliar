@@ -407,7 +407,7 @@ def _zerar_limites():
 
 def test_pareamento_limita_tentativas_por_ip(ambiente):
     cliente, _db, _estado = ambiente
-    cabecalho = {"X-Forwarded-For": "200.1.1.1, 10.0.0.2"}
+    cabecalho = {"X-Forwarded-For": "200.1.1.1, 10.0.0.2"}  # cliente visto pelo Traefik, IP do Traefik
     for _ in range(10):
         errado = cliente.post(
             "/api/v1/localizacao/dispositivos/parear", json={"code": "ZZZZ-ZZZZ"}, headers=cabecalho
@@ -424,7 +424,7 @@ def test_pareamento_limita_tentativas_por_ip(ambiente):
     outro = cliente.post(
         "/api/v1/localizacao/dispositivos/parear",
         json={"code": codigo},
-        headers={"X-Forwarded-For": "200.2.2.2"},
+        headers={"X-Forwarded-For": "200.2.2.2, 10.0.0.2"},
     )
     assert outro.status_code == 200, outro.text
 
@@ -495,3 +495,45 @@ def test_apelido_no_mapa(ambiente):
     assert cliente.put("/api/v1/localizacao/criancas/17/apelido", json={"apelido": ""}).json()["apelido"] is None
     assert cliente.put("/api/v1/localizacao/criancas/18/apelido", json={"apelido": "X"}).status_code == 404
     assert cliente.put("/api/v1/localizacao/criancas/16/apelido", json={"apelido": "x" * 13}).status_code == 422
+
+
+def test_ip_falso_no_x_forwarded_for_nao_dribla_o_limite(ambiente):
+    cliente, _db, _estado = ambiente
+    # O atacante inventa um IP diferente a cada pedido no começo do cabeçalho;
+    # o Traefik acrescenta o IP real (203.0.113.7) e o nginx o do Traefik.
+    for i in range(10):
+        r = cliente.post(
+            "/api/v1/localizacao/dispositivos/parear",
+            json={"code": "ZZZZ-ZZZZ"},
+            headers={"X-Forwarded-For": f"1.2.3.{i}, 203.0.113.7, 10.0.0.2"},
+        )
+        assert r.status_code == 400
+    bloqueado = cliente.post(
+        "/api/v1/localizacao/dispositivos/parear",
+        json={"code": "ZZZZ-ZZZZ"},
+        headers={"X-Forwarded-For": "9.9.9.9, 203.0.113.7, 10.0.0.2"},
+    )
+    assert bloqueado.status_code == 429
+
+    # Quem está em outro IP continua conseguindo parear.
+    codigo = cliente.post("/api/v1/localizacao/pareamentos", json={"child_user_id": 16}).json()["codigo"]
+    legitimo = cliente.post(
+        "/api/v1/localizacao/dispositivos/parear",
+        json={"code": codigo},
+        headers={"X-Forwarded-For": "200.9.9.9, 10.0.0.2"},
+    )
+    assert legitimo.status_code == 200, legitimo.text
+
+
+def test_ip_do_pedido_le_de_tras_para_frente():
+    from starlette.requests import Request
+    from app.services.limite_tentativas import ip_do_pedido
+
+    def pedido(xff):
+        cab = [(b"x-forwarded-for", xff.encode())] if xff is not None else []
+        return Request({"type": "http", "headers": cab, "client": ("10.0.0.2", 1)})
+
+    assert ip_do_pedido(pedido("1.1.1.1, 203.0.113.7, 10.0.0.2")) == "203.0.113.7"
+    assert ip_do_pedido(pedido("203.0.113.7, 10.0.0.2")) == "203.0.113.7"
+    assert ip_do_pedido(pedido("203.0.113.7")) == "203.0.113.7"
+    assert ip_do_pedido(pedido(None)) == "10.0.0.2"

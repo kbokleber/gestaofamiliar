@@ -7,6 +7,7 @@ from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, require_menu
+from app.core.config import settings
 from app.models.location import LocationDevice
 from app.models.user import User
 from app.schemas.location import (
@@ -176,7 +177,7 @@ def apagar_lugar(
 @router.post("/dispositivos/parear", response_model=ParearDispositivoOut)
 def parear_celular(dados: ParearDispositivoIn, request: Request, db: Session = Depends(get_db)):
     """O celular troca o código por um token que só serve para enviar localização."""
-    ip = ip_do_pedido(request)
+    ip = ip_do_pedido(request, settings.PROXIES_CONFIAVEIS)
     if limite_pareamento_ip.excedido(ip) or limite_pareamento_total.excedido("todos"):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

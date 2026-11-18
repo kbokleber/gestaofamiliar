@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     NOMINATIM_USER_AGENT: str = "GestaoFamiliar-Localizacao/1.0"
     # Dias que os pontos de localização e os avisos de chegada/saída ficam guardados.
     LOCALIZACAO_RETENCAO_DIAS: int = 90
+    # Proxies na frente da API (Traefik + nginx do frontend). Define de onde sai o IP do cliente.
+    PROXIES_CONFIAVEIS: int = 2
     
     class Config:
         env_file = ".env"

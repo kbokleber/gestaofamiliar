@@ -48,13 +48,14 @@ class LimiteTentativas:
             self._registros.clear()
 
 
-def ip_do_pedido(request: Request) -> str:
-    """IP de quem chamou. Atrás do Traefik e do nginx, o primeiro X-Forwarded-For é o cliente."""
-    encaminhado = request.headers.get("x-forwarded-for", "")
-    primeiro = encaminhado.split(",")[0].strip()
-    if primeiro:
-        return primeiro
-    real = request.headers.get("x-real-ip", "").strip()
-    if real:
-        return real
+def ip_do_pedido(request: Request, proxies: int = 2) -> str:
+    """IP de quem chamou, lido de trás para frente no X-Forwarded-For.
+
+    Quem chama pode escrever o que quiser no começo do cabeçalho; cada proxy só
+    acrescenta no fim. Com Traefik e nginx na frente (proxies=2), o nginx põe o IP
+    do Traefik por último e o valor anterior é o IP que o Traefik viu: o cliente.
+    """
+    valores = [v.strip() for v in request.headers.get("x-forwarded-for", "").split(",") if v.strip()]
+    if proxies > 0 and valores:
+        return valores[-proxies] if len(valores) >= proxies else valores[0]
     return request.client.host if request.client else "desconhecido"

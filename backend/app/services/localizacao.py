@@ -212,6 +212,8 @@ def _velocidade_kmh(speed_mps: Optional[float]) -> Optional[float]:
 
 
 def listar_criancas(db: Session, adulto: User) -> list[dict]:
+    # Também limpa aqui, para o histórico antigo sair mesmo sem celular enviando.
+    _limpar_se_preciso(db, datetime.now(timezone.utc))
     familias = familias_do_adulto(adulto, db)
     criancas = (
         db.query(User)
