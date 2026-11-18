@@ -135,6 +135,9 @@ def startup_create_tables():
             conn.execute(text(
                 "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS notificacoes_ativas BOOLEAN"
             ))
+            conn.execute(text(
+                "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS alerta_sem_sinal_em TIMESTAMP WITH TIME ZONE"
+            ))
         from app.db.base import SessionLocal
         from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
         db = SessionLocal()

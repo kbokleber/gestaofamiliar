@@ -22,10 +22,11 @@ import java.text.DateFormat
 import java.util.Date
 
 /**
- * Tela única do app: pareia o celular com o código gerado no site e mostra,
- * passo a passo, o que ainda falta liberar para a localização funcionar sempre.
+ * Configurações do celular da criança: mostra, passo a passo, o que falta liberar para a
+ * localização funcionar sempre. Também permite conectar com o código do site (alternativa
+ * a entrar no app com a conta da criança).
  */
-class MainActivity : Activity() {
+class ConfiguracaoActivity : Activity() {
     private lateinit var configuracao: Configuracao
     private lateinit var raiz: LinearLayout
     private var pareando = false
@@ -71,7 +72,8 @@ class MainActivity : Activity() {
             aviso("Este celular foi desconectado da família. Peça um código novo para um adulto.")
         }
         subtitulo("Ligar este celular")
-        texto("No site, um adulto abre Localização › Celulares e toca em \"Gerar código\".", cinza = true)
+        texto("O jeito mais fácil: a criança entra no app com a conta dela e o celular se conecta sozinho.", cinza = true)
+        texto("Ou use um código: no site, um adulto abre Localização › Celulares e toca em \"Gerar código\".", cinza = true)
 
         val site = campo("Endereço do site", configuracao.site, InputType.TYPE_TEXT_VARIATION_URI)
         val codigo = campo("Código (ex.: ABCD-2345)", "", InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS)
@@ -147,6 +149,7 @@ class MainActivity : Activity() {
             raiz.postDelayed({ desenhar() }, 4000)
         }
         texto("Para desligar, um adulto revoga este celular no site.", cinza = true)
+        botao("Voltar ao app") { finish() }
     }
 
     // ------------------------------------------------------------ permissões

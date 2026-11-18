@@ -116,3 +116,78 @@ def test_so_admin_envia_e_arquivo_precisa_ser_apk(ambiente):
     estado["anonimo"] = True
     assert _enviar(cliente).status_code == 401
     assert cliente.get("/api/v1/app-android/ultima").status_code == 404
+
+
+def test_token_de_publicacao_so_publica_e_pode_ser_revogado(ambiente):
+    cliente, _db, estado, adulto = ambiente
+    token = cliente.post("/api/v1/app-android/token-publicacao").json()["token"]
+    assert cliente.get("/api/v1/app-android/token-publicacao").json()["ativo"] is True
+
+    estado["anonimo"] = True  # a publicação automática não usa login
+    r = cliente.post(
+        "/api/v1/app-android/publicar",
+        data={"versao": "2.0.0"},
+        files={"arquivo": ("app.apk", APK, "application/vnd.android.package-archive")},
+        headers={"X-App-Publish-Token": token},
+    )
+    assert r.status_code == 201, r.text
+    assert cliente.get("/api/v1/app-android/ultima").json()["versao"] == "2.0.0"
+    errado = cliente.post(
+        "/api/v1/app-android/publicar", data={"versao": "2.0.1"},
+        files={"arquivo": ("app.apk", APK, "application/octet-stream")},
+        headers={"X-App-Publish-Token": "x" * 40},
+    )
+    assert errado.status_code == 401
+    # O token não serve para mais nada: a rota de admin continua pedindo login.
+    assert _enviar(cliente, versao="2.0.2").status_code == 401
+
+    estado["anonimo"] = False
+    novo = cliente.post("/api/v1/app-android/token-publicacao").json()["token"]
+    assert novo != token
+    estado["anonimo"] = True
+    antigo = cliente.post(
+        "/api/v1/app-android/publicar", data={"versao": "2.0.3"},
+        files={"arquivo": ("app.apk", APK, "application/octet-stream")},
+        headers={"X-App-Publish-Token": token},
+    )
+    assert antigo.status_code == 401  # gerar outro invalida o anterior
+    estado["anonimo"] = False
+    assert cliente.delete("/api/v1/app-android/token-publicacao").status_code == 204
+    estado["user"] = adulto
+    assert cliente.post("/api/v1/app-android/token-publicacao").status_code == 403
+
+
+def test_celular_do_adulto_registra_e_recebe_avisos(ambiente):
+    from app.models.user import User as U
+    from app.services import avisos_app
+
+    cliente, db, estado, adulto = ambiente
+    estado["user"] = adulto
+    r = cliente.post("/api/v1/app-android/dispositivos/registrar", json={"device_label": "Celular", "app_versao": 4})
+    assert r.status_code == 200, r.text
+    token = r.json()["device_token"]
+    cab = {"X-Device-Token": token}
+    assert cliente.post("/api/v1/app-android/dispositivos/avisos", json={"app_versao": 4}, headers=cab).json()["avisos"] == []
+
+    avisos_app.enfileirar(db, db.query(U).get(2), "Localização", "Guilherme chegou na Escola", "/localizacao", tipo="alerta-x")
+    db.commit()
+    lista = cliente.post("/api/v1/app-android/dispositivos/avisos", json={"app_versao": 4}, headers=cab).json()["avisos"]
+    assert [a["texto"] for a in lista] == ["Guilherme chegou na Escola"]
+    vazio = cliente.post("/api/v1/app-android/dispositivos/avisos",
+                         json={"app_versao": 4, "avisos_recebidos": [lista[0]["id"]]}, headers=cab).json()["avisos"]
+    assert vazio == []
+    assert cliente.post("/api/v1/app-android/dispositivos/revogar-me", headers=cab).status_code == 204
+    assert cliente.post("/api/v1/app-android/dispositivos/avisos", json={}, headers=cab).status_code == 401
+
+
+def test_crianca_nao_registra_celular_de_adulto(ambiente):
+    from app.models.user import User as U
+
+    cliente, db, estado, _adulto = ambiente
+    agora = datetime.now(timezone.utc)
+    crianca = U(id=9, username="gui", password="x", email="", first_name="Gui", last_name="", is_staff=False,
+                is_superuser=False, is_active=True, is_child=True, date_joined=agora, family_id=1)
+    db.add(crianca)
+    db.commit()
+    estado["user"] = crianca
+    assert cliente.post("/api/v1/app-android/dispositivos/registrar", json={}).status_code == 403

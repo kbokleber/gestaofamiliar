@@ -9,6 +9,7 @@ import { initKeycloak, keycloak, keycloakEnabled } from './lib/keycloak'
 import { authService } from './services/authService'
 import { useAuthStore } from './stores/authStore'
 import { canSeeMenu } from './lib/menus'
+import { avisarSessaoAoApp } from './lib/appNativo'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 
@@ -32,6 +33,15 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
+})
+
+// Dentro do app Android: avisa quem está logado (o app liga localização para criança ou alertas para adulto).
+let ultimaSessao = ''
+useAuthStore.subscribe((estado) => {
+  const chave = estado.user && estado.token ? `${estado.user.id}` : ''
+  if (chave === ultimaSessao) return
+  ultimaSessao = chave
+  avisarSessaoAoApp(estado.token, estado.user)
 })
 
 function renderApp() {

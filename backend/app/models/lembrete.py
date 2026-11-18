@@ -39,7 +39,11 @@ class PushInscricao(Base):
 
 
 class AvisoApp(Base):
-    """Aviso esperando o app Android da criança buscar, junto com o envio da localização."""
+    """Aviso esperando o app Android buscar.
+
+    child_user_id é o destinatário: a criança (entregue junto com a localização) ou
+    um adulto (lembretes/alertas, buscados pelo celular do adulto).
+    """
 
     __tablename__ = "app_aviso"
 

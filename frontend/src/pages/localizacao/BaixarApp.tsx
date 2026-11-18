@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { Copy, Download, Smartphone, Upload } from 'lucide-react'
+import { Copy, Download, KeyRound, Smartphone, Upload } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -11,7 +11,7 @@ export interface VersaoApp {
   publicado_em?: string | null
 }
 
-/** Endereço público da página de download (abre no celular da criança, sem login). */
+/** Endereço público da página de download (abre no celular, sem login). */
 export const PAGINA_APP = '/app'
 const INFO_URL = '/api/v1/app-android/ultima'
 
@@ -58,17 +58,17 @@ export default function BaixarApp() {
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 font-semibold text-gray-900">
             <Smartphone className="h-5 w-5 text-purple-600" />
-            App da criança para Android
+            App Gestão Familiar para Android
           </p>
           {info ? (
             <>
               <p className="mt-1 text-sm text-gray-700">Versão {info.versao} · {formatarTamanho(info.tamanho_bytes)}</p>
               <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700">
-                <li>No celular da criança, escaneie o QR code com a câmera ou abra <strong>{pagina}</strong>.</li>
+                <li>No celular, escaneie o QR code com a câmera ou abra <strong>{pagina}</strong>.</li>
                 <li>Baixe e abra o arquivo. Se pedir, permita "instalar desta fonte".</li>
-                <li>Volte aqui, toque em "Gerar código" e digite o código no app.</li>
+                <li>Abra o app e entre com a sua conta. No celular da criança, entre com a conta dela: a localização se conecta sozinha. Adultos recebem os alertas (chegada, bateria baixa, sem sinal).</li>
               </ol>
-              <p className="mt-2 text-xs text-gray-500">Para atualizar, é só abrir {PAGINA_APP} no celular e instalar por cima: não precisa conectar de novo.</p>
+              <p className="mt-2 text-xs text-gray-500">Para atualizar, é só abrir {PAGINA_APP} no celular e instalar por cima: não precisa conectar de novo. Sem login da criança, ainda dá para usar "Gerar código" nas configurações do app.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <a
                   href={info.arquivo}
@@ -90,6 +90,7 @@ export default function BaixarApp() {
             <p className="mt-1 text-sm text-gray-700">Nenhuma versão enviada ainda. Envie o APK abaixo para liberar o download em {PAGINA_APP}.</p>
           )}
           {admin && <EnviarVersao aoEnviar={recarregar} />}
+          {admin && <TokenPublicacao />}
         </div>
         {qr && info && (
           <div
@@ -180,6 +181,102 @@ function EnviarVersao({ aoEnviar }: { aoEnviar: () => void }) {
         </button>
       </div>
       {mensagem && <p className="mt-2 text-sm text-gray-700">{mensagem}</p>}
+    </details>
+  )
+}
+
+/**
+ * Só admin: token que permite publicar versões novas do app automaticamente, sem baixar e reenviar o APK.
+ * O valor aparece uma única vez; depois, só dá para gerar outro (que invalida o anterior) ou revogar.
+ */
+function TokenPublicacao() {
+  const [ativo, setAtivo] = useState<boolean | null>(null)
+  const [token, setToken] = useState('')
+  const [copiado, setCopiado] = useState(false)
+  const [ocupado, setOcupado] = useState(false)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    api.get<{ ativo: boolean }>('/app-android/token-publicacao')
+      .then(({ data }) => setAtivo(data.ativo))
+      .catch(() => setAtivo(null))
+  }, [])
+
+  const gerar = async () => {
+    if (ativo && !window.confirm('Gerar um token novo? O token atual deixa de funcionar.')) return
+    setOcupado(true)
+    setErro('')
+    try {
+      const { data } = await api.post<{ token: string }>('/app-android/token-publicacao')
+      setToken(data.token)
+      setAtivo(true)
+      setCopiado(false)
+    } catch {
+      setErro('Não foi possível gerar o token.')
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  const revogar = async () => {
+    if (!window.confirm('Revogar o token de publicação? A publicação automática para até gerar outro.')) return
+    setOcupado(true)
+    setErro('')
+    try {
+      await api.delete('/app-android/token-publicacao')
+      setAtivo(false)
+      setToken('')
+    } catch {
+      setErro('Não foi possível revogar o token.')
+    } finally {
+      setOcupado(false)
+    }
+  }
+
+  return (
+    <details className="mt-3 rounded-lg border border-purple-200 bg-white p-3">
+      <summary className="cursor-pointer text-sm font-medium text-purple-800">Publicação automática (admin)</summary>
+      <p className="mt-2 text-sm text-gray-700">
+        Com este token, as versões novas do app são publicadas direto aqui, sem você baixar e reenviar o APK.
+        Ele só serve para publicar o app.
+      </p>
+      <p className="mt-1 text-xs text-gray-500">
+        Situação: {ativo === null ? '—' : ativo ? 'token ativo' : 'sem token'}
+      </p>
+      {token && (
+        <div className="mt-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-900">
+          <p className="font-medium">Copie agora: este valor não aparece de novo.</p>
+          <code className="mt-1 block break-all rounded bg-white p-2 text-xs text-gray-900">{token}</code>
+          <button
+            type="button"
+            onClick={() => { void navigator.clipboard?.writeText(token).then(() => setCopiado(true)) }}
+            className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700"
+          >
+            <Copy className="h-4 w-4" /> {copiado ? 'Copiado' : 'Copiar'}
+          </button>
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => { void gerar() }}
+          disabled={ocupado}
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-purple-600 px-4 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+        >
+          <KeyRound className="h-4 w-4" /> {ativo ? 'Gerar novo token' : 'Gerar token de publicação'}
+        </button>
+        {ativo && (
+          <button
+            type="button"
+            onClick={() => { void revogar() }}
+            disabled={ocupado}
+            className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            Revogar
+          </button>
+        )}
+      </div>
+      {erro && <p className="mt-2 text-sm text-red-600">{erro}</p>}
     </details>
   )
 }

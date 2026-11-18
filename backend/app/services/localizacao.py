@@ -26,7 +26,7 @@ from app.models.location import (
     LocationPoint,
 )
 from app.models.user import User
-from app.services import avisos_app
+from app.services import alertas_adultos, avisos_app
 from app.schemas.location import LugarIn, PosicaoIn
 
 logger = logging.getLogger(__name__)
@@ -454,6 +454,43 @@ def gerar_pareamento(db: Session, adulto: User, child_id: int) -> dict:
     }
 
 
+def parear_crianca_logada(db: Session, crianca: User, rotulo: Optional[str], token_anterior: Optional[str] = None) -> dict:
+    """A criança entra com a conta dela no app e o celular se conecta sozinho, sem código."""
+    if not crianca.is_child or not crianca.is_active or not crianca.family_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o celular de uma criança da família envia localização.")
+    agora = datetime.now(timezone.utc)
+    if token_anterior and len(token_anterior.strip()) >= 20:
+        # O mesmo celular trocou de criança: o pareamento antigo para, sem gerar alerta de "sem sinal".
+        antigo = db.query(LocationDevice).filter(
+            LocationDevice.token_hash == hash_segredo(token_anterior.strip()),
+            LocationDevice.family_id == crianca.family_id,
+            LocationDevice.revoked_at.is_(None),
+        ).first()
+        if antigo is not None:
+            antigo.revoked_at = agora
+    token = secrets.token_urlsafe(32)
+    nome = (rotulo or "").strip() or f"Celular de {nome_de(crianca)}"
+    aparelho = LocationDevice(
+        family_id=crianca.family_id,
+        child_user_id=crianca.id,
+        token_hash=hash_segredo(token),
+        label=nome[:80],
+        created_by_id=crianca.id,
+        created_at=agora,
+    )
+    db.add(aparelho)
+    db.commit()
+    db.refresh(aparelho)
+    logger.info("celular pareado pelo login device_id=%s child_id=%s", aparelho.id, crianca.id)
+    return {
+        "device_token": token,
+        "device_id": aparelho.id,
+        "crianca_id": crianca.id,
+        "crianca_nome": nome_de(crianca),
+        "mensagem": "Celular conectado. Um adulto pode revogar o acesso no site.",
+    }
+
+
 def trocar_codigo(db: Session, codigo: str, rotulo: Optional[str]) -> dict:
     normalizado = normalizar_codigo(codigo)
     if len(normalizado) < 6:
@@ -618,7 +655,7 @@ def registrar_presenca(db: Session, ponto: LocationPoint, lugares: list[Location
             continue
         estado.inside = 1 if dentro else 0
         estado.updated_at = agora
-        db.add(LocationPlaceEvent(
+        evento = LocationPlaceEvent(
             family_id=ponto.family_id,
             child_user_id=ponto.child_user_id,
             device_id=ponto.device_id,
@@ -629,7 +666,15 @@ def registrar_presenca(db: Session, ponto: LocationPoint, lugares: list[Location
             recorded_at=ponto.recorded_at,
             latitude=ponto.latitude,
             longitude=ponto.longitude,
-        ))
+        )
+        db.add(evento)
+        db.flush()
+        crianca = db.query(User).filter(User.id == ponto.child_user_id).first()
+        if crianca is not None:
+            alertas_adultos.chegada_saida(
+                db, nome_de(crianca), ponto.family_id, evento.id,
+                frase_evento(evento.tipo, evento.preposicao, evento.lugar_nome), ponto.recorded_at,
+            )
 
 
 def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -> dict:
@@ -645,6 +690,7 @@ def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -
     repetido = _ponto_repetido(db, aparelho.id, recorded)
     if repetido is not None:
         aparelho.last_seen_at = agora
+        aparelho.alerta_sem_sinal_em = None
         avisos = avisos_app.atualizar_e_entregar(db, aparelho, dados.app_versao, dados.notificacoes, dados.avisos_recebidos)
         return {"id": repetido.id, "recebido": True, "repetido": True, "avisos": avisos}
 
@@ -660,9 +706,16 @@ def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -
         recorded_at=recorded,
         received_at=agora,
     )
+    anterior = ultimo_ponto(db, aparelho.child_user_id, aparelho.id)
+    bateria_anterior = anterior.battery_level if anterior is not None else None
     aparelho.last_seen_at = agora
+    aparelho.alerta_sem_sinal_em = None
     db.add(ponto)
     db.flush()
+    if dados.battery_level is not None and (anterior is None or como_utc(anterior.recorded_at) <= recorded):
+        crianca = db.query(User).filter(User.id == aparelho.child_user_id).first()
+        if crianca is not None:
+            alertas_adultos.bateria(db, nome_de(crianca), aparelho, dados.battery_level, bateria_anterior)
     lugares = db.query(LocationPlace).filter(LocationPlace.family_id == aparelho.family_id).all()
     registrar_presenca(db, ponto, lugares)
     db.commit()

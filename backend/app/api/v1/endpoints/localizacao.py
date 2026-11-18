@@ -4,9 +4,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, Security, status
 from fastapi.security import APIKeyHeader
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, require_menu
+from app.api.deps import get_current_user, get_db, require_menu
 from app.core.config import settings
 from app.models.location import LocationDevice
 from app.models.user import User
@@ -45,6 +46,7 @@ from app.services.localizacao import (
     revogar_dispositivo,
     revogar_proprio,
     trocar_codigo,
+    parear_crianca_logada,
 )
 from app.services.limite_tentativas import LimiteTentativas, ip_do_pedido
 
@@ -172,6 +174,22 @@ def apagar_lugar(
 ):
     excluir_lugar(db, adulto, lugar_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+class ParearMeIn(BaseModel):
+    device_label: Optional[str] = Field(default=None, max_length=80)
+    # Token antigo deste mesmo celular (ex.: estava ligado a outra criança): é revogado na troca.
+    token_anterior: Optional[str] = Field(default=None, max_length=200)
+
+
+@router.post("/dispositivos/parear-me", response_model=ParearDispositivoOut)
+def parear_pelo_login(
+    dados: ParearMeIn,
+    db: Session = Depends(get_db),
+    usuario: User = Depends(get_current_user),
+):
+    """O app da criança, já logado com a conta dela, conecta o celular sem código de pareamento."""
+    return parear_crianca_logada(db, usuario, dados.device_label, dados.token_anterior)
 
 
 @router.post("/dispositivos/parear", response_model=ParearDispositivoOut)

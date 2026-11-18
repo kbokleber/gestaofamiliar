@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { dentroDoApp } from '../../lib/appNativo'
 import { Bell } from 'lucide-react'
 import api from '../../lib/api'
 import { useAuthStore } from '../../stores/authStore'
@@ -12,7 +13,8 @@ function chaveParaBytes(chave: string) {
 
 export default function LembreteCelular() {
   const user = useAuthStore((state) => state.user)
-  const filho = !!user?.is_child
+  // No app Android, os lembretes chegam pelo próprio app: o alerta do navegador não se aplica.
+  const filho = !!user?.is_child && !dentroDoApp()
   const admin = !!user?.is_superuser
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')

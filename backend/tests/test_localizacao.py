@@ -680,3 +680,82 @@ def test_lembrete_vale_ate_o_fim_da_janela():
     assert lembrete.fim_da_janela(datetime(2026, 11, 18, 18, 0, tzinfo=fuso)) == datetime(2026, 11, 19, 0, 0, tzinfo=timezone.utc)
     # Fora da janela (disparo de teste às 22h), vale 1 hora.
     assert lembrete.fim_da_janela(datetime(2026, 11, 18, 22, 0, tzinfo=fuso)) == datetime(2026, 11, 19, 2, 0, tzinfo=timezone.utc)
+
+
+def _app_adulto(db, user_id):
+    """Registra direto um celular de adulto (o app faz isso pelo login)."""
+    from app.models.app_android import AppDispositivoAdulto
+
+    db.add(AppDispositivoAdulto(family_id=1, user_id=user_id, token_hash=f"h{user_id}" * 8, label="Celular",
+                                created_at=datetime.now(timezone.utc)))
+    db.commit()
+
+
+def _avisos_de(db, user_id):
+    from app.models.lembrete import AvisoApp
+
+    return [a.texto for a in db.query(AvisoApp).filter(AvisoApp.child_user_id == user_id).order_by(AvisoApp.id)]
+
+
+def test_crianca_logada_conecta_o_celular_sem_codigo(ambiente):
+    cliente, db, estado = ambiente
+    estado["user"] = db.query(User).get(16)
+    r = cliente.post("/api/v1/localizacao/dispositivos/parear-me", json={"device_label": "Celular do Gui"})
+    assert r.status_code == 200, r.text
+    assert r.json()["crianca_id"] == 16
+    assert _enviar(cliente, r.json()["device_token"], latitude=-23.55, longitude=-46.63).status_code == 200
+    # O mesmo celular passa para a Giovana: o token do Gui é revogado na troca.
+    token_gui = r.json()["device_token"]
+    estado["user"] = db.query(User).get(17)
+    r2 = cliente.post("/api/v1/localizacao/dispositivos/parear-me", json={"token_anterior": token_gui})
+    assert r2.status_code == 200 and r2.json()["crianca_id"] == 17
+    assert _enviar(cliente, token_gui, latitude=-23.55, longitude=-46.63).status_code == 401
+    assert _enviar(cliente, r2.json()["device_token"], latitude=-23.55, longitude=-46.63).status_code == 200
+    # Adulto não vira "criança monitorada" pelo app.
+    estado["user"] = db.query(User).get(3)
+    assert cliente.post("/api/v1/localizacao/dispositivos/parear-me", json={}).status_code == 403
+
+
+def test_alertas_de_chegada_saida_e_bateria_para_adultos_com_app(ambiente):
+    cliente, db, estado = ambiente
+    _app_adulto(db, 1)  # Kleber (admin) com app
+    _app_adulto(db, 2)  # Tia com app, mas sem o menu Localização: não recebe
+    casa = (-23.55, -46.63)
+    um_km = 1000 / 111_320
+    assert cliente.post("/api/v1/localizacao/lugares", json={
+        "nome": "Casa", "preposicao": "em", "latitude": casa[0], "longitude": casa[1], "raio_m": 150,
+    }).status_code == 201
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    agora = datetime.now(timezone.utc)
+    _enviar(cliente, token, latitude=casa[0] - um_km, longitude=casa[1], battery_level=40,
+            recorded_at=_iso(agora - timedelta(minutes=10)))
+    _enviar(cliente, token, latitude=casa[0], longitude=casa[1], battery_level=15,
+            recorded_at=_iso(agora - timedelta(minutes=5)))
+    _enviar(cliente, token, latitude=casa[0], longitude=casa[1], battery_level=12,
+            recorded_at=_iso(agora - timedelta(minutes=1)))
+    avisos = _avisos_de(db, 1)
+    assert any(t.startswith("Guilherme chegou em Casa às ") for t in avisos), avisos
+    assert "Bateria do celular de Guilherme em 15%." in avisos
+    assert not any("12%" in t for t in avisos)  # um aviso por descarga
+    assert _avisos_de(db, 2) == []
+
+
+def test_alerta_sem_sinal_uma_vez_e_volta_a_valer_depois_de_novo_envio(ambiente):
+    from app.models.location import LocationDevice
+    from app.services import alertas_adultos
+
+    cliente, db, estado = ambiente
+    _app_adulto(db, 1)
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    _enviar(cliente, token, latitude=-23.55, longitude=-46.63,
+            recorded_at=_iso(datetime.now(timezone.utc) - timedelta(minutes=45)))
+    aparelho = db.query(LocationDevice).filter(LocationDevice.child_user_id == 16).first()
+    aparelho.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=40)
+    db.commit()
+    assert alertas_adultos.verificar_sem_sinal(db) == 1
+    assert alertas_adultos.verificar_sem_sinal(db) == 0
+    assert any("não envia localização desde" in t for t in _avisos_de(db, 1))
+    r = _enviar(cliente, token, latitude=-23.55, longitude=-46.63)
+    assert r.status_code == 200, r.text
+    db.refresh(aparelho)
+    assert aparelho.alerta_sem_sinal_em is None, r.json()

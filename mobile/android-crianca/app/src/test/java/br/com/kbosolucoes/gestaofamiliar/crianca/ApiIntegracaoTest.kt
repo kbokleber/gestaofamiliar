@@ -61,4 +61,55 @@ class ApiIntegracaoTest {
             assertTrue(lerAvisos((confirmado as Resposta.Ok).corpo).isEmpty())
         }
     }
+
+    /**
+     * App 2.0: criança logada conecta o celular sem código; o adulto com o app recebe o alerta de bateria.
+     * Precisa de GF_API_URL, GF_LOGIN_CRIANCA e GF_LOGIN_ADULTO (tokens de login da API local).
+     */
+    @Test
+    fun criancaLogadaConectaEAdultoRecebeAlerta() {
+        val url = System.getenv("GF_API_URL")
+        val crianca = System.getenv("GF_LOGIN_CRIANCA")
+        val adulto = System.getenv("GF_LOGIN_ADULTO")
+        assumeTrue(!url.isNullOrBlank() && !crianca.isNullOrBlank() && !adulto.isNullOrBlank())
+        val api = ApiClient(url!!)
+
+        // Login da criança não registra celular de adulto; o do adulto não conecta localização.
+        assertTrue(api.registrarAdulto(crianca!!, "x", 4) is Resposta.Recusado)
+        assertTrue(api.parearMe(adulto!!, "x", null) is Resposta.Recusado)
+        assertTrue(api.parearMe("login-invalido", "x", null) is Resposta.Recusado)
+
+        val registro = api.registrarAdulto(adulto, "Celular do adulto", 4)
+        assertTrue("registro: $registro", registro is Resposta.Ok)
+        val tokenAdulto = (registro as Resposta.Ok).corpo.getString("device_token")
+
+        val pareado = api.parearMe(crianca, "Celular da criança", null)
+        assertTrue("parear-me: $pareado", pareado is Resposta.Ok)
+        val dados = ApiClient.lerPareamento((pareado as Resposta.Ok).corpo)
+        assertTrue(dados.criancaId > 0)
+        assertTrue(api.enviarPosicao(dados.token, montarPonto(-23.60, -46.70, 10f, 0f, 60, Instant.now().minusSeconds(90))) is Resposta.Ok)
+        assertTrue(api.enviarPosicao(dados.token, montarPonto(-23.60, -46.70, 10f, 0f, 12, Instant.now().minusSeconds(30))) is Resposta.Ok)
+
+        val primeira = api.avisosAdulto(tokenAdulto, 4, true, emptyList())
+        assertTrue("avisos: $primeira", primeira is Resposta.Ok)
+        val alertas = lerAvisos((primeira as Resposta.Ok).corpo)
+        val bateria = alertas.firstOrNull { it.texto.contains("12%") }
+        assertTrue("alertas: $alertas", bateria != null)
+        assertEquals("/localizacao", bateria!!.url)
+
+        // Confirmado: não vem de novo.
+        val segunda = api.avisosAdulto(tokenAdulto, 4, true, alertas.map { it.id }) as Resposta.Ok
+        assertTrue(lerAvisos(segunda.corpo).none { it.id == bateria.id })
+
+        // Troca de criança no mesmo celular revoga o token anterior.
+        val trocado = api.parearMe(crianca, "Celular da criança", dados.token)
+        assertTrue(trocado is Resposta.Ok)
+        assertTrue(api.enviarPosicao(dados.token, montarPonto(0.0, 0.0, null, null, null, Instant.now())) is Resposta.Desconectado)
+
+        assertTrue(api.revogarAdulto(tokenAdulto) is Resposta.Ok)
+        assertTrue(api.avisosAdulto(tokenAdulto, 4, true, emptyList()) is Resposta.Desconectado)
+
+        val versao = api.ultimaVersao()
+        assertTrue("ultima: $versao", versao is Resposta.Ok || (versao is Resposta.Recusado && versao.status == 404))
+    }
 }

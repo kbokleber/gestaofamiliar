@@ -83,7 +83,12 @@ def enfileirar(
     return aviso
 
 
-def confirmar(db: Session, aparelho: LocationDevice, ids: Iterable[int]) -> int:
+def _dono(aparelho) -> int:
+    """Dono dos avisos: a criança do celular (LocationDevice) ou o adulto (AppDispositivoAdulto)."""
+    return aparelho.child_user_id if hasattr(aparelho, "child_user_id") else aparelho.user_id
+
+
+def confirmar(db: Session, aparelho, ids: Iterable[int]) -> int:
     """Marca como entregues os avisos que o app confirmou ter mostrado."""
     ids = [i for i in ids if isinstance(i, int)]
     if not ids:
@@ -91,7 +96,7 @@ def confirmar(db: Session, aparelho: LocationDevice, ids: Iterable[int]) -> int:
     agora = datetime.now(timezone.utc)
     avisos = db.query(AvisoApp).filter(
         AvisoApp.id.in_(ids),
-        AvisoApp.child_user_id == aparelho.child_user_id,
+        AvisoApp.child_user_id == _dono(aparelho),
         AvisoApp.family_id == aparelho.family_id,
         AvisoApp.entregue_em.is_(None),
     ).all()
@@ -102,15 +107,15 @@ def confirmar(db: Session, aparelho: LocationDevice, ids: Iterable[int]) -> int:
     return len(avisos)
 
 
-def pendentes(db: Session, aparelho: LocationDevice) -> list[dict]:
-    """Avisos ainda não confirmados da criança deste celular. Voltam até serem confirmados ou vencerem."""
+def pendentes(db: Session, aparelho) -> list[dict]:
+    """Avisos ainda não confirmados do dono deste celular. Voltam até serem confirmados ou vencerem."""
     if (aparelho.app_versao or 0) < VERSAO_MINIMA_AVISOS:
         return []
     agora = datetime.now(timezone.utc)
     lista = (
         db.query(AvisoApp)
         .filter(
-            AvisoApp.child_user_id == aparelho.child_user_id,
+            AvisoApp.child_user_id == _dono(aparelho),
             AvisoApp.family_id == aparelho.family_id,
             AvisoApp.entregue_em.is_(None),
         )
@@ -133,7 +138,7 @@ def pendentes(db: Session, aparelho: LocationDevice) -> list[dict]:
     return saida
 
 
-def atualizar_e_entregar(db: Session, aparelho: LocationDevice, versao: Optional[int], notificacoes: Optional[bool], recebidos: Iterable[int]) -> list[dict]:
+def atualizar_e_entregar(db: Session, aparelho, versao: Optional[int], notificacoes: Optional[bool], recebidos: Iterable[int]) -> list[dict]:
     """Registra o que o app informou, confirma o que ele já mostrou e devolve o que falta."""
     if versao is not None:
         aparelho.app_versao = versao

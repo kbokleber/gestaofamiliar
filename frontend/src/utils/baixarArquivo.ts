@@ -1,3 +1,5 @@
+import { blobParaBase64, ponteNativa } from '../lib/appNativo'
+
 /** Nome usado no download. Preserva o nome real e completa a extensão de PDF. */
 export function nomeParaDownload(nome: string | null | undefined, tipo = ''): string {
   const base = String(nome || '')
@@ -21,6 +23,12 @@ export function ehPdf(tipo?: string | null, nome?: string | null): boolean {
  */
 export function baixarBlob(conteudo: Blob, nome: string, tipo?: string): void {
   const mime = tipo || conteudo.type || 'application/octet-stream'
+  // Dentro do app Android, links blob: não baixam: o app salva o arquivo em Downloads.
+  const ponte = ponteNativa()
+  if (ponte) {
+    void blobParaBase64(conteudo).then((base64) => ponte.salvarArquivo(base64, nome, mime))
+    return
+  }
   const arquivo = new File([conteudo], nome, { type: mime })
   const url = URL.createObjectURL(arquivo)
   const link = document.createElement('a')

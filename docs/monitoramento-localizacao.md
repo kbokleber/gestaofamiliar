@@ -37,6 +37,15 @@ Continua pendente: teste num celular de verdade, notificação push de chegada/s
 - O canal "app" só é usado se o celular tem o app 1.0.2+ (`app_versao` >= 3), notificações liberadas (`notificacoes`) e mandou posição nos últimos 30 minutos. Colunas novas em `location_device`: `app_versao` e `notificacoes_ativas` (ALTER na subida da API). Senão, vai pelo navegador.
 - Validade do lembrete: até as 21h do dia (fim da janela); disparo de teste fora da janela vale 1 hora.
 
+## Atualização: app 2.0 para adultos e crianças, alertas e publicação automática (etapa E)
+
+- **App 2.0.0** (`mobile/android-crianca`, versionCode 4): o site inteiro dentro do app (WebView), com login, envio e download de arquivos, botão voltar e faixa de versão nova. O código de pareamento continua como alternativa na tela de Configurações.
+- **Criança logada conecta o celular sozinha**: `POST /api/v1/localizacao/dispositivos/parear-me` (login da criança; adulto recebe 403). Com `token_anterior`, o pareamento anterior do mesmo celular é revogado (troca de criança sem gerar alerta de "sem sinal").
+- **Celular do adulto** (tabela `app_dispositivo_adulto`): `POST /api/v1/app-android/dispositivos/registrar` (login de adulto; criança recebe 403), `POST /dispositivos/avisos` (X-Device-Token; devolve e confirma alertas) e `POST /dispositivos/revogar-me`. O celular do adulto nunca envia localização. Se o usuário deixar de ser adulto ativo da família, o token é revogado na chamada seguinte.
+- **Alertas para adultos** (`backend/app/services/alertas_adultos.py`), só para adultos com o app e acesso ao menu Localização: chegada/saída de lugar (pontos com mais de 1 hora da fila offline não alertam), bateria em 15% ou menos (um alerta por descarga) e sem localização há 30 minutos (um alerta por ausência, verificado a cada ~1 minuto no ciclo de lembretes; coluna nova `location_device.alerta_sem_sinal_em`). Os alertas usam a mesma fila `app_aviso`, com validade de 3 horas.
+- **Token de publicação do APK** (tabela `app_publicacao_token`): admin gera, vê uma vez, revoga em Localização › Celulares. `POST /api/v1/app-android/publicar` com `X-App-Publish-Token` publica sem login e sem redeploy.
+- **Site**: `frontend/src/lib/appNativo.ts` informa o login ao app e salva downloads pelo app; dentro do app, o botão de Web Push dos lembretes some (o app já notifica).
+
 O Find My Kids serviu só de referência de recursos que a família quer enxergar: mapa em tempo quase real, trajetos com velocidade, bateria do celular e lugares com aviso de chegada e saída. Não existe integração, conta, SDK, chave nem qualquer ligação com o Find My Kids.
 
 ## 1. Objetivo

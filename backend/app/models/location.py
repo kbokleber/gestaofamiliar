@@ -35,6 +35,8 @@ class LocationDevice(Base):
     # Informados pelo app a cada envio: versão (versionCode) e se as notificações estão liberadas.
     app_versao = Column(Integer, nullable=True)
     notificacoes_ativas = Column(Boolean, nullable=True)
+    # Quando o alerta "sem enviar há 30 min" já foi dado; zera ao chegar um ponto novo.
+    alerta_sem_sinal_em = Column(DateTime(timezone=True), nullable=True)
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

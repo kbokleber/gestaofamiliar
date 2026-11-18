@@ -2,7 +2,7 @@ import { Download, Smartphone } from 'lucide-react'
 import { formatarTamanho, useVersaoApp } from './localizacao/BaixarApp'
 
 /**
- * Página pública /app: aberta no celular da criança para instalar ou atualizar o app,
+ * Página pública /app: aberta no celular (adulto ou criança) para instalar ou atualizar o app,
  * sem login. Só mostra a versão disponível e o botão de download.
  */
 export default function AppDownload() {
@@ -15,7 +15,7 @@ export default function AppDownload() {
           <Smartphone className="h-8 w-8" />
         </div>
         <h1 className="mt-4 text-xl font-bold text-gray-900">Gestão Familiar</h1>
-        <p className="text-sm text-gray-600">App da criança para Android</p>
+        <p className="text-sm text-gray-600">App para Android</p>
 
         {info === undefined && <p className="mt-6 text-sm text-gray-500">Carregando...</p>}
         {info === null && (
@@ -34,6 +34,7 @@ export default function AppDownload() {
             <ol className="mt-5 list-decimal space-y-1 pl-5 text-left text-sm text-gray-700">
               <li>Toque em "Baixar o app".</li>
               <li>Abra o arquivo baixado. Se pedir, permita "instalar desta fonte".</li>
+              <li>Abra o app e entre com a sua conta (a criança entra com a conta dela).</li>
               <li>Já tem o app? Instale por cima: ele atualiza sem precisar conectar de novo.</li>
             </ol>
           </>

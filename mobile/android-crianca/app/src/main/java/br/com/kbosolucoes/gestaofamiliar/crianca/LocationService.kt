@@ -2,7 +2,6 @@ package br.com.kbosolucoes.gestaofamiliar.crianca
 
 import android.annotation.SuppressLint
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
@@ -10,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.location.Location
-import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
@@ -147,7 +145,7 @@ class LocationService : Service() {
 
     private fun notificacao(): Notification {
         val abrir = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+            this, 0, Intent(this, ConfiguracaoActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
         )
         val nome = configuracao.criancaNome.ifBlank { "este celular" }
         return NotificationCompat.Builder(this, CANAL_ID)
@@ -161,38 +159,19 @@ class LocationService : Service() {
             .build()
     }
 
-    private fun mostrarAviso(aviso: Aviso) {
-        val abrir = Intent(Intent.ACTION_VIEW, Uri.parse(enderecoDoAviso(configuracao.site, aviso.url)))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        val toque = PendingIntent.getActivity(
-            this, 1000 + aviso.id % 100_000, abrir, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        getSystemService(NotificationManager::class.java).notify(
-            NOTIFICACAO_AVISO_BASE + aviso.id % 100_000,
-            NotificationCompat.Builder(this, CANAL_AVISOS_ID)
-                .setSmallIcon(R.drawable.ic_notificacao)
-                .setContentTitle(aviso.titulo)
-                .setContentText(aviso.texto)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(aviso.texto))
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_REMINDER)
-                .setContentIntent(toque)
-                .setAutoCancel(true)
-                .build(),
-        )
-    }
+    private fun mostrarAviso(aviso: Aviso) = Notificador.mostrarAviso(this, configuracao.site, aviso)
 
     private fun avisarDesconectado() {
         val gerenciador = getSystemService(NotificationManager::class.java)
         val abrir = PendingIntent.getActivity(
-            this, 1, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+            this, 1, Intent(this, ConfiguracaoActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
         )
         gerenciador.notify(
             NOTIFICACAO_DESCONECTADO_ID,
             NotificationCompat.Builder(this, CANAL_ID)
                 .setSmallIcon(R.drawable.ic_notificacao)
                 .setContentTitle("Celular desconectado da família")
-                .setContentText("Peça um novo código para um adulto e pareie de novo.")
+                .setContentText("Entre de novo no app com a sua conta ou peça um código novo para um adulto.")
                 .setContentIntent(abrir)
                 .setAutoCancel(true)
                 .build(),
@@ -215,23 +194,13 @@ class LocationService : Service() {
 
     companion object {
         const val ACAO_ENVIAR_AGORA = "br.com.kbosolucoes.gestaofamiliar.crianca.ENVIAR_AGORA"
-        private const val CANAL_ID = "localizacao"
-        private const val CANAL_AVISOS_ID = "lembretes"
-        private const val NOTIFICACAO_AVISO_BASE = 1000
+        private const val CANAL_ID = Notificador.CANAL_LOCALIZACAO
         private const val NOTIFICACAO_ID = 10
         private const val NOTIFICACAO_DESCONECTADO_ID = 11
         private const val INTERVALO_MS = 5 * 60 * 1000L
         private const val INTERVALO_MINIMO_MS = 2 * 60 * 1000L
 
-        fun criarCanal(contexto: Context) {
-            val canal = NotificationChannel(
-                CANAL_ID, contexto.getString(R.string.canal_nome), NotificationManager.IMPORTANCE_LOW,
-            ).apply { description = contexto.getString(R.string.canal_descricao) }
-            val avisos = NotificationChannel(
-                CANAL_AVISOS_ID, contexto.getString(R.string.canal_avisos_nome), NotificationManager.IMPORTANCE_HIGH,
-            ).apply { description = contexto.getString(R.string.canal_avisos_descricao) }
-            contexto.getSystemService(NotificationManager::class.java).createNotificationChannels(listOf(canal, avisos))
-        }
+        fun criarCanal(contexto: Context) = Notificador.criarCanais(contexto)
 
         /** Liga o serviço se o celular está pareado e tem permissão de localização. */
         fun iniciar(contexto: Context, enviarAgora: Boolean = false) {

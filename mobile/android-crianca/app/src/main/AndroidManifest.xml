@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Só localização e bateria. Sem microfone, câmera, contatos ou tempo de tela. -->
+<!-- O site da família dentro do app, mais localização e bateria no celular da criança.
+     Sem microfone, câmera, contatos ou tempo de tela. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -23,14 +24,35 @@
         android:usesCleartextTraffic="false">
 
         <activity
-            android:name=".MainActivity"
+            android:name=".WebActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
             android:exported="true"
-            android:launchMode="singleTop">
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/atalhos" />
         </activity>
+
+        <activity
+            android:name=".ConfiguracaoActivity"
+            android:exported="false"
+            android:label="@string/configuracoes"
+            android:launchMode="singleTop" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.arquivos"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/arquivos" />
+        </provider>
 
         <service
             android:name=".LocationService"

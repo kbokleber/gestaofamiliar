@@ -103,11 +103,18 @@ async def disparar_agora(
 
 
 async def ciclo_de_lembretes() -> None:
+    from app.services.alertas_adultos import verificar_sem_sinal
+
+    voltas = 0
     while True:
         await asyncio.sleep(20)
+        voltas += 1
         db = SessionLocal()
         try:
             processar_lembretes_pendentes(db)
+            # A cada ~1 minuto: celulares de crianças que pararam de enviar localização.
+            if voltas % 3 == 0:
+                verificar_sem_sinal(db)
         except Exception:
             logger.warning("Falha no ciclo de lembretes", exc_info=True)
             db.rollback()

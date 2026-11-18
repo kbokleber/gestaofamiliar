@@ -16,10 +16,10 @@ sealed class Resposta {
     data class TentarDepois(val motivo: String) : Resposta()
 }
 
-data class Pareamento(val token: String, val aparelhoId: Int, val criancaNome: String)
+data class Pareamento(val token: String, val aparelhoId: Int, val criancaNome: String, val criancaId: Int = 0)
 
 /**
- * Cliente das rotas do celular em /api/v1/localizacao/dispositivos.
+ * Cliente das rotas do celular (/api/v1/localizacao/dispositivos e /api/v1/app-android).
  * Só usa HttpURLConnection e org.json, para rodar igual no Android e nos testes.
  */
 class ApiClient(baseUrl: String, private val timeoutMs: Int = 20_000) {
@@ -34,26 +34,61 @@ class ApiClient(baseUrl: String, private val timeoutMs: Int = 20_000) {
     fun enviarPosicao(token: String, ponto: JSONObject): Resposta =
         post("/api/v1/localizacao/dispositivos/posicao", ponto, token)
 
-    private fun post(caminho: String, corpo: JSONObject, token: String?): Resposta {
+    /** Criança logada no site dentro do app: conecta o celular sem código. */
+    fun parearMe(login: String, nomeCelular: String?, tokenAnterior: String?): Resposta {
+        val corpo = JSONObject()
+        if (!nomeCelular.isNullOrBlank()) corpo.put("device_label", nomeCelular.trim().take(80))
+        if (!tokenAnterior.isNullOrBlank()) corpo.put("token_anterior", tokenAnterior)
+        return chamar("POST", "/api/v1/localizacao/dispositivos/parear-me", corpo, mapOf("Authorization" to "Bearer $login"), comToken = false)
+    }
+
+    /** Adulto logado: registra o celular para receber alertas. Devolve device_token e device_id. */
+    fun registrarAdulto(login: String, nomeCelular: String?, versao: Int): Resposta {
+        val corpo = JSONObject().put("app_versao", versao)
+        if (!nomeCelular.isNullOrBlank()) corpo.put("device_label", nomeCelular.trim().take(80))
+        return chamar("POST", "/api/v1/app-android/dispositivos/registrar", corpo, mapOf("Authorization" to "Bearer $login"), comToken = false)
+    }
+
+    /** Busca os alertas do adulto e confirma os já mostrados. */
+    fun avisosAdulto(token: String, versao: Int, notificacoes: Boolean, recebidos: List<Int>): Resposta {
+        val corpo = JSONObject()
+            .put("app_versao", versao)
+            .put("notificacoes", notificacoes)
+            .put("avisos_recebidos", org.json.JSONArray(recebidos))
+        return post("/api/v1/app-android/dispositivos/avisos", corpo, token)
+    }
+
+    fun revogarAdulto(token: String): Resposta =
+        post("/api/v1/app-android/dispositivos/revogar-me", JSONObject(), token)
+
+    /** Versão mais recente publicada (rota pública). */
+    fun ultimaVersao(): Resposta = chamar("GET", "/api/v1/app-android/ultima", null, emptyMap(), comToken = false)
+
+    private fun post(caminho: String, corpo: JSONObject, token: String?): Resposta =
+        chamar("POST", caminho, corpo, if (token != null) mapOf("X-Device-Token" to token) else emptyMap(), comToken = token != null)
+
+    private fun chamar(metodo: String, caminho: String, corpo: JSONObject?, cabecalhos: Map<String, String>, comToken: Boolean): Resposta {
         val conexao = try {
             (URL(base + caminho).openConnection() as HttpURLConnection)
         } catch (e: IOException) {
             return Resposta.TentarDepois(e.message ?: "erro de rede")
         }
         return try {
-            conexao.requestMethod = "POST"
+            conexao.requestMethod = metodo
             conexao.connectTimeout = timeoutMs
             conexao.readTimeout = timeoutMs
-            conexao.doOutput = true
-            conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             conexao.setRequestProperty("Accept", "application/json")
-            if (token != null) conexao.setRequestProperty("X-Device-Token", token)
-            conexao.outputStream.use { it.write(corpo.toString().toByteArray(Charsets.UTF_8)) }
+            cabecalhos.forEach { (nome, valor) -> conexao.setRequestProperty(nome, valor) }
+            if (corpo != null) {
+                conexao.doOutput = true
+                conexao.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                conexao.outputStream.use { it.write(corpo.toString().toByteArray(Charsets.UTF_8)) }
+            }
 
             val status = conexao.responseCode
             val texto = (if (status in 200..299) conexao.inputStream else conexao.errorStream)
                 ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            interpretar(status, texto, comToken = token != null)
+            interpretar(status, texto, comToken = comToken)
         } catch (e: IOException) {
             Resposta.TentarDepois(e.message ?: "erro de rede")
         } finally {
@@ -88,6 +123,7 @@ class ApiClient(baseUrl: String, private val timeoutMs: Int = 20_000) {
             token = corpo.getString("device_token"),
             aparelhoId = corpo.optInt("device_id"),
             criancaNome = corpo.optString("crianca_nome", ""),
+            criancaId = corpo.optInt("crianca_id", 0),
         )
     }
 }

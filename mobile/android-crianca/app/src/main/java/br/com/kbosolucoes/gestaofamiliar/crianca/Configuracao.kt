@@ -19,6 +19,12 @@ class Configuracao(private val contexto: Context) {
     val token: String? get() = prefs.getString(TOKEN, null)
     val site: String get() = prefs.getString(SITE, ApiClient.SITE_PADRAO) ?: ApiClient.SITE_PADRAO
     val criancaNome: String get() = prefs.getString(CRIANCA, "") ?: ""
+    /** 0 = pareado por código numa versão antiga, sem saber o id da criança. */
+    val criancaId: Int get() = prefs.getInt(CRIANCA_ID, 0)
+
+    // Celular de adulto: token só para buscar alertas (nunca envia localização).
+    val tokenAdulto: String? get() = prefs.getString(TOKEN_ADULTO, null)
+    val adultoId: Int get() = if (tokenAdulto.isNullOrBlank()) 0 else prefs.getInt(ADULTO_ID, 0)
     val ultimoEnvio: Long get() = prefs.getLong(ULTIMO_ENVIO, 0L)
     val ultimoErro: String? get() = prefs.getString(ULTIMO_ERRO, null)
     val foiDesconectado: Boolean get() = prefs.getBoolean(DESCONECTADO, false)
@@ -29,9 +35,38 @@ class Configuracao(private val contexto: Context) {
             .putString(TOKEN, pareamento.token)
             .putInt(APARELHO, pareamento.aparelhoId)
             .putString(CRIANCA, pareamento.criancaNome)
+            .putInt(CRIANCA_ID, pareamento.criancaId)
             .putBoolean(DESCONECTADO, false)
             .remove(ULTIMO_ERRO)
             .apply()
+    }
+
+    fun anotarCrianca(id: Int, nome: String) {
+        val editor = prefs.edit().putInt(CRIANCA_ID, id)
+        if (nome.isNotBlank()) editor.putString(CRIANCA, nome)
+        editor.apply()
+    }
+
+    fun salvarAdulto(site: String, token: String, usuarioId: Int) {
+        prefs.edit()
+            .putString(SITE, site)
+            .putString(TOKEN_ADULTO, token)
+            .putInt(ADULTO_ID, usuarioId)
+            .remove(AVISOS_ADULTO_CONFIRMAR)
+            .remove(AVISOS_ADULTO_MOSTRADOS)
+            .apply()
+    }
+
+    fun esquecerAdulto() {
+        prefs.edit().remove(TOKEN_ADULTO).remove(ADULTO_ID).apply()
+    }
+
+    fun registroDeAvisosAdulto(): RegistroDeAvisos =
+        RegistroDeAvisos.ler(prefs.getString(AVISOS_ADULTO_CONFIRMAR, null), prefs.getString(AVISOS_ADULTO_MOSTRADOS, null))
+
+    fun salvarRegistroDeAvisosAdulto(registro: RegistroDeAvisos) {
+        val (confirmar, mostrados) = registro.serializar()
+        prefs.edit().putString(AVISOS_ADULTO_CONFIRMAR, confirmar).putString(AVISOS_ADULTO_MOSTRADOS, mostrados).apply()
     }
 
     /** O adulto revogou no site: apaga o token e a fila; o celular precisa de um código novo. */
@@ -81,6 +116,11 @@ class Configuracao(private val contexto: Context) {
         const val TOKEN = "token"
         const val APARELHO = "aparelho_id"
         const val CRIANCA = "crianca_nome"
+        const val CRIANCA_ID = "crianca_id"
+        const val TOKEN_ADULTO = "token_adulto"
+        const val ADULTO_ID = "adulto_id"
+        const val AVISOS_ADULTO_CONFIRMAR = "avisos_adulto_confirmar"
+        const val AVISOS_ADULTO_MOSTRADOS = "avisos_adulto_mostrados"
         const val ULTIMO_ENVIO = "ultimo_envio"
         const val ULTIMO_ERRO = "ultimo_erro"
         const val DESCONECTADO = "desconectado"
