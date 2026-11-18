@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import AcessoNegado from './pages/AcessoNegado'
+import AppDownload from './pages/AppDownload'
 import { keycloakEnabled } from './lib/keycloak'
 import Dashboard from './pages/Dashboard'
 import FamilyMembers from './pages/healthcare/FamilyMembers'
@@ -59,6 +60,8 @@ function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/acesso-negado" element={<AcessoNegado />} />
+      {/* Público: o celular da criança baixa/atualiza o app sem login. */}
+      <Route path="/app" element={<AppDownload />} />
       <Route path="/register" element={keycloakEnabled ? <Navigate to="/login" replace /> : <Register />} />
       
       <Route element={<PrivateRoute><Layout /></PrivateRoute>}>

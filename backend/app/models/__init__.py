@@ -12,6 +12,7 @@ from app.models.telegram import (
 )
 from app.models.estudo import Apontamento, ApontamentoLido, Atividade, ComunicadoLido
 from app.models.whatsapp import FamilyWhatsAppConfig
+from app.models.app_android import AppAndroid
 from app.models.lembrete import AvisoApp, FamilyLembreteConfig, PushInscricao
 from app.models.prova import (
     Avaliacao,
@@ -88,4 +89,5 @@ __all__ = [
     "LocationPlaceEvent",
     "LocationChildSettings",
     "AvisoApp",
+    "AppAndroid",
 ]

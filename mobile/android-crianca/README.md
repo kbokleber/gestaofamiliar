@@ -61,13 +61,9 @@ keyPassword=...
 
 ### Publicar a versão nova no site
 
-O site oferece o download em **Localização › Celulares › Baixar o app** (com QR code). O arquivo fica em `frontend/public/downloads/` e a versão em `app-crianca.json`. Depois de gerar o APK assinado:
+O app é baixado em **/app** do site (página pública, sem login, para abrir no celular da criança). Em Localização › Celulares há o cartão com botão, QR code e link.
 
-```bash
-./publicar-no-site.sh   # copia o app-release.apk e atualiza versão, tamanho e SHA-256
-```
-
-Faça commit de `frontend/public/downloads/` e o redeploy do site.
+O APK não fica no git. Depois de gerar o APK assinado (`./gradlew assembleRelease`), um admin abre **Localização › Celulares › Enviar nova versão do app**, escolhe o arquivo e a versão (ex.: 1.0.3) e toca em Publicar. O servidor guarda as 3 últimas versões e entrega sempre a mais nova. Não precisa de redeploy.
 
 Use sempre a mesma chave: o Android só aceita atualizar o app se o APK novo vier assinado com a mesma chave do instalado. Para cada versão nova, aumente `versionCode` e `versionName` em `app/build.gradle.kts`.
 

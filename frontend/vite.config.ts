@@ -41,8 +41,8 @@ export default defineConfig({
       manifestFilename: 'manifest.json',
       workbox: {
         importScripts: ['/push-sw.js'],
-        // O download do app e a API não podem cair na página do app.
-        navigateFallbackDenylist: [/^\/downloads\//, /^\/api\//],
+        // A API (inclusive o download do app) não pode cair na página do app.
+        navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
