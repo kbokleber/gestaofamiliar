@@ -14,6 +14,7 @@ import {
   type Crianca, type Lugar, type LugarEntrada, type Pareamento, type Preposicao, type Trajeto,
 } from './api'
 import { CirculosLugares, MapaBase, iconeBolinha, iconeCrianca } from './Mapa'
+import BaixarApp from './BaixarApp'
 
 type Aba = 'agora' | 'trajeto' | 'lugares' | 'celulares'
 
@@ -599,10 +600,11 @@ function AbaCelulares({ criancas }: { criancas: Crianca[] }) {
     onError: (e) => alert(mensagemDeErro(e, 'Não foi possível revogar o celular.')),
   })
 
-  if (criancas.length === 0) return <SemCriancas />
+  if (criancas.length === 0) return <div className="space-y-4"><BaixarApp /><SemCriancas /></div>
 
   return (
     <div className="space-y-4">
+      <BaixarApp />
       <p className="text-sm text-gray-600">
         Para ligar o celular da criança, gere um código e digite no app do celular. O código vale 15 minutos e serve uma vez só.
       </p>
@@ -738,6 +740,7 @@ function ModalCodigo({ pareamento, onFechar }: { pareamento: Pareamento; onFecha
         <p className="text-sm text-gray-600">
           No app do celular, informe o endereço <strong>{window.location.origin}</strong> e este código.
         </p>
+        <p className="text-xs text-gray-500">Ainda não instalou o app? Use "Baixar o app" na aba Celulares.</p>
         <div className="flex justify-center gap-2">
           <Button
             variant="outline"

@@ -59,6 +59,16 @@ keyPassword=...
 ./gradlew assembleRelease   # app/build/outputs/apk/release/app-release.apk
 ```
 
+### Publicar a versão nova no site
+
+O site oferece o download em **Localização › Celulares › Baixar o app** (com QR code). O arquivo fica em `frontend/public/downloads/` e a versão em `app-crianca.json`. Depois de gerar o APK assinado:
+
+```bash
+./publicar-no-site.sh   # copia o app-release.apk e atualiza versão, tamanho e SHA-256
+```
+
+Faça commit de `frontend/public/downloads/` e o redeploy do site.
+
 Use sempre a mesma chave: o Android só aceita atualizar o app se o APK novo vier assinado com a mesma chave do instalado. Para cada versão nova, aumente `versionCode` e `versionName` em `app/build.gradle.kts`.
 
 ## Testes
