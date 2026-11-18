@@ -25,6 +25,7 @@ class Configuracao(private val contexto: Context) {
     // Celular de adulto: token só para buscar alertas (nunca envia localização).
     val tokenAdulto: String? get() = prefs.getString(TOKEN_ADULTO, null)
     val adultoId: Int get() = if (tokenAdulto.isNullOrBlank()) 0 else prefs.getInt(ADULTO_ID, 0)
+    val adultoNome: String get() = prefs.getString(ADULTO_NOME, "") ?: ""
     val ultimoEnvio: Long get() = prefs.getLong(ULTIMO_ENVIO, 0L)
     val ultimoErro: String? get() = prefs.getString(ULTIMO_ERRO, null)
     val foiDesconectado: Boolean get() = prefs.getBoolean(DESCONECTADO, false)
@@ -47,18 +48,19 @@ class Configuracao(private val contexto: Context) {
         editor.apply()
     }
 
-    fun salvarAdulto(site: String, token: String, usuarioId: Int) {
+    fun salvarAdulto(site: String, token: String, usuarioId: Int, nome: String = "") {
         prefs.edit()
             .putString(SITE, site)
             .putString(TOKEN_ADULTO, token)
             .putInt(ADULTO_ID, usuarioId)
+            .putString(ADULTO_NOME, nome)
             .remove(AVISOS_ADULTO_CONFIRMAR)
             .remove(AVISOS_ADULTO_MOSTRADOS)
             .apply()
     }
 
     fun esquecerAdulto() {
-        prefs.edit().remove(TOKEN_ADULTO).remove(ADULTO_ID).apply()
+        prefs.edit().remove(TOKEN_ADULTO).remove(ADULTO_ID).remove(ADULTO_NOME).apply()
     }
 
     fun registroDeAvisosAdulto(): RegistroDeAvisos =
@@ -119,6 +121,7 @@ class Configuracao(private val contexto: Context) {
         const val CRIANCA_ID = "crianca_id"
         const val TOKEN_ADULTO = "token_adulto"
         const val ADULTO_ID = "adulto_id"
+        const val ADULTO_NOME = "adulto_nome"
         const val AVISOS_ADULTO_CONFIRMAR = "avisos_adulto_confirmar"
         const val AVISOS_ADULTO_MOSTRADOS = "avisos_adulto_mostrados"
         const val ULTIMO_ENVIO = "ultimo_envio"

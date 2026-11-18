@@ -60,7 +60,7 @@ export default defineConfig({
           }
         ]
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'maskable-512x512.png'],
       manifest: {
         name: 'Sistema Familiar',
         short_name: 'SistemaFam',
@@ -76,6 +76,12 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png'
+          },
+          {
+            src: 'maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       },

@@ -1,4 +1,4 @@
-import { Download, Smartphone } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { formatarTamanho, useVersaoApp } from './localizacao/BaixarApp'
 
 /**
@@ -11,9 +11,7 @@ export default function AppDownload() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-lg">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-purple-600 text-white">
-          <Smartphone className="h-8 w-8" />
-        </div>
+        <img src="/pwa-192x192.png" alt="" className="mx-auto h-16 w-16 rounded-2xl" width={64} height={64} />
         <h1 className="mt-4 text-xl font-bold text-gray-900">Gestão Familiar</h1>
         <p className="text-sm text-gray-600">App para Android</p>
 

@@ -21,7 +21,45 @@ from app.db.base import Base, get_db
 from app.models.family import Family
 from app.models.user import User
 
-APK = b"PK\x03\x04" + b"conteudo-de-teste" * 100
+def apk_assinado(cert: bytes, recheio: bytes = b"conteudo-de-teste" * 100, cert_v3: bytes | None = None) -> bytes:
+    """ZIP com um bloco de assinatura v2 mínimo contendo [cert] (e um v3 com [cert_v3], se dado)."""
+    import io
+    import struct
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("classes.dex", recheio)
+    zipb = buf.getvalue()
+    eocd = zipb.rfind(b"PK\x05\x06")
+    (cd,) = struct.unpack_from("<I", zipb, eocd + 16)
+
+    def lp(b: bytes) -> bytes:
+        return struct.pack("<I", len(b)) + b
+
+    def bloco(ident: int, certificado: bytes) -> bytes:
+        dados_assinados = lp(b"") + lp(lp(certificado)) + lp(b"")
+        assinante = lp(dados_assinados) + lp(b"") + lp(b"")
+        valor = lp(lp(assinante))
+        return struct.pack("<Q", 4 + len(valor)) + struct.pack("<I", ident) + valor
+
+    par = bloco(0x7109871A, cert) + (bloco(0xF05368C0, cert_v3) if cert_v3 is not None else b"")
+    tamanho = len(par) + 8 + 16
+    bloco = struct.pack("<Q", tamanho) + par + struct.pack("<Q", tamanho) + b"APK Sig Block 42"
+    novo = zipb[:cd] + bloco + zipb[cd:]
+    eocd += len(bloco)
+    return novo[:eocd + 16] + struct.pack("<I", cd + len(bloco)) + novo[eocd + 20:]
+
+
+CERT_FAMILIA = b"certificado-da-familia"
+APK = apk_assinado(CERT_FAMILIA)
+
+
+@pytest.fixture(autouse=True)
+def _assinatura_da_familia(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "APP_ASSINATURA_SHA256", hashlib.sha256(CERT_FAMILIA).hexdigest())
 
 
 @pytest.fixture()
@@ -116,6 +154,30 @@ def test_so_admin_envia_e_arquivo_precisa_ser_apk(ambiente):
     estado["anonimo"] = True
     assert _enviar(cliente).status_code == 401
     assert cliente.get("/api/v1/app-android/ultima").status_code == 404
+
+
+def test_so_aceita_apk_da_familia_e_nao_volta_versao(ambiente):
+    from app.services.apk_assinatura import certificados, comparar_versoes
+
+    cliente, *_ = ambiente
+    assert certificados(APK) == {hashlib.sha256(CERT_FAMILIA).hexdigest()}
+    # Assinado com outra chave (ex.: token vazado): recusado.
+    r = _enviar(cliente, versao="9.9.9", conteudo=apk_assinado(b"chave-de-outra-pessoa"))
+    assert r.status_code == 422 and "chave" in r.json()["detail"]
+    # Certificado da família copiado no v2, mas v3 de outra chave: recusado (o Android usaria o v3).
+    misto = apk_assinado(CERT_FAMILIA, cert_v3=b"chave-de-outra-pessoa")
+    assert len(certificados(misto)) == 2
+    assert _enviar(cliente, versao="9.9.9", conteudo=misto).status_code == 422
+    # ZIP sem bloco de assinatura também é recusado.
+    assert _enviar(cliente, conteudo=b"PK\x03\x04" + b"x" * 100).status_code == 422
+    assert cliente.get("/api/v1/app-android/ultima").status_code == 404
+
+    assert _enviar(cliente, versao="2.0.10").status_code == 201
+    antiga = _enviar(cliente, versao="2.0.9")
+    assert antiga.status_code == 422 and "mais antiga" in antiga.json()["detail"]
+    assert _enviar(cliente, versao="2.0.10").status_code == 201  # a mesma versão pode ser reenviada
+    assert _enviar(cliente, versao="2.1").status_code == 201
+    assert comparar_versoes("2.0.10", "2.0.9") > 0 and comparar_versoes("2.0", "2.0.0") == 0
 
 
 def test_token_de_publicacao_so_publica_e_pode_ser_revogado(ambiente):

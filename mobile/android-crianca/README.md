@@ -28,6 +28,7 @@ Login pelo Google: o Google não deixa entrar dentro de apps. Ao tocar em "Googl
 Regras do login no app:
 - Um adulto que entra no celular da criança (ex.: para conferir algo) não muda nada: o celular continua enviando a localização da criança.
 - Se outra criança entra no mesmo celular, ele passa a enviar a localização dela e o pareamento anterior é revogado.
+- Se uma criança entra no celular de um adulto (que recebe alertas), o app pergunta antes: "Transformar no celular de …?". Sem confirmação, nada muda.
 - Sair do site não desliga nada: a criança continua conectada e o adulto continua recebendo alertas. Para desligar, revogue no site.
 
 A lista de permissões da criança (complete até tudo ficar com ✓):
@@ -48,6 +49,8 @@ Alguns fabricantes (Xiaomi, Samsung, Motorola, Huawei) têm uma economia de bate
 - **Ao ligar o celular** ou atualizar o app, o envio volta sozinho (precisa de "Permitir o tempo todo").
 - **Lembretes de atividades**: o servidor não manda push direto ao celular. Os avisos pendentes voltam na resposta de cada envio de localização, e o app os mostra como notificação com som no canal "Lembretes". Por isso o lembrete chega em até ~5 minutos depois de disparado. Tocar na notificação abre a página de atividades pendentes no site (só caminhos do próprio site). O app confirma no envio seguinte os avisos que mostrou, e o servidor reenvia até a confirmação (sem tocar duas vezes). O lembrete só vai pelo app quando ele está ativo (versão 1.0.2+, notificações liberadas e posição enviada nos últimos 30 minutos); senão, segue pelo navegador.
 - **Revogação**: quando um adulto revoga o celular no site, o próximo envio recebe 401. O app apaga o token e a fila, para de enviar e avisa para parear de novo. O app não tem botão de desligar: quem desliga é o adulto, pelo site.
+- **Lembretes com vibração** (2.0.2+): o canal "Lembretes" toca o som e vibra três vezes. O Android não deixa mudar a vibração de um canal existente, por isso a 2.0.2 cria o canal `lembretes_vibrar` e apaga o antigo `lembretes` (quem tinha escolhido outro som precisa escolher de novo).
+- **Ícone**: casa com a família e o coração, fundo azul `#11436D`. Camadas em `res/mipmap-*/ic_launcher_frente.png` e `ic_launcher_mono.png` (ícone com tema do Android 13+); notificação em `res/drawable-*/ic_notificacao.png` (silhueta branca).
 - **Alertas do adulto**: o celular do adulto busca os alertas a cada ~15 minutos em segundo plano (o menor intervalo que o Android permite sem serviço fixo) e na hora em que o app é aberto. Alertas usam o canal "Alertas da família"; lembretes, o canal "Lembretes". O servidor reenvia até o app confirmar.
 - **Ponte com o site**: o site detecta o app pelo user agent (`GestaoFamiliarApp/<versão>`) e fala com ele por `window.GFAppNativo` (`sessao` e `salvarArquivo`). A ponte só atende páginas do próprio site; links de outros endereços abrem fora do app (o login em `auth.kbosolucoes.com.br` abre dentro).
 - **Token**: fica só na área privada do app, fora do backup na nuvem e da transferência para outro celular.
@@ -93,6 +96,7 @@ O APK não fica no git. Há dois jeitos de publicar:
   ```
 
   O token só serve para publicar o APK (guardado com hash no banco) e pode ser revogado no mesmo cartão.
+  O servidor só aceita APK assinado com a chave da família (SHA-256 do certificado em `APP_ASSINATURA_SHA256`, já com o valor da chave atual) e recusa versão mais antiga que a publicada.
 - **Manual**: depois de gerar o APK assinado (`./gradlew assembleRelease`), um admin abre **Localização › Celulares › Enviar nova versão do app**, escolhe o arquivo e a versão (ex.: 1.0.3) e toca em Publicar. O servidor guarda as 3 últimas versões e entrega sempre a mais nova. Não precisa de redeploy.
 
 Use sempre a mesma chave: o Android só aceita atualizar o app se o APK novo vier assinado com a mesma chave do instalado. Para cada versão nova, aumente `versionCode` e `versionName` em `app/build.gradle.kts`.

@@ -27,8 +27,8 @@ class SessaoTest {
         assertEquals(AcaoSessao.AnotarCrianca, decidirSessao(gui, true, 0, 0))
         // Celular era da Giovana: passa para o Guilherme.
         assertEquals(AcaoSessao.ParearCrianca, decidirSessao(gui, true, 17, 0))
-        // Celular de adulto que passa a ser da criança.
-        assertEquals(AcaoSessao.ParearCrianca, decidirSessao(gui, false, 0, 1))
+        // Criança no celular de um adulto: só troca depois de confirmar na tela.
+        assertEquals(AcaoSessao.ConfirmarTrocaDeAdulto, decidirSessao(gui, false, 0, 1))
     }
 
     @Test

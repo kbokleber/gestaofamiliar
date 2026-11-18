@@ -3,6 +3,7 @@ package br.com.kbosolucoes.gestaofamiliar.crianca
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
@@ -57,6 +58,8 @@ class WebActivity : Activity() {
     /** Página aberta agora (só a ponte do próprio site é atendida). Atualizada na thread da tela. */
     @Volatile private var paginaAtual: String = ""
     private var versaoNova: String? = null
+    /** Criança para quem já disseram "não" à troca nesta abertura do app (não pergunta de novo a cada página). */
+    @Volatile private var trocaRecusadaPara = 0
     /** Último pedido de login do Keycloak aberto aqui (para refazer no navegador quando for pelo Google). */
     private var pedidoDeLogin: String? = null
     private var versaoConferidaEm = 0L
@@ -412,32 +415,15 @@ class WebActivity : Activity() {
         when (acao) {
             AcaoSessao.Nada -> if (configuracao.tokenAdulto != null && !configuracao.pareado) AlertasAdulto.agendar(applicationContext)
             AcaoSessao.AnotarCrianca -> configuracao.anotarCrianca(usuario.id, usuario.nome)
-            AcaoSessao.ParearCrianca -> {
-                val resposta = api.parearMe(login, Build.MODEL, configuracao.token)
-                if (resposta is Resposta.Ok) {
-                    // Celular passa a ser da criança: deixa de receber alertas de adulto.
-                    configuracao.tokenAdulto?.let { api.revogarAdulto(it) }
-                    configuracao.esquecerAdulto()
-                    AlertasAdulto.cancelar(applicationContext)
-                    configuracao.salvarPareamento(configuracao.site, ApiClient.lerPareamento(resposta.corpo))
-                    runOnUiThread {
-                        desenharFaixas()
-                        if (configuracao.temLocalizacao() && configuracao.temLocalizacaoSempre()) {
-                            LocationService.iniciar(this, enviarAgora = true)
-                        } else {
-                            Toast.makeText(this, "Celular conectado. Agora libere a localização.", Toast.LENGTH_LONG).show()
-                            abrirConfiguracoes()
-                        }
-                    }
-                }
-            }
+            AcaoSessao.ParearCrianca -> parearCrianca(login)
+            AcaoSessao.ConfirmarTrocaDeAdulto -> if (trocaRecusadaPara != usuario.id) runOnUiThread { confirmarTroca(login, usuario) }
             AcaoSessao.RegistrarAdulto -> {
                 val resposta = api.registrarAdulto(login, Build.MODEL, BuildConfig.VERSION_CODE)
                 if (resposta is Resposta.Ok) {
                     val novo = resposta.corpo.optString("device_token")
                     if (novo.isNotBlank()) {
                         configuracao.tokenAdulto?.let { api.revogarAdulto(it) }
-                        configuracao.salvarAdulto(configuracao.site, novo, usuario.id)
+                        configuracao.salvarAdulto(configuracao.site, novo, usuario.id, usuario.nome)
                         AlertasAdulto.agendar(applicationContext)
                         runOnUiThread {
                             desenharFaixas()
@@ -447,6 +433,50 @@ class WebActivity : Activity() {
                 }
             }
         }
+    }
+
+    /** Liga este celular à criança logada. Roda fora da tela. */
+    private fun parearCrianca(login: String, avisarFalha: Boolean = false) {
+        val api = ApiClient(configuracao.site)
+        val resposta = api.parearMe(login, Build.MODEL, configuracao.token)
+        if (resposta !is Resposta.Ok) {
+            // Ex.: o login venceu enquanto a pergunta ficou aberta. Vale de novo na próxima entrada.
+            if (avisarFalha) runOnUiThread {
+                Toast.makeText(this, "Não deu para trocar agora. Saia e entre de novo com a conta da criança.", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        // Celular passa a ser da criança: deixa de receber alertas de adulto.
+        configuracao.tokenAdulto?.let { api.revogarAdulto(it) }
+        configuracao.esquecerAdulto()
+        AlertasAdulto.cancelar(applicationContext)
+        configuracao.salvarPareamento(configuracao.site, ApiClient.lerPareamento(resposta.corpo))
+        runOnUiThread {
+            desenharFaixas()
+            if (configuracao.temLocalizacao() && configuracao.temLocalizacaoSempre()) {
+                LocationService.iniciar(this, enviarAgora = true)
+            } else {
+                Toast.makeText(this, "Celular conectado. Agora libere a localização.", Toast.LENGTH_LONG).show()
+                abrirConfiguracoes()
+            }
+        }
+    }
+
+    /** Criança entrou no celular de um adulto: só troca se alguém confirmar. */
+    private fun confirmarTroca(login: String, crianca: UsuarioSessao) {
+        if (isFinishing || isDestroyed) return
+        val adulto = configuracao.adultoNome.ifBlank { "um adulto" }
+        val nome = crianca.nome.ifBlank { "a criança" }
+        AlertDialog.Builder(this)
+            .setTitle("Este celular é de $adulto")
+            .setMessage(
+                "Ele recebe os alertas da família. Transformar no celular de $nome? " +
+                    "Ele passa a enviar a localização de $nome e $adulto deixa de receber os alertas aqui.",
+            )
+            .setPositiveButton("Transformar") { _, _ -> fundo.execute { parearCrianca(login, avisarFalha = true) } }
+            .setNegativeButton("Não, manter") { _, _ -> trocaRecusadaPara = crianca.id }
+            .setOnCancelListener { trocaRecusadaPara = crianca.id }
+            .show()
     }
 
     private fun pedirNotificacoes() {

@@ -4,7 +4,7 @@
     <string name="canal_nome">Localização da família</string>
     <string name="canal_descricao">Aviso fixo enquanto o celular compartilha a localização com a família.</string>
     <string name="canal_avisos_nome">Lembretes</string>
-    <string name="canal_avisos_descricao">Lembretes de atividades e outros avisos da família, com som.</string>
+    <string name="canal_avisos_descricao">Lembretes de atividades e outros avisos da família, com som e vibração.</string>
     <string name="canal_alertas_nome">Alertas da família</string>
     <string name="canal_alertas_descricao">Chegada e saída dos lugares, bateria baixa e celular sem sinal das crianças.</string>
     <string name="configuracoes">Configurações do celular</string>

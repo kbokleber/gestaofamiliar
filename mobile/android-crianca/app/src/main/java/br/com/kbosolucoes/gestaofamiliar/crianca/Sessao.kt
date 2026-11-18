@@ -30,6 +30,11 @@ sealed class AcaoSessao {
     object ParearCrianca : AcaoSessao()
     /** Registra este celular do adulto para receber os alertas (troca o adulto anterior, se houver). */
     object RegistrarAdulto : AcaoSessao()
+    /**
+     * Criança entrou num celular que recebe os alertas de um adulto (ex.: o filho no celular da mãe).
+     * Só vira o celular da criança se alguém confirmar na tela; senão nada muda.
+     */
+    object ConfirmarTrocaDeAdulto : AcaoSessao()
 }
 
 /**
@@ -37,6 +42,7 @@ sealed class AcaoSessao {
  * - Criança logada: o celular passa a enviar a localização dela.
  * - Adulto logado num celular que já é de uma criança (ex.: o pai conferindo algo): nada muda.
  * - Adulto no próprio celular: recebe alertas; o celular dele nunca envia localização.
+ * - Criança num celular de adulto: pergunta antes de transformar no celular da criança.
  */
 fun decidirSessao(
     usuario: UsuarioSessao?,
@@ -46,7 +52,9 @@ fun decidirSessao(
 ): AcaoSessao {
     if (usuario == null || usuario.familia == null) return AcaoSessao.Nada
     if (usuario.crianca) {
-        if (!pareadoComoCrianca) return AcaoSessao.ParearCrianca
+        if (!pareadoComoCrianca) {
+            return if (adultoRegistradoId != 0) AcaoSessao.ConfirmarTrocaDeAdulto else AcaoSessao.ParearCrianca
+        }
         return when (criancaPareadaId) {
             usuario.id -> AcaoSessao.Nada
             0 -> AcaoSessao.AnotarCrianca

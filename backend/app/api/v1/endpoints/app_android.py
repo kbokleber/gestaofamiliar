@@ -15,9 +15,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, defer
 
 from app.api.deps import get_current_admin, get_current_user, get_db
+from app.core.config import settings
 from app.models.app_android import AppAndroid, AppDispositivoAdulto, AppPublicacaoToken
 from app.models.user import User
-from app.services import avisos_app
+from app.services import apk_assinatura, avisos_app
 
 router = APIRouter()
 
@@ -214,6 +215,24 @@ def revogar_celular_adulto(db: Session = Depends(get_db), aparelho: AppDispositi
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+def _conferir_assinatura(conteudo: bytes) -> None:
+    """Só aceita APK assinado com a chave da família (quem já tem o app não atualiza com outra chave)."""
+    esperados = {c.strip().lower().replace(":", "") for c in settings.APP_ASSINATURA_SHA256.split(",") if c.strip()}
+    if not esperados:
+        return
+    try:
+        encontrados = apk_assinatura.certificados(conteudo)
+    except apk_assinatura.ApkInvalido:
+        encontrados = set()
+    # Todos os certificados precisam ser da família: um bloco v2 com o certificado copiado e um v3 de
+    # outra chave seria instalado pelo Android com a outra chave.
+    if not encontrados or not encontrados <= esperados:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="O APK não está assinado com a chave do app da família.",
+        )
+
+
 async def _guardar_versao(db: Session, versao: str, arquivo: UploadFile, enviado_por_id: Optional[int]) -> dict:
     versao = versao.strip()
     if not VERSAO_VALIDA.match(versao):
@@ -226,6 +245,13 @@ async def _guardar_versao(db: Session, versao: str, arquivo: UploadFile, enviado
     # Todo APK é um arquivo ZIP: começa com "PK\x03\x04".
     if not conteudo.startswith(b"PK\x03\x04"):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="O arquivo não parece ser um APK.")
+    _conferir_assinatura(conteudo)
+    atual = _ultima(db)
+    if atual is not None and VERSAO_VALIDA.match(atual.versao) and apk_assinatura.comparar_versoes(versao, atual.versao) < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"A versão {versao} é mais antiga que a publicada ({atual.versao}).",
+        )
     novo = AppAndroid(
         versao=versao,
         tamanho_bytes=len(conteudo),

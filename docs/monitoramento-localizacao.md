@@ -46,6 +46,11 @@ Continua pendente: teste num celular de verdade, notificação push de chegada/s
 - **Token de publicação do APK** (tabela `app_publicacao_token`): admin gera, vê uma vez, revoga em Localização › Celulares. `POST /api/v1/app-android/publicar` com `X-App-Publish-Token` publica sem login e sem redeploy.
 - **Site**: `frontend/src/lib/appNativo.ts` informa o login ao app e salva downloads pelo app; dentro do app, o botão de Web Push dos lembretes some (o app já notifica).
 
+## Atualização: app 2.0.1 e 2.0.2
+
+- **2.0.1**: login pelo Google funciona no app. O Google não deixa entrar dentro de WebView; o app abre o mesmo pedido de login no navegador (`kc_idp_hint`) e o Keycloak devolve para `/app-login`, link verificado por `frontend/public/.well-known/assetlinks.json` (com botão "Voltar ao app" se o navegador não abrir o app). No app, a sessão do Keycloak fica guardada para não pedir login a cada abertura.
+- **2.0.2**: ícone novo (casa, família e coração) no site (favicon, PWA, apple-touch) e no app (ícone adaptativo, com tema e notificação); lembretes vibram (canal novo `lembretes_vibrar`); confirmação antes de uma criança transformar o celular de um adulto no dela; o servidor recusa APK com outra assinatura (`backend/app/services/apk_assinatura.py`, `APP_ASSINATURA_SHA256`) e versão mais antiga que a publicada.
+
 O Find My Kids serviu só de referência de recursos que a família quer enxergar: mapa em tempo quase real, trajetos com velocidade, bateria do celular e lugares com aviso de chegada e saída. Não existe integração, conta, SDK, chave nem qualquer ligação com o Find My Kids.
 
 ## 1. Objetivo
