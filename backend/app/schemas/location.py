@@ -39,6 +39,10 @@ class PosicaoIn(BaseModel):
     speed_mps: Optional[float] = None
     battery_level: Optional[int] = Field(default=None, ge=0, le=100)
     recorded_at: Optional[datetime] = None
+    # Enviados pelo app 1.0.2+: versão, notificações liberadas e avisos que ele já mostrou.
+    app_versao: Optional[int] = Field(default=None, ge=0)
+    notificacoes: Optional[bool] = None
+    avisos_recebidos: list[int] = Field(default_factory=list, max_length=50)
 
 
 class AvisoOut(BaseModel):

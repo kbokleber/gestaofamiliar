@@ -128,6 +128,13 @@ def startup_create_tables():
                 "ALTER TABLE estudo_avaliacao ADD COLUMN IF NOT EXISTS "
                 "fonte VARCHAR(20) NOT NULL DEFAULT 'pdf'"
             ))
+            # App da criança: versão instalada e se as notificações estão liberadas.
+            conn.execute(text(
+                "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS app_versao INTEGER"
+            ))
+            conn.execute(text(
+                "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS notificacoes_ativas BOOLEAN"
+            ))
         from app.db.base import SessionLocal
         from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
         db = SessionLocal()

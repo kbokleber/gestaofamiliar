@@ -47,6 +47,14 @@ class Configuracao(private val contexto: Context) {
         editor.apply()
     }
 
+    fun registroDeAvisos(): RegistroDeAvisos =
+        RegistroDeAvisos.ler(prefs.getString(AVISOS_CONFIRMAR, null), prefs.getString(AVISOS_MOSTRADOS, null))
+
+    fun salvarRegistroDeAvisos(registro: RegistroDeAvisos) {
+        val (confirmar, mostrados) = registro.serializar()
+        prefs.edit().putString(AVISOS_CONFIRMAR, confirmar).putString(AVISOS_MOSTRADOS, mostrados).apply()
+    }
+
     fun fila() = FilaDePontos(File(contexto.filesDir, "pontos-pendentes.json"))
 
     fun temLocalizacao(): Boolean =
@@ -76,5 +84,7 @@ class Configuracao(private val contexto: Context) {
         const val ULTIMO_ENVIO = "ultimo_envio"
         const val ULTIMO_ERRO = "ultimo_erro"
         const val DESCONECTADO = "desconectado"
+        const val AVISOS_CONFIRMAR = "avisos_confirmar"
+        const val AVISOS_MOSTRADOS = "avisos_mostrados"
     }
 }

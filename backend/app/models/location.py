@@ -1,5 +1,5 @@
 """Localização dos celulares das crianças e lugares da família."""
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.db.base import Base
@@ -32,6 +32,9 @@ class LocationDevice(Base):
     label = Column(String(80), nullable=False, default="")
     revoked_at = Column(DateTime(timezone=True), nullable=True)
     last_seen_at = Column(DateTime(timezone=True), nullable=True)
+    # Informados pelo app a cada envio: versão (versionCode) e se as notificações estão liberadas.
+    app_versao = Column(Integer, nullable=True)
+    notificacoes_ativas = Column(Boolean, nullable=True)
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

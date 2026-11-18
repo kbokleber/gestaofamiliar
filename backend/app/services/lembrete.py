@@ -101,8 +101,18 @@ TITULO = "Atividades para concluir"
 URL_PENDENTES = "/estudos/atividades?recorte=pendentes"
 
 
+def fim_da_janela(momento: datetime | None = None) -> datetime:
+    """Até quando o lembrete vale: 21h de hoje; fora da janela (disparo de teste), 1 hora."""
+    momento = momento or agora_local()
+    fim = momento.replace(hour=HORA_FIM, minute=0, second=0, microsecond=0)
+    if fim <= momento:
+        fim = momento + timedelta(hours=1)
+    return fim.astimezone(timezone.utc)
+
+
 def canal_do_filho(db: Session, usuario: User) -> str | None:
-    """'app' se o filho tem o app Android pareado; senão 'navegador' se ativou o alerta no site."""
+    """'app' se o app Android do filho está ativo (versão nova, notificações liberadas, enviou há pouco);
+    senão 'navegador' se ele ativou o alerta no site."""
     if avisos_app.tem_app(db, usuario):
         return "app"
     if db.query(PushInscricao).filter(PushInscricao.user_id == usuario.id).count():
@@ -113,9 +123,9 @@ def canal_do_filho(db: Session, usuario: User) -> str | None:
 def enviar_para_usuario(db: Session, usuario: User, atividades: list[Atividade]) -> int:
     if not atividades:
         return 0
-    # Com o app pareado, o lembrete vai só pelo app (não pelo navegador).
+    # Com o app ativo, o lembrete vai só pelo app (não pelo navegador).
     if avisos_app.tem_app(db, usuario):
-        avisos_app.enfileirar(db, usuario, TITULO, _texto(atividades), URL_PENDENTES)
+        avisos_app.enfileirar(db, usuario, TITULO, _texto(atividades), URL_PENDENTES, expira_em=fim_da_janela())
         return 1
     inscricoes = db.query(PushInscricao).filter(PushInscricao.user_id == usuario.id).all()
     if not inscricoes or not atividades:

@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.LocationCallback
@@ -23,6 +24,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import org.json.JSONArray
 import java.time.Instant
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -112,12 +114,23 @@ class LocationService : Service() {
     private fun enviarAgora() {
         val token = configuracao.token ?: return
         val api = ApiClient(configuracao.site)
+        val notificacoes = NotificationManagerCompat.from(this).areNotificationsEnabled()
+        val registro = configuracao.registroDeAvisos()
         val resultado = configuracao.fila().esvaziar { ponto ->
+            // Junto com a posição: versão do app, notificações liberadas e avisos já mostrados.
+            val confirmando = registro.aConfirmar()
+            ponto.put("app_versao", BuildConfig.VERSION_CODE)
+                .put("notificacoes", notificacoes)
+                .put("avisos_recebidos", JSONArray(confirmando))
             val resposta = api.enviarPosicao(token, ponto)
-            // Lembretes e outros avisos vêm na resposta do envio da localização.
-            if (resposta is Resposta.Ok) lerAvisos(resposta.corpo).forEach { mostrarAviso(it) }
+            if (resposta is Resposta.Ok) {
+                registro.confirmados(confirmando)
+                // Lembretes e outros avisos vêm na resposta; o servidor reenvia até confirmarmos.
+                registro.processar(lerAvisos(resposta.corpo), notificacoes) { mostrarAviso(it) }
+            }
             resposta
         }
+        configuracao.salvarRegistroDeAvisos(registro)
         configuracao.registrarEnvio(resultado)
         if (resultado.desconectado) {
             configuracao.marcarDesconectado()

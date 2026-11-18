@@ -38,6 +38,11 @@ class ApiIntegracaoTest {
         // Lembrete: com GF_TOKEN_ADMIN, dispara o lembrete pelo site e confere que chega neste celular.
         val admin = System.getenv("GF_TOKEN_ADMIN")
         if (!admin.isNullOrBlank()) {
+            fun comoApp(confirmar: List<Int> = emptyList(), segundos: Long = 0) =
+                montarPonto(-23.5505, -46.6333, 10f, 0f, 62, Instant.now().minusSeconds(30 - segundos))
+                    .put("app_versao", 3).put("notificacoes", true).put("avisos_recebidos", org.json.JSONArray(confirmar))
+            // O app novo se anuncia antes do disparo, como faz a cada envio.
+            assertTrue(api.enviarPosicao(dados.token, comoApp()) is Resposta.Ok)
             val conexao = java.net.URL("$url/api/v1/notificacoes/lembretes/disparar").openConnection() as java.net.HttpURLConnection
             conexao.requestMethod = "POST"
             conexao.setRequestProperty("Authorization", "Bearer $admin")
@@ -45,12 +50,15 @@ class ApiIntegracaoTest {
             val disparo = conexao.inputStream.bufferedReader().readText()
             assertTrue("disparo: $disparo", disparo.contains("\"canal\":\"app\""))
 
-            val comAviso = api.enviarPosicao(dados.token, montarPonto(-23.5505, -46.6333, 10f, 0f, 62, Instant.now()))
+            val comAviso = api.enviarPosicao(dados.token, comoApp(segundos = 2))
             val avisos = lerAvisos((comAviso as Resposta.Ok).corpo)
             assertEquals(1, avisos.size)
             assertEquals("Atividades para concluir", avisos[0].titulo)
-            val semAviso = api.enviarPosicao(dados.token, montarPonto(-23.5505, -46.6333, 10f, 0f, 62, Instant.now().plusSeconds(2)))
-            assertTrue(lerAvisos((semAviso as Resposta.Ok).corpo).isEmpty())
+            // Sem confirmar, volta; confirmado, some.
+            val deNovo = api.enviarPosicao(dados.token, comoApp(segundos = 4))
+            assertEquals(avisos[0].id, lerAvisos((deNovo as Resposta.Ok).corpo).single().id)
+            val confirmado = api.enviarPosicao(dados.token, comoApp(listOf(avisos[0].id), segundos = 6))
+            assertTrue(lerAvisos((confirmado as Resposta.Ok).corpo).isEmpty())
         }
     }
 }

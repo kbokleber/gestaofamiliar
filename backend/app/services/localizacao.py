@@ -644,7 +644,9 @@ def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -
         )
     repetido = _ponto_repetido(db, aparelho.id, recorded)
     if repetido is not None:
-        return {"id": repetido.id, "recebido": True, "repetido": True, "avisos": avisos_app.entregar(db, aparelho)}
+        aparelho.last_seen_at = agora
+        avisos = avisos_app.atualizar_e_entregar(db, aparelho, dados.app_versao, dados.notificacoes, dados.avisos_recebidos)
+        return {"id": repetido.id, "recebido": True, "repetido": True, "avisos": avisos}
 
     ponto = LocationPoint(
         device_id=aparelho.id,
@@ -667,7 +669,8 @@ def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -
     _limpar_se_preciso(db, agora)
     db.refresh(ponto)
     logger.info("posicao recebida device_id=%s ponto_id=%s", aparelho.id, ponto.id)
-    return {"id": ponto.id, "recebido": True, "repetido": False, "avisos": avisos_app.entregar(db, aparelho)}
+    avisos = avisos_app.atualizar_e_entregar(db, aparelho, dados.app_versao, dados.notificacoes, dados.avisos_recebidos)
+    return {"id": ponto.id, "recebido": True, "repetido": False, "avisos": avisos}
 
 
 def _aparelho_da_familia(db: Session, familias: list[int], device_id: int) -> LocationDevice:

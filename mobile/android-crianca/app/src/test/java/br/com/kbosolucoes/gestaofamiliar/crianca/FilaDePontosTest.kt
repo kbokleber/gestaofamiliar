@@ -157,4 +157,35 @@ class FilaDePontosTest {
         assertEquals(site, enderecoDoAviso(site, "//outro-site.com"))
         assertEquals(site, enderecoDoAviso(site, null))
     }
+
+    @Test
+    fun avisoReenviadoNaoTocaDeNovoEConfirmaAteOServidorReceber() {
+        val registro = RegistroDeAvisos()
+        val tocados = mutableListOf<Int>()
+        val aviso = Aviso(7, "Atividades para concluir", "Lição", "/estudos/atividades")
+        registro.processar(listOf(aviso), true) { tocados.add(it.id) }
+        // Servidor reenviou porque a confirmação ainda não chegou: não toca de novo.
+        registro.processar(listOf(aviso), true) { tocados.add(it.id) }
+        assertEquals(listOf(7), tocados)
+        assertEquals(listOf(7), registro.aConfirmar())
+
+        // Sobrevive a reiniciar o app.
+        val (confirmar, mostrados) = registro.serializar()
+        val relido = RegistroDeAvisos.ler(confirmar, mostrados)
+        assertEquals(listOf(7), relido.aConfirmar())
+        relido.processar(listOf(aviso), true) { tocados.add(it.id) }
+        assertEquals(listOf(7), tocados)
+
+        relido.confirmados(listOf(7))
+        assertTrue(relido.aConfirmar().isEmpty())
+    }
+
+    @Test
+    fun comNotificacaoBloqueadaNaoMostraNemConfirma() {
+        val registro = RegistroDeAvisos()
+        var tocou = false
+        registro.processar(listOf(Aviso(1, "t", "x", null)), false) { tocou = true }
+        assertFalse(tocou)
+        assertTrue(registro.aConfirmar().isEmpty())
+    }
 }

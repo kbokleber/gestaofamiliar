@@ -110,7 +110,8 @@ def ambiente(monkeypatch):
         poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=engine)
-    db = sessionmaker(bind=engine)()
+    # Igual à API (app/db/base.py): sem autoflush, para pegar erros que só aparecem em produção.
+    db = sessionmaker(bind=engine, autocommit=False, autoflush=False)()
     agora = datetime.now(timezone.utc)
     db.add_all([
         Family(id=1, name="Bueno", codigo_unico="bueno", created_at=agora, updated_at=agora),
@@ -539,6 +540,7 @@ def test_ip_do_pedido_le_de_tras_para_frente():
     assert ip_do_pedido(pedido(None)) == "10.0.0.2"
 
 
+
 def _atividade_de_hoje(db, aluno_id, titulo):
     from app.models.estudo import Atividade
 
@@ -553,11 +555,35 @@ def _atividade_de_hoje(db, aluno_id, titulo):
     return atividade
 
 
-def test_lembrete_vai_pelo_app_e_chega_uma_vez(ambiente):
+_SEGUNDOS = iter(range(10_000))
+
+
+def _enviar_app(cliente, token, recebidos=(), versao=3, notificacoes=True):
+    """Envio como o app 1.0.2 faz: versão, notificações e avisos já mostrados."""
+    momento = datetime.now(timezone.utc) - timedelta(minutes=10) + timedelta(seconds=next(_SEGUNDOS) * 2)
+    return cliente.post(
+        "/api/v1/localizacao/dispositivos/posicao",
+        json={
+            "latitude": -23.55, "longitude": -46.63, "recorded_at": _iso(momento),
+            "app_versao": versao, "notificacoes": notificacoes, "avisos_recebidos": list(recebidos),
+        },
+        headers={"X-Device-Token": token},
+    )
+
+
+def _inscrever_navegador(db, user_id):
+    from app.models.lembrete import PushInscricao
+
+    db.add(PushInscricao(user_id=user_id, endpoint=f"https://push.example/{user_id}", p256dh="x", auth="y"))
+    db.commit()
+
+
+def test_lembrete_pelo_app_volta_ate_ser_confirmado(ambiente):
     from app.services import lembrete
 
     cliente, db, _estado = ambiente
     token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    assert _enviar_app(cliente, token).json()["avisos"] == []
     _atividade_de_hoje(db, 16, "Lição de matemática")
     _atividade_de_hoje(db, 17, "Redação")
 
@@ -565,55 +591,92 @@ def test_lembrete_vai_pelo_app_e_chega_uma_vez(ambiente):
     assert resultado["enviados"] == [
         {"filho": "Guilherme", "tarefas": ["Lição de matemática"], "canal": "app"},
     ]
-    # Giovana não tem app nem alerta no navegador.
     assert resultado["sem_inscricao"] == ["Giovana"]
 
-    agora = datetime.now(timezone.utc)
-    primeira = _enviar(cliente, token, latitude=-23.55, longitude=-46.63, recorded_at=_iso(agora - timedelta(minutes=1)))
-    assert primeira.status_code == 200, primeira.text
-    avisos = primeira.json()["avisos"]
-    assert len(avisos) == 1
-    assert avisos[0]["titulo"] == "Atividades para concluir"
-    assert "Lição de matemática" in avisos[0]["texto"]
-    assert avisos[0]["url"] == "/estudos/atividades?recorte=pendentes"
+    primeira = _enviar_app(cliente, token).json()["avisos"]
+    assert len(primeira) == 1
+    aviso = primeira[0]
+    assert aviso["titulo"] == "Atividades para concluir"
+    assert "Lição de matemática" in aviso["texto"]
+    assert aviso["url"] == "/estudos/atividades?recorte=pendentes"
 
-    # O mesmo aviso não volta no envio seguinte.
-    segunda = _enviar(cliente, token, latitude=-23.55, longitude=-46.63, recorded_at=_iso(agora))
-    assert segunda.json()["avisos"] == []
+    # Resposta perdida: sem confirmação, o mesmo aviso volta.
+    assert [a["id"] for a in _enviar_app(cliente, token).json()["avisos"]] == [aviso["id"]]
+    # Confirmado, não volta mais.
+    assert _enviar_app(cliente, token, recebidos=[aviso["id"]]).json()["avisos"] == []
+    assert _enviar_app(cliente, token).json()["avisos"] == []
 
 
-def test_lembrete_novo_substitui_o_pendente_e_outro_filho_nao_recebe(ambiente):
+def test_app_antigo_parado_ou_sem_notificacao_usa_o_navegador(ambiente):
+    from app.models.location import LocationDevice
+    from app.services import lembrete
+
+    cliente, db, _estado = ambiente
+    _inscrever_navegador(db, 16)
+    gui = db.query(User).filter(User.id == 16).first()
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+
+    # App 1.0.1: não informa versão, então não recebe avisos.
+    _enviar(cliente, token, latitude=-23.55, longitude=-46.63)
+    assert lembrete.canal_do_filho(db, gui) == "navegador"
+    _atividade_de_hoje(db, 16, "Lição 1")
+    assert lembrete.disparar_familia(db, 1)["enviados"][0]["canal"] == "navegador"
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63).json()["avisos"] == []
+
+    # App novo, mas com notificações bloqueadas.
+    _enviar_app(cliente, token, notificacoes=False)
+    assert lembrete.canal_do_filho(db, gui) == "navegador"
+
+    # App novo e ativo.
+    _enviar_app(cliente, token)
+    assert lembrete.canal_do_filho(db, gui) == "app"
+
+    # Parado há 3 dias: volta ao navegador.
+    aparelho = db.query(LocationDevice).filter(LocationDevice.child_user_id == 16).first()
+    aparelho.last_seen_at = datetime.now(timezone.utc) - timedelta(days=3)
+    db.commit()
+    assert lembrete.canal_do_filho(db, gui) == "navegador"
+
+
+def test_lembrete_novo_substitui_o_pendente_e_irmao_nao_recebe(ambiente):
     from app.models.lembrete import AvisoApp
     from app.services import lembrete
 
     cliente, db, _estado = ambiente
     token_gui = _parear(cliente, 16, "Celular do Gui")["device_token"]
     token_gio = _parear(cliente, 17, "Celular da Gio")["device_token"]
+    _enviar_app(cliente, token_gui)
+    _enviar_app(cliente, token_gio)
     _atividade_de_hoje(db, 16, "Lição 1")
     lembrete.disparar_familia(db, 1)
     lembrete.disparar_familia(db, 1)
-    pendentes = db.query(AvisoApp).filter(AvisoApp.child_user_id == 16, AvisoApp.entregue_em.is_(None)).count()
-    assert pendentes == 1
+    assert db.query(AvisoApp).filter(AvisoApp.child_user_id == 16, AvisoApp.entregue_em.is_(None)).count() == 1
 
-    # A Giovana não tem tarefa: o celular dela não recebe o aviso do irmão.
-    resposta = _enviar(cliente, token_gio, latitude=-23.55, longitude=-46.63)
-    assert resposta.json()["avisos"] == []
-    assert len(_enviar(cliente, token_gui, latitude=-23.55, longitude=-46.63).json()["avisos"]) == 1
+    assert _enviar_app(cliente, token_gio).json()["avisos"] == []
+    avisos_gui = _enviar_app(cliente, token_gui).json()["avisos"]
+    assert len(avisos_gui) == 1
+    # A Giovana não consegue confirmar (nem apagar) o aviso do irmão.
+    _enviar_app(cliente, token_gio, recebidos=[avisos_gui[0]["id"]])
+    assert len(_enviar_app(cliente, token_gui).json()["avisos"]) == 1
 
 
-def test_sem_app_continua_pelo_navegador_e_celular_revogado_volta_ao_navegador(ambiente):
-    from app.models.lembrete import PushInscricao
+def test_celular_revogado_volta_ao_navegador(ambiente):
     from app.services import lembrete
 
     cliente, db, _estado = ambiente
-    db.add(PushInscricao(user_id=17, endpoint="https://push.example/gio", p256dh="x", auth="y"))
-    db.commit()
+    _inscrever_navegador(db, 17)
     gio = db.query(User).filter(User.id == 17).first()
-    assert lembrete.canal_do_filho(db, gio) == "navegador"
-
     aparelho = _parear(cliente, 17, "Celular da Gio")
+    _enviar_app(cliente, aparelho["device_token"])
     assert lembrete.canal_do_filho(db, gio) == "app"
-
-    revogado = cliente.post(f"/api/v1/localizacao/dispositivos/{aparelho['device_id']}/revogar")
-    assert revogado.status_code == 200
+    assert cliente.post(f"/api/v1/localizacao/dispositivos/{aparelho['device_id']}/revogar").status_code == 200
     assert lembrete.canal_do_filho(db, gio) == "navegador"
+
+
+def test_lembrete_vale_ate_o_fim_da_janela():
+    from app.services import lembrete
+
+    fuso = lembrete.FUSO
+    assert lembrete.fim_da_janela(datetime(2026, 11, 18, 18, 0, tzinfo=fuso)) == datetime(2026, 11, 19, 0, 0, tzinfo=timezone.utc)
+    # Fora da janela (disparo de teste às 22h), vale 1 hora.
+    assert lembrete.fim_da_janela(datetime(2026, 11, 18, 22, 0, tzinfo=fuso)) == datetime(2026, 11, 19, 2, 0, tzinfo=timezone.utc)

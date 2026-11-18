@@ -33,6 +33,9 @@ Continua pendente: teste num celular de verdade, notificação push de chegada/s
 - `POST /localizacao/dispositivos/posicao` passa a devolver `avisos` (id, tipo, titulo, texto, url). Cada aviso é entregue uma vez.
 - `services/lembrete.py`: se o filho tem celular pareado e não revogado, o lembrete vai para `app_aviso` em vez do Web Push do navegador. Sem app, segue o Web Push de antes. O disparo de teste informa o canal (`app` ou `navegador`).
 - App 1.0.2 mostra os avisos no canal de notificação "Lembretes" (com som) e abre a página de atividades ao tocar.
+- Entrega com confirmação: o aviso volta em toda resposta até o app confirmar (`avisos_recebidos` no envio seguinte) ou vencer. Resposta perdida não apaga o lembrete; o app não toca de novo um aviso que já mostrou.
+- O canal "app" só é usado se o celular tem o app 1.0.2+ (`app_versao` >= 3), notificações liberadas (`notificacoes`) e mandou posição nos últimos 30 minutos. Colunas novas em `location_device`: `app_versao` e `notificacoes_ativas` (ALTER na subida da API). Senão, vai pelo navegador.
+- Validade do lembrete: até as 21h do dia (fim da janela); disparo de teste fora da janela vale 1 hora.
 
 O Find My Kids serviu só de referência de recursos que a família quer enxergar: mapa em tempo quase real, trajetos com velocidade, bateria do celular e lugares com aviso de chegada e saída. Não existe integração, conta, SDK, chave nem qualquer ligação com o Find My Kids.
 
