@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pino de mapa branco, centralizado na área segura do ícone adaptável. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30c-9.94,0 -18,8.06 -18,18c0,13.5 18,30 18,30s18,-16.5 18,-30c0,-9.94 -8.06,-18 -18,-18zM54,55a7,7 0,1 1,0 -14a7,7 0,1 1,0 14z" />
+</vector>

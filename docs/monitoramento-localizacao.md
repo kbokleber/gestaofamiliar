@@ -19,6 +19,14 @@ Depois da revisão do Dev e do QA, o Kleber escolheu seguir neste mesmo branch a
 
 Continua pendente: o app Android, a notificação push de chegada/saída e o teste com um celular de verdade.
 
+## Atualização: app Android da criança (etapa C)
+
+O app está em `mobile/android-crianca/` (Kotlin, Android 8+), com README de instalação e de compilação. Ele pareia com o código gerado em Localização › Celulares, roda um serviço em primeiro plano com notificação fixa, pede a posição a cada ~5 minutos e envia latitude, longitude, precisão, velocidade, bateria e horário. Sem rede, guarda os pontos numa fila de até uma semana. Volta sozinho quando o celular liga. Quando um adulto revoga o celular no site, o app apaga o token e para. Não há áudio, tempo de tela nem botão de desligar no celular.
+
+A chave de assinatura do APK fica fora do git (`keystore.properties`, ignorado). Atualizações precisam ser assinadas com a mesma chave.
+
+Continua pendente: teste num celular de verdade, notificação push de chegada/saída e a otimização de bateria própria de alguns fabricantes.
+
 O Find My Kids serviu só de referência de recursos que a família quer enxergar: mapa em tempo quase real, trajetos com velocidade, bateria do celular e lugares com aviso de chegada e saída. Não existe integração, conta, SDK, chave nem qualquer ligação com o Find My Kids.
 
 ## 1. Objetivo
@@ -127,7 +135,7 @@ Parciais, de propósito, porque a tela e o app não existem:
 Não começados:
 
 - Nenhuma tela React. `frontend/src/lib/menus.ts` ainda não tem a chave `localizacao`. O menu lateral (`frontend/src/components/Layout.tsx`) e as rotas (`frontend/src/App.tsx`) não têm "Localização". A página de usuários continua igual: o checkbox "Filho" já marca `is_child`, e isso basta para a API, mas o texto da tela ainda não explica o mapa.
-- Nenhuma pasta de app Android. Não há `mobile/android-crianca/`, não há código Kotlin e não há README de APK, porque o app não foi criado.
+- (Resolvido na etapa C) O app Android foi criado depois em `mobile/android-crianca/`.
 - Nenhum arquivo de segredo, token ou senha foi adicionado.
 
 ## 4. O que está em andamento

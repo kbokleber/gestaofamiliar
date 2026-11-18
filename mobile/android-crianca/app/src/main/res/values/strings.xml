@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gestão Familiar</string>
+    <string name="canal_nome">Localização da família</string>
+    <string name="canal_descricao">Aviso fixo enquanto o celular compartilha a localização com a família.</string>
+</resources>
