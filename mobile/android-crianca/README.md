@@ -23,6 +23,8 @@ Não grava áudio, não vê a tela, fotos ou mensagens, e não controla tempo de
 
 Alternativa sem o login da criança: segure o ícone do app › **Configurações**, digite o código gerado em **Localização › Celulares › Gerar código** e toque em **Conectar à família**. O código vale 15 minutos e serve uma vez só.
 
+Login pelo Google: o Google não deixa entrar dentro de apps. Ao tocar em "Google" na tela de login, o app abre o navegador do celular direto no Google; ao terminar, o navegador volta ao app por `https://gestaofamiliar.kbosolucoes.com.br/app-login` (link verificado por `/.well-known/assetlinks.json`; se o celular não abrir o app sozinho, a página mostra o botão "Voltar ao app"). Usuário e senha continuam dentro do app. O app guarda a sessão do Keycloak na área privada dele, para não pedir login toda vez que abre.
+
 Regras do login no app:
 - Um adulto que entra no celular da criança (ex.: para conferir algo) não muda nada: o celular continua enviando a localização da criança.
 - Se outra criança entra no mesmo celular, ele passa a enviar a localização dela e o pareamento anterior é revogado.

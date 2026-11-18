@@ -79,4 +79,29 @@ class SessaoTest {
         val corpo = org.json.JSONObject("""{"device_token":"t","device_id":5,"crianca_id":16,"crianca_nome":"Guilherme"}""")
         assertEquals(Pareamento("t", 5, "Guilherme", 16), ApiClient.lerPareamento(corpo))
     }
+
+    @Test
+    fun loginPeloGoogleVaiParaONavegadorEVoltaAoApp() {
+        val site = "https://gestaofamiliar.kbosolucoes.com.br"
+        val pedido = "https://auth.kbosolucoes.com.br/realms/familia/protocol/openid-connect/auth?client_id=gestaofamiliar" +
+            "&redirect_uri=https%3A%2F%2Fgestaofamiliar.kbosolucoes.com.br%2Fapp-login&state=abc&code_challenge=x"
+        assertTrue(ehPedidoDeLogin(pedido))
+        assertFalse(ehPedidoDeLogin("https://auth.kbosolucoes.com.br/realms/familia/login-actions/authenticate?x=1"))
+
+        assertEquals("google", provedorExterno("https://auth.kbosolucoes.com.br/realms/familia/broker/google/login?client_id=g&tab_id=t"))
+        assertNull(provedorExterno("https://auth.kbosolucoes.com.br/realms/familia/broker/google/endpoint?state=x"))
+        assertNull(provedorExterno("https://auth.kbosolucoes.com.br/realms/familia/protocol/openid-connect/auth?x=1"))
+
+        assertEquals("$pedido&kc_idp_hint=google", loginNoNavegador(pedido, "google"))
+        assertEquals("$pedido&kc_idp_hint=google", loginNoNavegador("$pedido&kc_idp_hint=github", "google"))
+
+        // Volta do navegador: o resultado vai depois do # para o site concluir o login dentro do app.
+        assertEquals(
+            "$site/app-login#state=abc&code=123",
+            retornoDoLogin(site, "$site/app-login?retorno=state%3Dabc%26code%3D123"),
+        )
+        assertEquals("$site/app-login#state=abc&code=1", retornoDoLogin(site, "$site/app-login#state=abc&code=1"))
+        assertNull(retornoDoLogin(site, "https://golpe.com/app-login?retorno=x"))
+        assertNull(retornoDoLogin(site, "$site/outra?retorno=x"))
+    }
 }

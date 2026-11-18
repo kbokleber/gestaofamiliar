@@ -57,6 +57,8 @@ class WebActivity : Activity() {
     /** Página aberta agora (só a ponte do próprio site é atendida). Atualizada na thread da tela. */
     @Volatile private var paginaAtual: String = ""
     private var versaoNova: String? = null
+    /** Último pedido de login do Keycloak aberto aqui (para refazer no navegador quando for pelo Google). */
+    private var pedidoDeLogin: String? = null
     private var versaoConferidaEm = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,13 +68,17 @@ class WebActivity : Activity() {
         montarTela()
         configurarWeb()
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
-        if (web.url == null) web.loadUrl(enderecoInicial(intent))
+        val retorno = intent?.dataString?.let { retornoDoLogin(configuracao.site, it) }
+        if (retorno != null) web.loadUrl(retorno)
+        else if (web.url == null) web.loadUrl(enderecoInicial(intent))
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.getStringExtra(EXTRA_ENDERECO)?.let { abrir(it) }
+        val retorno = intent.dataString?.let { retornoDoLogin(configuracao.site, it) }
+        if (retorno != null) abrir(retorno)
+        else intent.getStringExtra(EXTRA_ENDERECO)?.let { abrir(it) }
     }
 
     override fun onResume() {
@@ -214,6 +220,15 @@ class WebActivity : Activity() {
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, pedido: WebResourceRequest): Boolean {
                 val endereco = pedido.url.toString()
+                // Google e outros provedores não deixam entrar dentro de apps: o login segue no navegador
+                // e volta para o app por /app-login.
+                val provedor = provedorExterno(endereco)
+                val pedidoAtual = pedidoDeLogin
+                if (provedor != null && pedidoAtual != null) {
+                    abrirFora(loginNoNavegador(pedidoAtual, provedor))
+                    return true
+                }
+                if (ehPedidoDeLogin(endereco)) pedidoDeLogin = endereco
                 if (abreDentroDoApp(configuracao.site, endereco)) return false
                 abrirFora(endereco)
                 return true
@@ -225,6 +240,7 @@ class WebActivity : Activity() {
 
             override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                 paginaAtual = url.orEmpty()
+                if (url != null && ehPedidoDeLogin(url)) pedidoDeLogin = url
             }
 
             override fun onReceivedError(view: WebView, pedido: WebResourceRequest, falha: WebResourceError) {

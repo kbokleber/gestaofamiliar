@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "br.com.kbosolucoes.gestaofamiliar.crianca",
+      "sha256_cert_fingerprints": [
+        "2E:C1:E1:EF:0C:72:CD:1F:3D:22:F0:98:9A:0A:C1:59:CE:0D:53:A3:8B:ED:18:10:AD:A3:FB:B0:31:81:46:6A"
+      ]
+    }
+  }
+]

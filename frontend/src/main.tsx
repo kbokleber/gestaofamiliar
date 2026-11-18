@@ -5,11 +5,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary'
 import { rememberBlockedMessage } from './pages/AcessoNegado'
-import { initKeycloak, keycloak, keycloakEnabled } from './lib/keycloak'
+import { CAMINHO_RETORNO_APP, initKeycloak, keycloak, keycloakEnabled } from './lib/keycloak'
 import { authService } from './services/authService'
 import { useAuthStore } from './stores/authStore'
 import { canSeeMenu } from './lib/menus'
-import { avisarSessaoAoApp } from './lib/appNativo'
+import { avisarSessaoAoApp, dentroDoApp } from './lib/appNativo'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
 
@@ -69,6 +69,10 @@ async function prepareKeycloakSession() {
   }
 
   useAuthStore.setState({ token: client.token, isAuthenticated: true })
+  // O login no app volta por /app-login; depois de entrar, segue para a página inicial.
+  if (window.location.pathname === CAMINHO_RETORNO_APP) {
+    window.history.replaceState({}, '', '/')
+  }
   try {
     const user = await authService.getMe()
     useAuthStore.getState().setAuth(user, client.token)
@@ -118,9 +122,41 @@ function ehRotaPublica(caminho: string): boolean {
   return caminho === '/app' || caminho === '/app/'
 }
 
+const PACOTE_APP = 'br.com.kbosolucoes.gestaofamiliar.crianca'
+
+/**
+ * Login pelo Google feito no navegador do celular: o Keycloak devolve para /app-login no navegador,
+ * e esta página entrega o resultado (que vem depois do #) de volta ao app. Fora do app, nada de sessão aqui.
+ */
+function devolverLoginAoApp() {
+  const resultado = window.location.hash.slice(1)
+  const destino = `intent://${window.location.host}${CAMINHO_RETORNO_APP}?retorno=${encodeURIComponent(resultado)}` +
+    `#Intent;scheme=https;package=${PACOTE_APP};end`
+  const root = document.getElementById('root')
+  if (root) {
+    root.innerHTML = ''
+    const caixa = document.createElement('div')
+    caixa.style.cssText = 'font-family:system-ui,sans-serif;max-width:360px;margin:20vh auto;padding:24px;text-align:center'
+    const titulo = document.createElement('p')
+    titulo.textContent = 'Login feito. Volte ao app Gestão Familiar.'
+    titulo.style.cssText = 'font-size:18px;font-weight:600;color:#111827'
+    const botao = document.createElement('a')
+    botao.href = destino
+    botao.textContent = 'Voltar ao app'
+    botao.style.cssText = 'display:inline-block;margin-top:16px;padding:14px 24px;border-radius:12px;background:#7c3aed;color:#fff;text-decoration:none;font-weight:600'
+    caixa.append(titulo, botao)
+    root.append(caixa)
+  }
+  window.location.replace(destino)
+}
+
+const noRetornoForaDoApp = window.location.pathname === CAMINHO_RETORNO_APP && !dentroDoApp()
+
 // Com o Keycloak em login-required, o redirecionamento acontece antes do React Router;
 // por isso a página pública é desenhada direto, sem iniciar a sessão.
-const iniciar = ehRotaPublica(window.location.pathname) ? Promise.resolve() : prepareKeycloakSession()
+const iniciar = noRetornoForaDoApp
+  ? new Promise<void>(() => devolverLoginAoApp())
+  : ehRotaPublica(window.location.pathname) ? Promise.resolve() : prepareKeycloakSession()
 
 iniciar
   .then(renderApp)

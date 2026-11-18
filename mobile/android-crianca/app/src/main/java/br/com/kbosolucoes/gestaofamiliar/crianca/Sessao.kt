@@ -91,3 +91,43 @@ fun mesmoSite(site: String, endereco: String): Boolean {
     val base = try { URI(ApiClient.normalizarEndereco(site)) } catch (e: Exception) { return false }
     return alvo.scheme == base.scheme && alvo.host != null && alvo.host.equals(base.host, ignoreCase = true) && alvo.port == base.port
 }
+
+/**
+ * Login por provedor externo (ex.: Google) na tela do Keycloak: o Google não deixa entrar dentro de apps.
+ * Devolve o provedor (ex.: "google") quando [endereco] é o botão desse provedor; senão, null.
+ */
+fun provedorExterno(endereco: String): String? {
+    val uri = try { URI(endereco) } catch (e: Exception) { return null }
+    val partes = uri.path?.split('/')?.filter { it.isNotEmpty() } ?: return null
+    val i = partes.indexOf("broker")
+    if (i < 0 || i + 2 >= partes.size || partes[i + 2] != "login") return null
+    return partes[i + 1].takeIf { it.matches(Regex("[A-Za-z0-9_.-]+")) }
+}
+
+/** O endereço do pedido de login do site (Keycloak), guardado para refazer o login no navegador. */
+fun ehPedidoDeLogin(endereco: String): Boolean =
+    endereco.contains("/protocol/openid-connect/auth?")
+
+/** Abre o mesmo pedido de login no navegador, indo direto para o provedor escolhido. */
+fun loginNoNavegador(pedidoDeLogin: String, provedor: String): String {
+    val sem = Regex("([?&])kc_idp_hint=[^&]*&?").replace(pedidoDeLogin) { m -> m.groupValues[1] }.trimEnd('&', '?')
+    val sep = if (sem.contains('?')) "&" else "?"
+    return "$sem${sep}kc_idp_hint=${java.net.URLEncoder.encode(provedor, "UTF-8")}"
+}
+
+/**
+ * Volta do login feito no navegador: https://<site>/app-login?retorno=<resultado> vira
+ * https://<site>/app-login#<resultado>, que o site dentro do app usa para concluir o login.
+ * Só aceita o endereço do próprio site.
+ */
+fun retornoDoLogin(site: String, endereco: String): String? {
+    if (!mesmoSite(site, endereco)) return null
+    val uri = try { URI(endereco) } catch (e: Exception) { return null }
+    if (uri.path != CAMINHO_RETORNO_LOGIN) return null
+    val retorno = uri.rawQuery?.split('&')?.firstOrNull { it.startsWith("retorno=") }?.removePrefix("retorno=")
+        ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+    val fragmento = retorno ?: uri.rawFragment ?: ""
+    return ApiClient.normalizarEndereco(site) + CAMINHO_RETORNO_LOGIN + if (fragmento.isNotEmpty()) "#$fragmento" else ""
+}
+
+const val CAMINHO_RETORNO_LOGIN = "/app-login"
