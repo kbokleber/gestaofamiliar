@@ -36,3 +36,20 @@ class PushInscricao(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User")
+
+
+class AvisoApp(Base):
+    """Aviso esperando o app Android da criança buscar, junto com o envio da localização."""
+
+    __tablename__ = "app_aviso"
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    child_user_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
+    tipo = Column(String(30), nullable=False, default="lembrete")
+    titulo = Column(String(120), nullable=False)
+    texto = Column(String(500), nullable=False)
+    url = Column(String(300), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expira_em = Column(DateTime(timezone=True), nullable=False)
+    entregue_em = Column(DateTime(timezone=True), nullable=True)

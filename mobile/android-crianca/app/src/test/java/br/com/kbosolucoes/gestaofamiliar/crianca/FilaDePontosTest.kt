@@ -133,4 +133,28 @@ class FilaDePontosTest {
         f.esvaziar { corpo = it; Resposta.Ok(JSONObject()) }
         assertFalse(corpo!!.keys().asSequence().any { it.startsWith("_") })
     }
+
+    @Test
+    fun leAvisosDaRespostaEIgnoraIncompletos() {
+        val corpo = JSONObject("""{"id":1,"avisos":[
+            {"id":7,"titulo":"Atividades para concluir","texto":"Lição de matemática","url":"/estudos/atividades?recorte=pendentes"},
+            {"id":8,"titulo":"","texto":""},
+            {"titulo":"sem id"},
+            {"id":9,"titulo":"Só título","texto":"x","url":null}
+        ]}""")
+        val avisos = lerAvisos(corpo)
+        assertEquals(listOf(7, 9), avisos.map { it.id })
+        assertEquals("Lição de matemática", avisos[0].texto)
+        assertEquals(null, avisos[1].url)
+        assertTrue(lerAvisos(JSONObject("{\"id\":1}")).isEmpty())
+    }
+
+    @Test
+    fun avisoSoAbreCaminhoDoProprioSite() {
+        val site = "https://gestaofamiliar.kbosolucoes.com.br"
+        assertEquals("$site/estudos/atividades?recorte=pendentes", enderecoDoAviso(site, "/estudos/atividades?recorte=pendentes"))
+        assertEquals(site, enderecoDoAviso(site, "https://outro-site.com/golpe"))
+        assertEquals(site, enderecoDoAviso(site, "//outro-site.com"))
+        assertEquals(site, enderecoDoAviso(site, null))
+    }
 }

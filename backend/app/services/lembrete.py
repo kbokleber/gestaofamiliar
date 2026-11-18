@@ -1,4 +1,4 @@
-"""Escolhe as atividades e envia o alerta para o navegador do filho."""
+"""Escolhe as atividades e envia o alerta ao filho: pelo app Android, se ele tiver, ou pelo navegador."""
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.models.estudo import Atividade
 from app.models.lembrete import FamilyLembreteConfig, PushInscricao
 from app.models.user import User
+from app.services import avisos_app
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,26 @@ def chave_publica_vapid() -> str:
     return urlsafe_b64encode(bruto).decode().rstrip("=")
 
 
+TITULO = "Atividades para concluir"
+URL_PENDENTES = "/estudos/atividades?recorte=pendentes"
+
+
+def canal_do_filho(db: Session, usuario: User) -> str | None:
+    """'app' se o filho tem o app Android pareado; senão 'navegador' se ativou o alerta no site."""
+    if avisos_app.tem_app(db, usuario):
+        return "app"
+    if db.query(PushInscricao).filter(PushInscricao.user_id == usuario.id).count():
+        return "navegador"
+    return None
+
+
 def enviar_para_usuario(db: Session, usuario: User, atividades: list[Atividade]) -> int:
+    if not atividades:
+        return 0
+    # Com o app pareado, o lembrete vai só pelo app (não pelo navegador).
+    if avisos_app.tem_app(db, usuario):
+        avisos_app.enfileirar(db, usuario, TITULO, _texto(atividades), URL_PENDENTES)
+        return 1
     inscricoes = db.query(PushInscricao).filter(PushInscricao.user_id == usuario.id).all()
     if not inscricoes or not atividades:
         return 0
@@ -107,9 +127,9 @@ def enviar_para_usuario(db: Session, usuario: User, atividades: list[Atividade])
     from pywebpush import WebPushException, webpush
 
     corpo = json.dumps({
-        "title": "Atividades para concluir",
+        "title": TITULO,
         "body": _texto(atividades),
-        "url": "/estudos/atividades?recorte=pendentes",
+        "url": URL_PENDENTES,
     })
     enviados = 0
     for inscricao in inscricoes:
@@ -150,14 +170,15 @@ def disparar_familia(db: Session, family_id: int) -> dict:
         if not atividades:
             sem_tarefa.append(nome)
             continue
-        quantidade = db.query(PushInscricao).filter(PushInscricao.user_id == filho.id).count()
-        if quantidade == 0:
+        canal = canal_do_filho(db, filho)
+        if canal is None:
             sem_inscricao.append(nome)
             continue
         enviar_para_usuario(db, filho, atividades)
         enviados.append({
             "filho": nome,
             "tarefas": [item.titulo for item in atividades],
+            "canal": canal,
         })
     db.commit()
     return {"enviados": enviados, "sem_tarefa": sem_tarefa, "sem_inscricao": sem_inscricao}

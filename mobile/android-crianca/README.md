@@ -28,6 +28,7 @@ Alguns fabricantes (Xiaomi, Samsung, Motorola, Huawei) têm uma economia de bate
 - **Intervalo**: pede posição a cada 5 minutos (no mínimo 2), pelo provedor de localização do Google Play Services.
 - **Sem internet**: os pontos ficam numa fila no próprio celular (até uma semana) e são enviados na ordem quando a conexão volta. O servidor recusa pontos com mais de 7 dias. O envio acontece fora da trava da fila: com rede lenta, a posição nova e a tela do app não ficam esperando.
 - **Ao ligar o celular** ou atualizar o app, o envio volta sozinho (precisa de "Permitir o tempo todo").
+- **Lembretes de atividades**: o servidor não manda push direto ao celular. Os avisos pendentes voltam na resposta de cada envio de localização, e o app os mostra como notificação com som no canal "Lembretes". Por isso o lembrete chega em até ~5 minutos depois de disparado. Tocar na notificação abre a página de atividades pendentes no site (só caminhos do próprio site). Criança com o app pareado recebe o lembrete só pelo app; sem o app, continua pelo navegador.
 - **Revogação**: quando um adulto revoga o celular no site, o próximo envio recebe 401. O app apaga o token e a fila, para de enviar e avisa para parear de novo. O app não tem botão de desligar: quem desliga é o adulto, pelo site.
 - **Token**: fica só na área privada do app, fora do backup na nuvem e da transferência para outro celular.
 

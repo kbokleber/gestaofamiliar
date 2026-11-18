@@ -78,6 +78,9 @@ export default function LembreteCelular() {
       <p className="text-sm text-amber-950">
         O alerta toca enquanto houver tarefa de hoje, de amanhã ou atrasada. O intervalo é o da família, só das 13h às 21h.
       </p>
+      <p className="mt-1 text-sm text-amber-900">
+        Se o celular da criança tem o app Gestão Familiar conectado, o alerta chega pelo app (em até 5 minutos) e não pelo navegador.
+      </p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         {filho && (
           <button type="button" onClick={ativar} disabled={ocupado} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-amber-600 px-3 text-sm font-medium text-white disabled:opacity-60">

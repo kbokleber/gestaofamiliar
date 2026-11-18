@@ -41,10 +41,20 @@ class PosicaoIn(BaseModel):
     recorded_at: Optional[datetime] = None
 
 
+class AvisoOut(BaseModel):
+    id: int
+    tipo: str = "lembrete"
+    titulo: str
+    texto: str
+    url: Optional[str] = None
+
+
 class PosicaoOut(BaseModel):
     id: int
     recebido: bool = True
     repetido: bool = False
+    # Avisos pendentes para a criança (ex.: lembrete de atividades), mostrados pelo app.
+    avisos: list[AvisoOut] = []
 
 
 class StatusLugar(BaseModel):

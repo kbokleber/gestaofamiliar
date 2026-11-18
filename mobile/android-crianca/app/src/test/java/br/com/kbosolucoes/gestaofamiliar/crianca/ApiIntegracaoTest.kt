@@ -34,5 +34,23 @@ class ApiIntegracaoTest {
         assertEquals(0, r.pendentes)
 
         assertTrue(api.enviarPosicao("token-falso-com-mais-de-vinte-caracteres", montarPonto(0.0, 0.0, null, null, null, Instant.now())) is Resposta.Desconectado)
+
+        // Lembrete: com GF_TOKEN_ADMIN, dispara o lembrete pelo site e confere que chega neste celular.
+        val admin = System.getenv("GF_TOKEN_ADMIN")
+        if (!admin.isNullOrBlank()) {
+            val conexao = java.net.URL("$url/api/v1/notificacoes/lembretes/disparar").openConnection() as java.net.HttpURLConnection
+            conexao.requestMethod = "POST"
+            conexao.setRequestProperty("Authorization", "Bearer $admin")
+            assertEquals(200, conexao.responseCode)
+            val disparo = conexao.inputStream.bufferedReader().readText()
+            assertTrue("disparo: $disparo", disparo.contains("\"canal\":\"app\""))
+
+            val comAviso = api.enviarPosicao(dados.token, montarPonto(-23.5505, -46.6333, 10f, 0f, 62, Instant.now()))
+            val avisos = lerAvisos((comAviso as Resposta.Ok).corpo)
+            assertEquals(1, avisos.size)
+            assertEquals("Atividades para concluir", avisos[0].titulo)
+            val semAviso = api.enviarPosicao(dados.token, montarPonto(-23.5505, -46.6333, 10f, 0f, 62, Instant.now().plusSeconds(2)))
+            assertTrue(lerAvisos((semAviso as Resposta.Ok).corpo).isEmpty())
+        }
     }
 }

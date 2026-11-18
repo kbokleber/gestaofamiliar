@@ -27,6 +27,13 @@ A chave de assinatura do APK fica fora do git (`keystore.properties`, ignorado).
 
 Continua pendente: teste num celular de verdade, notificação push de chegada/saída e a otimização de bateria própria de alguns fabricantes.
 
+## Atualização: lembretes de Estudos pelo app (etapa D)
+
+- Tabela nova `app_aviso`: avisos esperando o app da criança. Um aviso novo do mesmo tipo substitui o pendente; validade de 6 h; limpeza após 7 dias.
+- `POST /localizacao/dispositivos/posicao` passa a devolver `avisos` (id, tipo, titulo, texto, url). Cada aviso é entregue uma vez.
+- `services/lembrete.py`: se o filho tem celular pareado e não revogado, o lembrete vai para `app_aviso` em vez do Web Push do navegador. Sem app, segue o Web Push de antes. O disparo de teste informa o canal (`app` ou `navegador`).
+- App 1.0.2 mostra os avisos no canal de notificação "Lembretes" (com som) e abre a página de atividades ao tocar.
+
 O Find My Kids serviu só de referência de recursos que a família quer enxergar: mapa em tempo quase real, trajetos com velocidade, bateria do celular e lugares com aviso de chegada e saída. Não existe integração, conta, SDK, chave nem qualquer ligação com o Find My Kids.
 
 ## 1. Objetivo

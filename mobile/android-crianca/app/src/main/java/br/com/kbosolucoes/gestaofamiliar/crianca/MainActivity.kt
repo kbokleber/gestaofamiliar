@@ -57,7 +57,7 @@ class MainActivity : Activity() {
         raiz.removeAllViews()
         titulo("Gestão Familiar")
         texto(
-            "Este app envia a localização e a bateria deste celular para a família, a cada 5 minutos. " +
+            "Este app envia a localização e a bateria deste celular para a família, a cada 5 minutos, e mostra os lembretes de atividades. " +
                 "Ele não grava áudio, não vê a tela, as fotos nem as mensagens.",
             cinza = true,
         )
@@ -124,7 +124,7 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             passo(
                 "Notificação fixa", configuracao.temNotificacao(),
-                "Mostra que a localização está sendo compartilhada.", "Permitir",
+                "Mostra os lembretes e que a localização está sendo compartilhada.", "Permitir",
             ) { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), PEDIDO_NOTIFICACAO) }
         }
         passo(
