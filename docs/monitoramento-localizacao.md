@@ -1,6 +1,23 @@
 # Monitoramento de localização — passagem de bastão
 
-Documento autocontido para outra pessoa ou outra IA continuar o Gestão Familiar sem depender de conversa anterior. O estado descrito aqui é o do branch `cursor/localizacao-familiar-f740` no commit da API (`1c72c2d`) mais este arquivo. Nada disso foi para produção.
+Documento autocontido para outra pessoa ou outra IA continuar o Gestão Familiar sem depender de conversa anterior. O estado descrito nas seções 1 a 6 é o do branch `cursor/localizacao-familiar-f740` no commit da API (`1c72c2d`); a seção "Atualização" logo abaixo descreve a etapa seguinte, com a tela do site. Nada disso foi para produção.
+
+## Atualização: tela do site e ajustes de segurança (etapa B)
+
+Depois da revisão do Dev e do QA, o Kleber escolheu seguir neste mesmo branch antes de qualquer merge. Esta etapa acrescentou:
+
+- **Limite de tentativas no pareamento** (`backend/app/services/limite_tentativas.py`): `POST /dispositivos/parear` aceita 10 pedidos por IP e 100 no total a cada 15 minutos; acima disso responde 429. O IP vem do primeiro `X-Forwarded-For` (Traefik → nginx). O limite fica na memória do processo da API.
+- **Prazo do histórico**: `LOCALIZACAO_RETENCAO_DIAS` (padrão 90). Pontos e avisos de chegada/saída mais antigos são apagados, e códigos de pareamento usados ou vencidos também. A limpeza roda no máximo uma vez por hora, quando chega um ponto novo (`limpar_historico_antigo`).
+- **Troca de família**: se a criança passar para outra família, o celular antigo é revogado no próximo envio e recebe 401.
+- **Apelido no mapa**: tabela nova `location_child_settings` e rota `PUT /criancas/{id}/apelido` (até 12 caracteres). O marcador mostra o apelido (ex.: Gui, Gi); sem apelido, as duas primeiras letras do nome.
+- **Tela "Localização"** (`frontend/src/pages/localizacao/`), só para adulto, com Leaflet e OpenStreetMap, carregada sob demanda:
+  - Agora: cartão por criança com a frase do lugar, a bateria grande e colorida, há quanto tempo e o mapa com marcadores e os círculos dos lugares. Atualiza a cada minuto.
+  - Trajeto: criança e dia; distância, velocidade média e máxima, início e fim, percurso no mapa (tracejado no trecho sem sinal), paradas e chegadas/saídas.
+  - Lugares: cadastrar, editar e apagar, com busca de endereço ou clique no mapa, preposição sugerida e raio.
+  - Celulares: gerar código de pareamento (com contagem regressiva), apelido no mapa e revogar celular.
+- **Menu e permissões**: chave `localizacao` em `frontend/src/lib/menus.ts`, item no menu lateral e rota `/localizacao`. Na tela de usuários, a opção "Localização" aparece para adulto e some para criança.
+
+Continua pendente: o app Android, a notificação push de chegada/saída e o teste com um celular de verdade.
 
 O Find My Kids serviu só de referência de recursos que a família quer enxergar: mapa em tempo quase real, trajetos com velocidade, bateria do celular e lugares com aviso de chegada e saída. Não existe integração, conta, SDK, chave nem qualquer ligação com o Find My Kids.
 

@@ -109,3 +109,14 @@ class LocationPlaceEvent(Base):
     recorded_at = Column(DateTime(timezone=True), nullable=False, index=True)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
+
+
+class LocationChildSettings(Base):
+    """Preferências do mapa por criança, como o apelido que aparece no marcador."""
+
+    __tablename__ = "location_child_settings"
+
+    child_user_id = Column(Integer, ForeignKey("auth_user.id"), primary_key=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    apelido = Column(String(12), nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

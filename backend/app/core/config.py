@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     # se a família passar a usar outro serviço compatível com a busca do Nominatim.
     NOMINATIM_URL: str = "https://nominatim.openstreetmap.org"
     NOMINATIM_USER_AGENT: str = "GestaoFamiliar-Localizacao/1.0"
+    # Dias que os pontos de localização e os avisos de chegada/saída ficam guardados.
+    LOCALIZACAO_RETENCAO_DIAS: int = 90
     
     class Config:
         env_file = ".env"

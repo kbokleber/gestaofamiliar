@@ -66,6 +66,7 @@ class AparelhoOut(BaseModel):
 class CriancaOut(BaseModel):
     id: int
     nome: str
+    apelido: Optional[str] = None
     family_id: int
     bateria: Optional[int] = None
     atualizado_em: Optional[datetime] = None
@@ -155,6 +156,15 @@ class GeocodificarOut(BaseModel):
     latitude: float
     longitude: float
     endereco_formatado: str
+
+
+class ApelidoIn(BaseModel):
+    apelido: Optional[str] = Field(default=None, max_length=12)
+
+
+class ApelidoOut(BaseModel):
+    crianca_id: int
+    apelido: Optional[str] = None
 
 
 class RevogacaoOut(BaseModel):

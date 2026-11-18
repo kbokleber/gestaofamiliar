@@ -392,3 +392,106 @@ def test_geocodificar_sem_resultado_duas_tentativas(monkeypatch):
     assert chamadas == ["br", None]
     with pytest.raises(EnderecoNaoEncontrado):
         servico.geocodificar_endereco("  ")
+
+
+@pytest.fixture(autouse=True)
+def _zerar_limites():
+    from app.api.v1.endpoints import localizacao as rotas
+
+    rotas.limite_pareamento_ip.zerar()
+    rotas.limite_pareamento_total.zerar()
+    yield
+    rotas.limite_pareamento_ip.zerar()
+    rotas.limite_pareamento_total.zerar()
+
+
+def test_pareamento_limita_tentativas_por_ip(ambiente):
+    cliente, _db, _estado = ambiente
+    cabecalho = {"X-Forwarded-For": "200.1.1.1, 10.0.0.2"}
+    for _ in range(10):
+        errado = cliente.post(
+            "/api/v1/localizacao/dispositivos/parear", json={"code": "ZZZZ-ZZZZ"}, headers=cabecalho
+        )
+        assert errado.status_code == 400
+    bloqueado = cliente.post(
+        "/api/v1/localizacao/dispositivos/parear", json={"code": "ZZZZ-ZZZZ"}, headers=cabecalho
+    )
+    assert bloqueado.status_code == 429
+    assert "15 minutos" in bloqueado.json()["detail"]
+
+    # Outro IP ainda consegue parear com um código válido.
+    codigo = cliente.post("/api/v1/localizacao/pareamentos", json={"child_user_id": 16}).json()["codigo"]
+    outro = cliente.post(
+        "/api/v1/localizacao/dispositivos/parear",
+        json={"code": codigo},
+        headers={"X-Forwarded-For": "200.2.2.2"},
+    )
+    assert outro.status_code == 200, outro.text
+
+
+def test_limite_tentativas_libera_depois_da_janela():
+    from app.services.limite_tentativas import LimiteTentativas
+
+    limite = LimiteTentativas(maximo=2, janela_segundos=60)
+    limite.registrar("ip", agora=0)
+    limite.registrar("ip", agora=1)
+    assert limite.excedido("ip", agora=2)
+    assert not limite.excedido("ip", agora=61)
+
+
+def test_historico_antigo_e_apagado(ambiente):
+    from app.models.location import LocationPlaceEvent, LocationPoint
+
+    cliente, db, _estado = ambiente
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63, battery_level=50).status_code == 200
+    ponto = db.query(LocationPoint).first()
+    agora = datetime.now(timezone.utc)
+    velho = LocationPoint(
+        device_id=ponto.device_id, family_id=1, child_user_id=16, latitude=-23.5, longitude=-46.6,
+        recorded_at=agora - timedelta(days=91), received_at=agora - timedelta(days=91),
+    )
+    evento_velho = LocationPlaceEvent(
+        family_id=1, child_user_id=16, device_id=ponto.device_id, place_id=None, lugar_nome="Casa",
+        preposicao="em", tipo="chegada", recorded_at=agora - timedelta(days=95), latitude=-23.55, longitude=-46.63,
+    )
+    db.add_all([velho, evento_velho])
+    db.commit()
+
+    resultado = servico.limpar_historico_antigo(db, agora)
+    db.commit()
+    assert resultado["pontos"] == 1
+    assert resultado["eventos"] == 1
+    assert resultado["codigos"] >= 1  # o código já usado no pareamento
+    assert db.query(LocationPoint).count() == 1
+
+
+def test_celular_revogado_quando_crianca_muda_de_familia(ambiente):
+    cliente, db, _estado = ambiente
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63).status_code == 200
+
+    gui = db.query(User).filter(User.id == 16).first()
+    gui.family_id = 2
+    db.commit()
+
+    recusado = _enviar(cliente, token, latitude=-23.55, longitude=-46.63)
+    assert recusado.status_code == 401
+    from app.models.location import LocationDevice
+
+    assert db.query(LocationDevice).filter(LocationDevice.child_user_id == 16).first().revoked_at is not None
+
+
+def test_apelido_no_mapa(ambiente):
+    cliente, _db, estado = ambiente
+    salvo = cliente.put("/api/v1/localizacao/criancas/16/apelido", json={"apelido": "  Gui  "})
+    assert salvo.status_code == 200, salvo.text
+    assert salvo.json() == {"crianca_id": 16, "apelido": "Gui"}
+    assert cliente.put("/api/v1/localizacao/criancas/17/apelido", json={"apelido": "Gi"}).status_code == 200
+    apelidos = {c["id"]: c["apelido"] for c in cliente.get("/api/v1/localizacao/criancas").json()}
+    assert apelidos == {16: "Gui", 17: "Gi"}
+
+    # Vazio volta a não ter apelido; criança de outra família não é alcançada.
+    assert cliente.put("/api/v1/localizacao/criancas/17/apelido", json={"apelido": ""}).json()["apelido"] is None
+    assert cliente.put("/api/v1/localizacao/criancas/18/apelido", json={"apelido": "X"}).status_code == 404
+    assert cliente.put("/api/v1/localizacao/criancas/16/apelido", json={"apelido": "x" * 13}).status_code == 422

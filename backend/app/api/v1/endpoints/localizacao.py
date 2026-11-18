@@ -2,7 +2,7 @@
 from datetime import date
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, Security, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,8 @@ from app.api.deps import get_db, require_menu
 from app.models.location import LocationDevice
 from app.models.user import User
 from app.schemas.location import (
+    ApelidoIn,
+    ApelidoOut,
     CriancaOut,
     GeocodificarIn,
     GeocodificarOut,
@@ -30,6 +32,7 @@ from app.services.localizacao import (
     atualizar_lugar,
     buscar_dispositivo,
     criar_lugar,
+    definir_apelido,
     excluir_lugar,
     geocodificar_endereco,
     gerar_pareamento,
@@ -42,8 +45,13 @@ from app.services.localizacao import (
     revogar_proprio,
     trocar_codigo,
 )
+from app.services.limite_tentativas import LimiteTentativas, ip_do_pedido
 
 router = APIRouter()
+
+# Pareamento sem login: 10 tentativas por IP e 100 no total a cada 15 minutos.
+limite_pareamento_ip = LimiteTentativas(maximo=10, janela_segundos=15 * 60)
+limite_pareamento_total = LimiteTentativas(maximo=100, janela_segundos=15 * 60)
 device_token_header = APIKeyHeader(name="X-Device-Token", auto_error=False)
 
 
@@ -81,6 +89,17 @@ def ler_trajeto(
     adulto: User = Depends(adulto_localizacao),
 ):
     return montar_trajeto(db, adulto, child_id, dia or hoje_sao_paulo())
+
+
+@router.put("/criancas/{child_id}/apelido", response_model=ApelidoOut)
+def salvar_apelido(
+    child_id: int,
+    dados: ApelidoIn,
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    """Apelido que aparece no marcador do mapa."""
+    return definir_apelido(db, adulto, child_id, dados.apelido)
 
 
 @router.post("/pareamentos", response_model=PareamentoOut)
@@ -155,8 +174,16 @@ def apagar_lugar(
 
 
 @router.post("/dispositivos/parear", response_model=ParearDispositivoOut)
-def parear_celular(dados: ParearDispositivoIn, db: Session = Depends(get_db)):
+def parear_celular(dados: ParearDispositivoIn, request: Request, db: Session = Depends(get_db)):
     """O celular troca o código por um token que só serve para enviar localização."""
+    ip = ip_do_pedido(request)
+    if limite_pareamento_ip.excedido(ip) or limite_pareamento_total.excedido("todos"):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas tentativas de pareamento. Aguarde 15 minutos e tente de novo.",
+        )
+    limite_pareamento_ip.registrar(ip)
+    limite_pareamento_total.registrar("todos")
     return trocar_codigo(db, dados.code, dados.device_label)
 
 

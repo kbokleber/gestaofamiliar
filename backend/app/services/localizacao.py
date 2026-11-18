@@ -11,11 +11,13 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_user_family_ids
 from app.core.config import settings
 from app.models.location import (
+    LocationChildSettings,
     LocationDevice,
     LocationPairingCode,
     LocationPlace,
@@ -39,6 +41,8 @@ PONTO_ANTIGO_MAX = timedelta(days=7)
 FUTURO_MAX = timedelta(minutes=5)
 PREPOSICOES = ("em", "na", "no")
 SAIDA = {"em": "de", "na": "da", "no": "do"}
+LIMPEZA_INTERVALO = timedelta(hours=1)
+_ultima_limpeza: Optional[datetime] = None
 
 
 class EnderecoNaoEncontrado(Exception):
@@ -216,6 +220,10 @@ def listar_criancas(db: Session, adulto: User) -> list[dict]:
         .all()
     )
     lugares = db.query(LocationPlace).filter(LocationPlace.family_id.in_(familias)).all()
+    apelidos = {
+        pref.child_user_id: pref.apelido
+        for pref in db.query(LocationChildSettings).filter(LocationChildSettings.family_id.in_(familias)).all()
+    }
     agora = datetime.now(timezone.utc)
     saida = []
     for crianca in criancas:
@@ -242,6 +250,7 @@ def listar_criancas(db: Session, adulto: User) -> list[dict]:
         saida.append({
             "id": crianca.id,
             "nome": nome_de(crianca),
+            "apelido": apelidos.get(crianca.id),
             "family_id": crianca.family_id,
             "bateria": ponto.battery_level if ponto is not None else None,
             "atualizado_em": atualizado,
@@ -499,7 +508,53 @@ def buscar_dispositivo(db: Session, token: str) -> Optional[LocationDevice]:
     crianca = db.query(User).filter(User.id == aparelho.child_user_id).first()
     if crianca is None or not crianca.is_active or not crianca.is_child:
         return None
+    if crianca.family_id != aparelho.family_id:
+        # A criança mudou de família: o celular não pode seguir mandando pontos para a antiga.
+        aparelho.revoked_at = datetime.now(timezone.utc)
+        db.commit()
+        logger.info("celular revogado por troca de familia device_id=%s", aparelho.id)
+        return None
     return aparelho
+
+
+def limpar_historico_antigo(db: Session, agora: Optional[datetime] = None) -> dict:
+    """Apaga pontos e avisos mais antigos que o prazo, e códigos de pareamento vencidos."""
+    agora = agora or datetime.now(timezone.utc)
+    dias = max(1, int(settings.LOCALIZACAO_RETENCAO_DIAS))
+    corte = agora - timedelta(days=dias)
+    pontos = (
+        db.query(LocationPoint)
+        .filter(LocationPoint.recorded_at < corte)
+        .delete(synchronize_session=False)
+    )
+    eventos = (
+        db.query(LocationPlaceEvent)
+        .filter(LocationPlaceEvent.recorded_at < corte)
+        .delete(synchronize_session=False)
+    )
+    codigos = (
+        db.query(LocationPairingCode)
+        .filter(or_(
+            LocationPairingCode.expires_at < agora - timedelta(days=1),
+            LocationPairingCode.used_at.isnot(None),
+        ))
+        .delete(synchronize_session=False)
+    )
+    if pontos or eventos or codigos:
+        logger.info("limpeza localizacao pontos=%s eventos=%s codigos=%s", pontos, eventos, codigos)
+    return {"pontos": pontos, "eventos": eventos, "codigos": codigos}
+
+
+def _limpar_se_preciso(db: Session, agora: datetime) -> None:
+    global _ultima_limpeza
+    if _ultima_limpeza is not None and agora - _ultima_limpeza < LIMPEZA_INTERVALO:
+        return
+    _ultima_limpeza = agora
+    try:
+        limpar_historico_antigo(db, agora)
+    except Exception:  # a limpeza nunca impede o ponto novo de ser gravado
+        logger.exception("falha na limpeza do historico de localizacao")
+        db.rollback()
 
 
 def _ponto_repetido(db: Session, device_id: int, recorded: datetime) -> Optional[LocationPoint]:
@@ -605,6 +660,7 @@ def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -
     lugares = db.query(LocationPlace).filter(LocationPlace.family_id == aparelho.family_id).all()
     registrar_presenca(db, ponto, lugares)
     db.commit()
+    _limpar_se_preciso(db, agora)
     db.refresh(ponto)
     logger.info("posicao recebida device_id=%s ponto_id=%s", aparelho.id, ponto.id)
     return {"id": ponto.id, "recebido": True, "repetido": False}
@@ -772,3 +828,17 @@ def geocodificar_endereco(endereco: str) -> dict:
     if achado is None:
         raise EnderecoNaoEncontrado("Não encontrei esse endereço. Marque o ponto no mapa.")
     return achado
+
+
+def definir_apelido(db: Session, adulto: User, child_id: int, apelido: Optional[str]) -> dict:
+    """Apelido curto do marcador no mapa (ex.: Gui, Gi). Vazio volta para o início do nome."""
+    crianca = obter_crianca(db, familias_do_adulto(adulto, db), child_id)
+    limpo = (apelido or "").strip()[:12] or None
+    pref = db.query(LocationChildSettings).filter(LocationChildSettings.child_user_id == crianca.id).first()
+    if pref is None:
+        pref = LocationChildSettings(child_user_id=crianca.id, family_id=crianca.family_id)
+        db.add(pref)
+    pref.family_id = crianca.family_id
+    pref.apelido = limpo
+    db.commit()
+    return {"crianca_id": crianca.id, "apelido": limpo}

@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.db.base import Base, engine
 from app.models.location import (  # noqa: F401
+    LocationChildSettings,
     LocationDevice,
     LocationPairingCode,
     LocationPlace,
@@ -28,6 +29,7 @@ TABELAS = [
     LocationPlace.__table__,
     LocationPlaceState.__table__,
     LocationPlaceEvent.__table__,
+    LocationChildSettings.__table__,
 ]
 
 

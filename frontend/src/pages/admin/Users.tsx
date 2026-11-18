@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../lib/api'
 import { keycloakEnabled } from '../../lib/keycloak'
-import { MENUS } from '../../lib/menus'
+import { MENUS, menusDoPerfil } from '../../lib/menus'
 import { useAuthStore } from '../../stores/authStore'
 import { Users, Lock, UserCheck, UserX, Search, RefreshCw, Plus, Edit, Trash2 } from 'lucide-react'
 import Modal from '../../components/Modal'
@@ -960,7 +960,7 @@ export default function AdminUsers() {
           <div>
             <p className="block text-sm font-medium text-gray-700 mb-2">Menus</p>
             <div className="space-y-2 border border-gray-300 rounded-lg p-3">
-              {MENUS.map((menu) => (
+              {menusDoPerfil(newUserData.is_child).map((menu) => (
                 <label key={menu.key} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1202,7 +1202,7 @@ export default function AdminUsers() {
             <div>
               <p className="block text-sm font-medium text-gray-700 mb-2">Menus</p>
               <div className="space-y-2 border border-gray-300 rounded-lg p-3">
-                {MENUS.map((menu) => (
+                {menusDoPerfil(!!selectedUser?.is_child && !selectedUser?.is_superuser).map((menu) => (
                   <label key={menu.key} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"

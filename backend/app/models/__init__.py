@@ -32,6 +32,7 @@ from app.models.finance import (
     FinanceRecurrence,
 )
 from app.models.location import (
+    LocationChildSettings,
     LocationDevice,
     LocationPairingCode,
     LocationPlace,
@@ -85,4 +86,5 @@ __all__ = [
     "LocationPlace",
     "LocationPlaceState",
     "LocationPlaceEvent",
+    "LocationChildSettings",
 ]

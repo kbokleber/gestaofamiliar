@@ -4,9 +4,18 @@ export const MENUS = [
   { key: 'manutencao', label: 'Manutenção', href: '/maintenance/equipment' },
   { key: 'financas', label: 'Finanças', href: '/finance' },
   { key: 'estudos', label: 'Estudos', href: '/estudos/painel' },
+  { key: 'localizacao', label: 'Localização', href: '/localizacao' },
 ] as const
 
 export type MenuKey = (typeof MENUS)[number]['key']
+
+/** Menus que só adulto vê. A API também recusa criança nesses menus. */
+export const MENUS_SO_ADULTO: readonly MenuKey[] = ['localizacao']
+
+/** Menus que podem ser marcados para a pessoa, conforme ela seja criança ou não. */
+export function menusDoPerfil(isChild?: boolean) {
+  return MENUS.filter((menu) => !(isChild && MENUS_SO_ADULTO.includes(menu.key)))
+}
 
 type MenuUser = {
   is_superuser?: boolean
@@ -16,10 +25,11 @@ type MenuUser = {
 
 export function visibleMenuKeys(user: MenuUser): MenuKey[] {
   if (!user) return []
+  const doPerfil = menusDoPerfil(user.is_child && !user.is_superuser).map((menu) => menu.key)
   if (user.is_superuser || user.allowed_menus == null) {
-    return MENUS.map((menu) => menu.key)
+    return doPerfil
   }
-  return MENUS.map((menu) => menu.key).filter((key) => user.allowed_menus?.includes(key))
+  return doPerfil.filter((key) => user.allowed_menus?.includes(key))
 }
 
 export function canSeeMenu(user: MenuUser, menu: MenuKey): boolean {

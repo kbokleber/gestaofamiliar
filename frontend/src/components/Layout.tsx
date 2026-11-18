@@ -3,7 +3,7 @@ import { keycloakEnabled, logoutKeycloak } from '../lib/keycloak'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen, ClipboardList, ClipboardCheck, FileText, Megaphone, StickyNote, LineChart
+  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen, ClipboardList, ClipboardCheck, FileText, Megaphone, StickyNote, LineChart, MapPin
 } from 'lucide-react'
 import { canSeeMenu, type MenuKey } from '../lib/menus'
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -89,6 +89,7 @@ export default function Layout() {
         { name: 'Apontamentos', href: '/estudos/apontamentos', icon: StickyNote },
       ]
     },
+    { name: 'Localização', href: '/localizacao', icon: MapPin, menu: 'localizacao' },
   ]
 
   // Adicionar menu de admin se for superuser (apenas admins, não staff)
