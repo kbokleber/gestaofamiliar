@@ -120,14 +120,24 @@ function EnviarVersao({ aoEnviar }: { aoEnviar: () => void }) {
     dados.append('versao', versao.trim())
     dados.append('arquivo', arquivo)
     try {
-      const { data } = await api.post<VersaoApp>('/app-android/upload', dados)
+      // A instância da API usa JSON por padrão; sem isto o axios converte o FormData em JSON e o arquivo se perde.
+      const { data } = await api.post<VersaoApp>('/app-android/upload', dados, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
       setMensagem(`Versão ${data.versao} publicada. Já pode ser baixada em ${PAGINA_APP}.`)
       setArquivo(null)
       setVersao('')
       aoEnviar()
     } catch (e) {
       const detalhe = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      setMensagem(typeof detalhe === 'string' ? detalhe : 'Não foi possível enviar o app.')
+      const status = (e as { response?: { status?: number } })?.response?.status
+      setMensagem(
+        typeof detalhe === 'string'
+          ? detalhe
+          : status === 413
+            ? 'O arquivo é grande demais para o servidor.'
+            : `Não foi possível enviar o app${status ? ` (erro ${status})` : ''}.`,
+      )
     } finally {
       setEnviando(false)
     }
