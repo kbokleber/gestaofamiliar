@@ -103,7 +103,16 @@ async function prepareKeycloakSession() {
   }, 20000)
 }
 
-prepareKeycloakSession()
+/** Páginas abertas sem login (ex.: /app, aberta no celular da criança para baixar o app). */
+function ehRotaPublica(caminho: string): boolean {
+  return caminho === '/app' || caminho === '/app/'
+}
+
+// Com o Keycloak em login-required, o redirecionamento acontece antes do React Router;
+// por isso a página pública é desenhada direto, sem iniciar a sessão.
+const iniciar = ehRotaPublica(window.location.pathname) ? Promise.resolve() : prepareKeycloakSession()
+
+iniciar
   .then(renderApp)
   .catch((error) => {
     console.error(error)
