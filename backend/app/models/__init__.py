@@ -31,6 +31,14 @@ from app.models.finance import (
     FinanceImportCategoryRule,
     FinanceRecurrence,
 )
+from app.models.location import (
+    LocationDevice,
+    LocationPairingCode,
+    LocationPlace,
+    LocationPlaceEvent,
+    LocationPlaceState,
+    LocationPoint,
+)
 
 __all__ = [
     "User",
@@ -71,4 +79,10 @@ __all__ = [
     "Boletim",
     "BoletimLinha",
     "NotaParcial",
+    "LocationPairingCode",
+    "LocationDevice",
+    "LocationPoint",
+    "LocationPlace",
+    "LocationPlaceState",
+    "LocationPlaceEvent",
 ]

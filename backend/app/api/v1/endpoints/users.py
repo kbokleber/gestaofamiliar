@@ -8,7 +8,7 @@ from app.models.family import Family
 from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate, UserUpdate, ApiTokenResponse
 from app.api.deps import get_current_user, get_current_admin
 from app.core.config import settings
-from app.core.menus import normalize_menus
+from app.core.menus import aplicar_perfil_menus, normalize_menus
 from app.core.keycloak_admin import (
     KeycloakAdminError,
     delete_user as delete_keycloak_user,
@@ -185,6 +185,7 @@ async def create_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if menus is None:
         menus = ["estudos"]
+    menus = aplicar_perfil_menus(menus, is_child=bool(user_data.is_child))
 
     created_in_keycloak = False
     if settings.AUTH_KEYCLOAK_ENABLED:
@@ -385,6 +386,9 @@ async def update_user_permissions(
             user.allowed_menus = normalize_menus(permissions_data.allowed_menus or [])
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if user.is_child and user.allowed_menus is not None:
+        user.allowed_menus = aplicar_perfil_menus(user.allowed_menus, is_child=True)
 
     if permissions_data.is_staff is not None or permissions_data.is_superuser is not None:
         _keycloak_or_http(lambda: sync_admin_role(user.username, is_admin=bool(user.is_superuser)))

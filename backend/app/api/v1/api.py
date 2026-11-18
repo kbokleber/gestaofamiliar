@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.api.deps import require_menu
-from app.api.v1.endpoints import auth, users, healthcare, maintenance, dashboard, families, telegram, finance, system, estudos, notificacoes
+from app.api.v1.endpoints import auth, users, healthcare, maintenance, dashboard, families, telegram, finance, system, estudos, notificacoes, localizacao
 
 api_router = APIRouter()
 
@@ -44,3 +44,4 @@ api_router.include_router(
     tags=["notificacoes"],
     dependencies=[Depends(require_menu("estudos"))],
 )
+api_router.include_router(localizacao.router, prefix="/localizacao", tags=["localizacao"])

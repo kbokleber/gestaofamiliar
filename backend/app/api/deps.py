@@ -12,6 +12,7 @@ from app.core.keycloak import (
 )
 from app.core.security import decode_access_token
 from app.db.base import get_db
+from app.core.menus import MENUS_SO_ADULTO
 from app.models.user import User
 from app.models.family import Family
 
@@ -23,6 +24,11 @@ def require_menu(menu: str):
     """Bloqueia a API do menu quando o usuário não tem essa área liberada."""
 
     def _dependency(current_user: User = Depends(get_current_user)) -> User:
+        if menu in MENUS_SO_ADULTO and current_user.is_child:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Localização é só para adultos.",
+            )
         if current_user.is_superuser or current_user.allowed_menus is None:
             return current_user
         if menu not in current_user.allowed_menus:

@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""
     VAPID_PRIVATE_KEY: str = ""
     VAPID_SUBJECT: str = "mailto:gestaofamiliar@localhost"
+
+    # Busca de endereço dos lugares (OpenStreetMap). Sem chave. Dá para trocar a URL
+    # se a família passar a usar outro serviço compatível com a busca do Nominatim.
+    NOMINATIM_URL: str = "https://nominatim.openstreetmap.org"
+    NOMINATIM_USER_AGENT: str = "GestaoFamiliar-Localizacao/1.0"
     
     class Config:
         env_file = ".env"
