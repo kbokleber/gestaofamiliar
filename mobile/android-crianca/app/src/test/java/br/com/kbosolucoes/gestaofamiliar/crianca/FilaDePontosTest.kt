@@ -91,4 +91,46 @@ class FilaDePontosTest {
         assertEquals("https://exemplo.com", ApiClient.normalizarEndereco("exemplo.com/"))
         assertEquals("https://exemplo.com", ApiClient.normalizarEndereco("https://exemplo.com/api/v1"))
     }
+
+    @Test
+    fun redeLentaNaoTravaPontoNovoNemLeituraDaTela() {
+        val f = fila()
+        f.adicionar(ponto(120).put("n", 1))
+        val enviando = java.util.concurrent.CountDownLatch(1)
+        val liberar = java.util.concurrent.CountDownLatch(1)
+        val envio = Thread {
+            f.esvaziar {
+                enviando.countDown()
+                liberar.await() // simula a rede lenta
+                Resposta.Ok(JSONObject())
+            }
+        }
+        envio.start()
+        assertTrue(enviando.await(5, java.util.concurrent.TimeUnit.SECONDS))
+
+        // Durante o envio: gravar posição nova e ler o tamanho não podem esperar a rede.
+        val inicio = System.nanoTime()
+        f.adicionar(ponto().put("n", 2))
+        assertEquals(2, f.tamanho())
+        // Um segundo envio ao mesmo tempo não começa nem espera.
+        assertEquals(0, f.esvaziar { Resposta.Ok(JSONObject()) }.enviados)
+        assertTrue((System.nanoTime() - inicio) < 1_000_000_000L)
+
+        liberar.countDown()
+        envio.join(5000)
+        // O ponto entregue saiu; o que chegou durante o envio ficou para o próximo.
+        assertEquals(1, f.tamanho())
+        val restantes = mutableListOf<Int>()
+        f.esvaziar { restantes.add(it.getInt("n")); Resposta.Ok(JSONObject()) }
+        assertEquals(listOf(2), restantes)
+    }
+
+    @Test
+    fun identificadorInternoNaoVaiParaApi() {
+        val f = fila()
+        f.adicionar(ponto())
+        var corpo: JSONObject? = null
+        f.esvaziar { corpo = it; Resposta.Ok(JSONObject()) }
+        assertFalse(corpo!!.keys().asSequence().any { it.startsWith("_") })
+    }
 }

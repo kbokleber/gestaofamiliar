@@ -24,6 +24,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import java.time.Instant
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * Serviço em primeiro plano: pega a localização a cada ~5 minutos, junta a bateria
@@ -54,7 +55,14 @@ class LocationService : Service() {
         }
         criarCanal(this)
         val tipo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
-        ServiceCompat.startForeground(this, NOTIFICACAO_ID, notificacao(), tipo)
+        try {
+            ServiceCompat.startForeground(this, NOTIFICACAO_ID, notificacao(), tipo)
+        } catch (e: Exception) {
+            // Algumas versões do Android recusam iniciar em primeiro plano (ex.: sem permissão
+            // "o tempo todo" e com o app fechado). Melhor parar do que fechar o app com erro.
+            stopSelf()
+            return START_NOT_STICKY
+        }
         iniciarAtualizacoes()
         if (intent?.action == ACAO_ENVIAR_AGORA) pedirPosicaoAgora()
         return START_STICKY
@@ -91,16 +99,24 @@ class LocationService : Service() {
     }
 
     private fun enviarPendentes() {
-        rede.execute {
-            val token = configuracao.token ?: return@execute
-            val api = ApiClient(configuracao.site)
-            val resultado = configuracao.fila().esvaziar { api.enviarPosicao(token, it) }
-            configuracao.registrarEnvio(resultado)
-            if (resultado.desconectado) {
-                configuracao.marcarDesconectado()
-                avisarDesconectado()
-                ContextCompat.getMainExecutor(this).execute { pararServico() }
-            }
+        // Uma posição pedida pelo "Enviar agora" pode chegar depois que o serviço parou.
+        if (rede.isShutdown) return
+        try {
+            rede.execute { enviarAgora() }
+        } catch (e: RejectedExecutionException) {
+            // serviço já encerrado: o ponto continua na fila e sai no próximo envio
+        }
+    }
+
+    private fun enviarAgora() {
+        val token = configuracao.token ?: return
+        val api = ApiClient(configuracao.site)
+        val resultado = configuracao.fila().esvaziar { api.enviarPosicao(token, it) }
+        configuracao.registrarEnvio(resultado)
+        if (resultado.desconectado) {
+            configuracao.marcarDesconectado()
+            avisarDesconectado()
+            ContextCompat.getMainExecutor(this).execute { pararServico() }
         }
     }
 

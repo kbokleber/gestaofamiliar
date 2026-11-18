@@ -74,7 +74,7 @@ class MainActivity : Activity() {
         texto("No site, um adulto abre Localização › Celulares e toca em \"Gerar código\".", cinza = true)
 
         val site = campo("Endereço do site", configuracao.site, InputType.TYPE_TEXT_VARIATION_URI)
-        val codigo = campo("Código (ex.: ABCD-1234)", "", InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS)
+        val codigo = campo("Código (ex.: ABCD-2345)", "", InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS)
         val nome = campo("Nome deste celular (opcional)", Build.MODEL ?: "", InputType.TYPE_TEXT_FLAG_CAP_WORDS)
         val mensagem = texto("", cinza = true)
 

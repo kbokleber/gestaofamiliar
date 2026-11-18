@@ -4,49 +4,74 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.time.Instant
+import java.util.UUID
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Pontos ainda não entregues, num arquivo do próprio app.
  * Sem rede, os pontos ficam aqui e saem na ordem quando a conexão volta.
  * O servidor recusa pontos com mais de 7 dias, então a fila descarta os mais velhos.
+ *
+ * A trava do arquivo só protege leitura e gravação, que são rápidas. O envio pela rede
+ * acontece fora dela: com internet lenta, a posição nova e a tela do app não ficam esperando.
  */
 class FilaDePontos(private val arquivo: File, private val limite: Int = LIMITE_PADRAO) {
-    private val trava = Any()
 
-    fun adicionar(ponto: JSONObject) = synchronized(trava) {
+    fun adicionar(ponto: JSONObject) = synchronized(travaDoArquivo(arquivo)) {
         val lista = ler()
-        lista.add(ponto)
+        lista.add(JSONObject(ponto.toString()).put(CAMPO_ID, UUID.randomUUID().toString()))
         while (lista.size > limite) lista.removeAt(0)
         gravar(lista)
     }
 
-    fun tamanho(): Int = synchronized(trava) { ler().size }
+    fun tamanho(): Int = synchronized(travaDoArquivo(arquivo)) { ler().size }
 
     /**
      * Envia na ordem, do mais antigo ao mais novo, e para no primeiro erro de rede.
      * Ponto recusado pelo servidor é descartado; token revogado interrompe tudo.
+     * Se já houver um envio em andamento, não começa outro.
      */
-    fun esvaziar(enviar: (JSONObject) -> Resposta): ResultadoEnvio = synchronized(trava) {
-        val lista = ler()
-        val limiteIdade = Instant.now().minusSeconds(IDADE_MAXIMA_SEGUNDOS)
-        lista.removeAll { p -> runCatching { Instant.parse(p.optString("recorded_at")) < limiteIdade }.getOrDefault(false) }
-        var enviados = 0
-        var descartados = 0
-        var desconectado = false
-        var erro: String? = null
-        while (lista.isNotEmpty()) {
-            when (val r = enviar(lista[0])) {
-                is Resposta.Ok -> { lista.removeAt(0); enviados++ }
-                is Resposta.Recusado -> { lista.removeAt(0); descartados++ }
-                is Resposta.Desconectado -> { desconectado = true; break }
-                is Resposta.TentarDepois -> { erro = r.motivo; break }
+    fun esvaziar(enviar: (JSONObject) -> Resposta): ResultadoEnvio {
+        val envio = travaDeEnvio(arquivo)
+        if (!envio.tryLock()) return ResultadoEnvio(0, 0, tamanho(), desconectado = false, erro = null)
+        try {
+            val copia = synchronized(travaDoArquivo(arquivo)) { semVelhos(ler()) }
+            val resolvidos = mutableSetOf<String>()
+            var enviados = 0
+            var descartados = 0
+            var desconectado = false
+            var erro: String? = null
+            for (ponto in copia) {
+                val corpo = JSONObject(ponto.toString()).apply { remove(CAMPO_ID) }
+                when (val r = enviar(corpo)) {
+                    is Resposta.Ok -> { resolvidos += ponto.optString(CAMPO_ID); enviados++ }
+                    is Resposta.Recusado -> { resolvidos += ponto.optString(CAMPO_ID); descartados++ }
+                    is Resposta.Desconectado -> { desconectado = true; break }
+                    is Resposta.TentarDepois -> { erro = r.motivo; break }
+                }
             }
+            // Relê o arquivo: pontos que chegaram durante o envio continuam na fila.
+            val pendentes = synchronized(travaDoArquivo(arquivo)) {
+                val atual = semVelhos(ler())
+                atual.removeAll { it.optString(CAMPO_ID) in resolvidos }
+                gravar(atual)
+                atual.size
+            }
+            return ResultadoEnvio(enviados, descartados, pendentes, desconectado, erro)
+        } finally {
+            envio.unlock()
         }
-        gravar(lista)
-        ResultadoEnvio(enviados, descartados, lista.size, desconectado, erro)
     }
 
-    fun limpar() = synchronized(trava) { arquivo.delete() }
+    fun limpar() = synchronized(travaDoArquivo(arquivo)) { arquivo.delete() }
+
+    private fun semVelhos(lista: MutableList<JSONObject>): MutableList<JSONObject> {
+        val limiteIdade = Instant.now().minusSeconds(IDADE_MAXIMA_SEGUNDOS)
+        lista.removeAll { p -> runCatching { Instant.parse(p.optString("recorded_at")) < limiteIdade }.getOrDefault(false) }
+        // Pontos gravados antes de existir o identificador ganham um agora.
+        lista.forEach { if (!it.has(CAMPO_ID)) it.put(CAMPO_ID, UUID.randomUUID().toString()) }
+        return lista
+    }
 
     private fun ler(): MutableList<JSONObject> {
         if (!arquivo.exists()) return mutableListOf()
@@ -71,6 +96,17 @@ class FilaDePontos(private val arquivo: File, private val limite: Int = LIMITE_P
         /** Uma semana de pontos a cada 5 minutos. */
         const val LIMITE_PADRAO = 2016
         const val IDADE_MAXIMA_SEGUNDOS = 7L * 24 * 3600 - 600
+        private const val CAMPO_ID = "_fila_id"
+
+        // Uma trava por arquivo, compartilhada entre as instâncias (serviço e tela criam as suas).
+        private val travasArquivo = mutableMapOf<String, Any>()
+        private val travasEnvio = mutableMapOf<String, ReentrantLock>()
+
+        private fun travaDoArquivo(arquivo: File): Any =
+            synchronized(travasArquivo) { travasArquivo.getOrPut(arquivo.absolutePath) { Any() } }
+
+        private fun travaDeEnvio(arquivo: File): ReentrantLock =
+            synchronized(travasEnvio) { travasEnvio.getOrPut(arquivo.absolutePath) { ReentrantLock() } }
     }
 }
 

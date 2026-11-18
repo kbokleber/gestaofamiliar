@@ -26,7 +26,7 @@ Alguns fabricantes (Xiaomi, Samsung, Motorola, Huawei) têm uma economia de bate
 
 - **Serviço em primeiro plano** com notificação fixa ("Localização compartilhada com a família"). A notificação é obrigatória no Android e deixa claro, para a criança, que o compartilhamento está ligado.
 - **Intervalo**: pede posição a cada 5 minutos (no mínimo 2), pelo provedor de localização do Google Play Services.
-- **Sem internet**: os pontos ficam numa fila no próprio celular (até uma semana) e são enviados na ordem quando a conexão volta. O servidor recusa pontos com mais de 7 dias.
+- **Sem internet**: os pontos ficam numa fila no próprio celular (até uma semana) e são enviados na ordem quando a conexão volta. O servidor recusa pontos com mais de 7 dias. O envio acontece fora da trava da fila: com rede lenta, a posição nova e a tela do app não ficam esperando.
 - **Ao ligar o celular** ou atualizar o app, o envio volta sozinho (precisa de "Permitir o tempo todo").
 - **Revogação**: quando um adulto revoga o celular no site, o próximo envio recebe 401. O app apaga o token e a fila, para de enviar e avisa para parear de novo. O app não tem botão de desligar: quem desliga é o adulto, pelo site.
 - **Token**: fica só na área privada do app, fora do backup na nuvem e da transferência para outro celular.
@@ -62,7 +62,7 @@ Use sempre a mesma chave: o Android só aceita atualizar o app se o APK novo vie
 
 ## Testes
 
-- `FilaDePontosTest`: ordem de envio, erro de rede, ponto recusado, token revogado, limite da fila, formato do ponto e leitura das respostas da API.
+- `FilaDePontosTest`: ordem de envio, erro de rede, ponto recusado, token revogado, limite da fila, formato do ponto, leitura das respostas da API e rede lenta (o envio não trava a posição nova nem a tela).
 - `ApiIntegracaoTest`: pareia e envia pontos contra uma API real. Só roda com `GF_API_URL` e `GF_CODIGO` definidos (por exemplo, contra uma API local). Não use produção sem combinar.
 
 ```bash
