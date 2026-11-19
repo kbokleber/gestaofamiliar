@@ -58,6 +58,10 @@ class WebActivity : Activity() {
     /** Página aberta agora (só a ponte do próprio site é atendida). Atualizada na thread da tela. */
     @Volatile private var paginaAtual: String = ""
     private var versaoNova: String? = null
+    /** Texto da faixa enquanto atualiza (ex.: "Baixando..."); null = convite para atualizar. */
+    private var estadoAtualizacao: String? = null
+    /** Foi às configurações liberar "instalar apps": ao voltar, segue com a atualização. */
+    private var aguardandoPermissaoInstalar = false
     /** Criança para quem já disseram "não" à troca nesta abertura do app (não pergunta de novo a cada página). */
     @Volatile private var trocaRecusadaPara = 0
     /** Último pedido de login do Keycloak aberto aqui (para refazer no navegador quando for pelo Google). */
@@ -68,6 +72,8 @@ class WebActivity : Activity() {
         super.onCreate(savedInstanceState)
         configuracao = Configuracao(this)
         Notificador.criarCanais(this)
+        // APK de uma atualização anterior: já instalado (ou desistido), não precisa ocupar espaço.
+        fundo.execute { java.io.File(cacheDir, "atualizacao").deleteRecursively() }
         montarTela()
         configurarWeb()
         if (savedInstanceState != null) web.restoreState(savedInstanceState)
@@ -90,6 +96,14 @@ class WebActivity : Activity() {
         if (configuracao.pareado) LocationService.iniciar(this)
         if (configuracao.tokenAdulto != null) fundo.execute { AlertasAdulto.buscar(applicationContext) }
         conferirVersao()
+        // Voltou da tela do Android sem atualizar (cancelou, falhou ou saiu no meio): libera tentar de novo.
+        if (estadoAtualizacao?.startsWith("Instalando") == true) {
+            estadoAtualizacao = "A atualização não foi concluída. Toque para tentar de novo."
+        }
+        if (aguardandoPermissaoInstalar && packageManager.canRequestPackageInstalls()) {
+            aguardandoPermissaoInstalar = false
+            iniciarAtualizacao()
+        }
         desenharFaixas()
     }
 
@@ -186,9 +200,8 @@ class WebActivity : Activity() {
             faixa("Ative as notificações para receber os alertas da família.", alerta = true) { pedirNotificacoes() }
         }
         versaoNova?.let { v ->
-            faixa("Nova versão do app ($v). Toque para atualizar.", alerta = false) {
-                abrirFora(ApiClient.normalizarEndereco(configuracao.site) + "/app")
-            }
+            val texto = estadoAtualizacao ?: "Nova versão do app ($v). Toque para atualizar."
+            faixa(texto, alerta = false) { iniciarAtualizacao() }
         }
     }
 
@@ -498,6 +511,30 @@ class WebActivity : Activity() {
     }
 
     // ------------------------------------------------------------ versão nova
+
+    /** Baixa e instala a versão nova pelo próprio app; o Android pede a confirmação. */
+    private fun iniciarAtualizacao() {
+        if (estadoAtualizacao != null && estadoAtualizacao!!.endsWith("...")) return // já em andamento
+        if (!packageManager.canRequestPackageInstalls()) {
+            aguardandoPermissaoInstalar = true
+            Toast.makeText(this, "Permita que o Gestão Familiar instale a atualização e volte ao app.", Toast.LENGTH_LONG).show()
+            val ajustes = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+            runCatching { startActivity(ajustes) }.onFailure { abrirFora(ApiClient.normalizarEndereco(configuracao.site) + "/app") }
+            return
+        }
+        fundo.execute {
+            Atualizador.atualizar(applicationContext, configuracao.site) { etapa ->
+                runOnUiThread {
+                    estadoAtualizacao = when (etapa) {
+                        Atualizador.Etapa.Baixando -> "Baixando a versão nova..."
+                        Atualizador.Etapa.Instalando -> "Instalando... confirme na tela do Android."
+                        is Atualizador.Etapa.Falhou -> "Não deu para atualizar (${etapa.motivo}). Toque para tentar de novo."
+                    }
+                    desenharFaixas()
+                }
+            }
+        }
+    }
 
     private fun conferirVersao() {
         val agora = System.currentTimeMillis()

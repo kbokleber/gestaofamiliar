@@ -104,4 +104,13 @@ class SessaoTest {
         assertNull(retornoDoLogin(site, "https://golpe.com/app-login?retorno=x"))
         assertNull(retornoDoLogin(site, "$site/outra?retorno=x"))
     }
+
+    @Test
+    fun atualizadorConfereOArquivoBaixado() {
+        val arquivo = java.io.File.createTempFile("apk", ".bin")
+        arquivo.writeText("abc")
+        // SHA-256 de "abc"
+        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", Atualizador.sha256(arquivo))
+        arquivo.delete()
+    }
 }
