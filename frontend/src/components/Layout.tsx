@@ -8,12 +8,15 @@ import {
 import { canSeeMenu, type MenuKey } from '../lib/menus'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useAppVersion } from '../hooks/useAppVersion'
+import { versaoDoApp } from '../lib/appNativo'
 
 export default function Layout() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { revision, buildTimeLabel } = useAppVersion()
+  // Dentro do app Android, mostra também a versão do app instalado.
+  const versaoApp = versaoDoApp()
   const barraRef = useRef<HTMLDivElement>(null)
   const [alturaBarra, setAlturaBarra] = useState(0)
 
@@ -117,6 +120,7 @@ export default function Layout() {
           <h1 className="text-lg font-semibold">Gestão Familiar</h1>
           <p className="text-xs text-gray-500">Compilado em: {buildTimeLabel}</p>
           <p className="text-xs text-gray-500">Rev: {revision}</p>
+          {versaoApp && <p className="text-xs text-gray-500">App: {versaoApp}</p>}
         </div>
         <button
           type="button"
@@ -146,6 +150,7 @@ export default function Layout() {
           <h1 className="text-xl font-bold text-gray-900">Gestão Familiar</h1>
           <p className="mt-0.5 text-xs text-gray-500">Compilado em: {buildTimeLabel}</p>
           <p className="text-xs text-gray-500">Rev: {revision}</p>
+          {versaoApp && <p className="text-xs text-gray-500">App: {versaoApp}</p>}
           <p className="mt-1 text-sm text-gray-600">
             {user?.first_name && user?.last_name
               ? `${user.first_name} ${user.last_name}`.trim()

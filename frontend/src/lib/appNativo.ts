@@ -18,6 +18,13 @@ export function dentroDoApp(): boolean {
   return typeof navigator !== 'undefined' && navigator.userAgent.includes('GestaoFamiliarApp/')
 }
 
+/** Versão do app Android (ex.: "2.0.2"), lida do user agent que o app marca. Fora do app, null. */
+export function versaoDoApp(): string | null {
+  if (typeof navigator === 'undefined') return null
+  const achada = navigator.userAgent.match(/GestaoFamiliarApp\/([0-9][0-9A-Za-z.\-]*)/)
+  return achada ? achada[1] : null
+}
+
 export function ponteNativa(): PonteNativa | null {
   return typeof window !== 'undefined' && window.GFAppNativo ? window.GFAppNativo : null
 }
