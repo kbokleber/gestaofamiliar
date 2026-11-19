@@ -179,7 +179,9 @@ function VisualizadorPdf({ blob, onBaixar }: { blob: Blob; onBaixar: () => void 
             <Loader2 className="h-5 w-5 animate-spin" /> Carregando PDF...
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3">
+          // w-max + min-w-full: com zoom maior que a tela, a área cresce e dá para rolar até as
+          // bordas; centralizar com items-center sozinho empurrava a parte esquerda para fora do alcance.
+          <div className="mx-auto flex w-max min-w-full flex-col items-center gap-3">
             {paginas.map((numero) => (
               <PaginaPdf
                 key={numero}

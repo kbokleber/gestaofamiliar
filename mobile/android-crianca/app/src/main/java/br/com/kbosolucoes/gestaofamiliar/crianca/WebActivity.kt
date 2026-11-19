@@ -217,6 +217,10 @@ class WebActivity : Activity() {
             allowFileAccess = false
             allowContentAccess = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            // Zoom com dois dedos (pinça), como no Chrome; sem os botões +/- do Android por cima.
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
             userAgentString = "$userAgentString $MARCA_USER_AGENT${BuildConfig.VERSION_NAME}"
         }
         web.addJavascriptInterface(Ponte(), "GFAppNativo")
