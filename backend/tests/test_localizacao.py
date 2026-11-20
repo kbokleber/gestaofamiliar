@@ -1148,7 +1148,7 @@ def test_sos_avisa_so_os_escolhidos_com_nome_posicao_horario_e_bateria(ambiente)
 
     # Toque repetido em menos de 2 min: o mesmo pedido, sem novo aviso.
     de_novo = cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token})
-    assert de_novo.json() == {"id": sos.json()["id"], "repetido": True, "avisados": 1}
+    assert de_novo.json() == {"id": sos.json()["id"], "repetido": True, "avisados": 1, "motivo": None}
     assert db.query(LocationSos).count() == 1
 
     # S1: o Kleber (não escolhido, não avisado) não vê o SOS nem a posição, e não marca Visto.
@@ -1272,3 +1272,55 @@ def test_sos_s5_horario_fora_do_limite_usa_a_ultima_posicao_conhecida(ambiente):
     assert r.status_code == 200
     registro = db.query(LocationSos).get(r.json()["id"])
     assert registro.latitude == -23.55  # descartou a posição com horário inválido
+
+
+def test_qa_lista_so_com_o_proprio_adulto_e_recusada(ambiente):
+    cliente, db, estado = ambiente
+    estado["user"] = db.query(User).get(1)
+    r = cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [1]})
+    assert r.status_code == 400 and "além de você" in r.json()["detail"]
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [1, 3]}).status_code == 200
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).status_code == 200
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": []}).status_code == 200  # vazio: regra atual
+
+
+def test_qa_unica_escolhida_perde_o_menu_sos_fica_com_zero_avisados_e_alerta_o_admin(ambiente):
+    from app.models.location import LocationSos
+
+    cliente, db, estado = ambiente
+    _app_adulto(db, 1)
+    _app_adulto(db, 3)
+    estado["user"] = db.query(User).get(1)
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).status_code == 200
+    mae = db.query(User).get(3)
+    mae.allowed_menus = ["estudos"]
+    db.commit()
+
+    # A lista salva não muda em silêncio: a Mãe continua nela, marcada como sem acesso.
+    lista = cliente.get("/api/v1/localizacao/sos/destinatarios").json()
+    assert lista["escolhidos"] == [3] and lista["sem_acesso"] == [{"id": 3, "nome": "Mãe"}]
+    # Salvar de novo mantendo a Mãe (já estava) é aceito; incluir alguém novo sem acesso, não.
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3, 1]}).status_code == 400  # só o próprio Kleber elegível
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [2]}).status_code == 400
+    assert cliente.get("/api/v1/localizacao/sos/destinatarios").json()["escolhidos"] == [3]
+
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    r = cliente.post("/api/v1/localizacao/dispositivos/sos", json={"latitude": -23.55, "longitude": -46.63},
+                     headers={"X-Device-Token": token}).json()
+    assert r["avisados"] == 0 and r["motivo"] == "sem destinatário elegível" and r["repetido"] is False
+    assert db.query(LocationSos).get(r["id"]).motivo == "sem destinatário elegível"
+    assert _avisos_de(db, 1) == [] and _avisos_de(db, 3) == []
+
+    # O admin vê o alerta (sem posição); quem não é admin, não.
+    alerta = cliente.get("/api/v1/localizacao/sos/sem-destinatario").json()
+    assert [(a["nome"], a["motivo"]) for a in alerta] == [("Guilherme", "sem destinatário elegível")]
+    assert "latitude" not in alerta[0] and "bateria" not in alerta[0]
+    _adulto_outra_familia(db)
+    estado["user"] = db.query(User).get(20)
+    assert cliente.get("/api/v1/localizacao/sos/sem-destinatario").status_code == 403
+    estado["user"] = db.query(User).get(16)
+    assert cliente.get("/api/v1/localizacao/sos/sem-destinatario").status_code == 403
+
+    # Repetir o toque não diz que alguém foi avisado.
+    de_novo = cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token}).json()
+    assert de_novo["repetido"] is True and de_novo["avisados"] == 0 and de_novo["motivo"] == "sem destinatário elegível"

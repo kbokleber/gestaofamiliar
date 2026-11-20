@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 INTERVALO_SOS = timedelta(minutes=2)
 # Teto por família: no máximo 10 SOS por hora (protege contra acionamento em massa).
 MAX_SOS_FAMILIA_HORA = 10
+MOTIVO_SEM_DESTINATARIO = "sem destinatário elegível"
 VALIDADE_AVISO_SOS = timedelta(hours=24)
 RECENTES = timedelta(hours=24)
 
@@ -58,8 +59,9 @@ def opcoes_de_destinatario(db: Session, family_id: int) -> list[User]:
 
 
 def destinatarios(db: Session, family_id: int, quem_pediu_id: int) -> list[User]:
-    """Os escolhidos pela família. Se ninguém foi escolhido ainda, todos os adultos que veem o mapa,
-    para um SOS nunca se perder. Quem pediu não recebe o próprio aviso."""
+    """Recalculado a cada SOS: os escolhidos que AINDA podem receber (veem o mapa), menos quem pediu.
+    Se ninguém foi escolhido, todos os adultos que veem o mapa (comportamento atual; a regra final
+    fica com o Kleber). Pode dar vazio: aí o SOS fica gravado com avisados=0 e o motivo."""
     opcoes = opcoes_de_destinatario(db, family_id)
     escolhidos = {
         d.user_id for d in db.query(LocationSosDestinatario).filter(LocationSosDestinatario.family_id == family_id)
@@ -118,7 +120,7 @@ def registrar_sos(db: Session, aparelho: LocationDevice, dados: SosIn) -> dict:
         .first()
     )
     if recente is not None:
-        return {"id": recente.id, "repetido": True, "avisados": recente.avisados}
+        return {"id": recente.id, "repetido": True, "avisados": recente.avisados, "motivo": recente.motivo}
 
     na_ultima_hora = db.query(LocationSos).filter(
         LocationSos.family_id == aparelho.family_id, LocationSos.created_at >= agora - timedelta(hours=1)
@@ -172,9 +174,12 @@ def registrar_sos(db: Session, aparelho: LocationDevice, dados: SosIn) -> dict:
         _push_navegador(db, adulto, titulo, texto, url)
         avisados += 1
     sos.avisados = avisados
+    if avisados == 0:
+        sos.motivo = MOTIVO_SEM_DESTINATARIO
+        logger.warning("SOS sem destinatário elegível sos_id=%s family_id=%s", sos.id, aparelho.family_id)
     db.commit()
     logger.info("SOS registrado sos_id=%s device_id=%s avisados=%s", sos.id, aparelho.id, avisados)
-    return {"id": sos.id, "repetido": False, "avisados": avisados}
+    return {"id": sos.id, "repetido": False, "avisados": avisados, "motivo": sos.motivo}
 
 
 def _serializar(db: Session, sos: LocationSos) -> dict:
@@ -193,7 +198,34 @@ def _serializar(db: Session, sos: LocationSos) -> dict:
         "posicao_em": como_utc(sos.posicao_em) if sos.posicao_em else None,
         "visto_em": como_utc(sos.visto_em) if sos.visto_em else None,
         "visto_por": nome_de(visto_por) if visto_por else None,
+        "motivo": sos.motivo,
     }
+
+
+def sos_sem_destinatario(db: Session, adulto: User) -> list[dict]:
+    """Só para admin (superusuário): SOS das famílias dele que não avisaram ninguém, nas últimas 24 h,
+    para corrigir a lista "Quem recebe o SOS". Sem posição nem bateria."""
+    if not adulto.is_superuser:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o administrador vê esse alerta.")
+    familias = familias_do_adulto(adulto, db)
+    corte = datetime.now(timezone.utc) - RECENTES
+    lista = (
+        db.query(LocationSos)
+        .filter(LocationSos.family_id.in_(familias), LocationSos.avisados == 0, LocationSos.created_at >= corte)
+        .order_by(LocationSos.id.desc())
+        .limit(20)
+        .all()
+    )
+    saida = []
+    for sos in lista:
+        pessoa = db.query(User).filter(User.id == sos.user_id).first()
+        saida.append({
+            "id": sos.id,
+            "nome": nome_de(pessoa) if pessoa else "?",
+            "criado_em": como_utc(sos.created_at),
+            "motivo": sos.motivo or MOTIVO_SEM_DESTINATARIO,
+        })
+    return saida
 
 
 def _do_avisado(db: Session, adulto: User):
@@ -234,21 +266,37 @@ def ler_destinatarios(db: Session, adulto: User, family_id: Optional[int]) -> di
         d.user_id for d in db.query(LocationSosDestinatario).filter(LocationSosDestinatario.family_id == familia)
     ]
     validos = {u.id for u in opcoes}
+    sem_acesso = []
+    for user_id in escolhidos:
+        if user_id not in validos:
+            pessoa = db.query(User).filter(User.id == user_id).first()
+            sem_acesso.append({"id": user_id, "nome": nome_de(pessoa) if pessoa else f"Usuário {user_id}"})
+    # A lista salva não muda sozinha: quem perdeu o acesso continua nela, marcado como "sem acesso".
     return {
         "family_id": familia,
         "opcoes": [{"id": u.id, "nome": nome_de(u)} for u in opcoes],
-        "escolhidos": [i for i in escolhidos if i in validos],
+        "escolhidos": escolhidos,
+        "sem_acesso": sem_acesso,
     }
 
 
 def salvar_destinatarios(db: Session, adulto: User, family_id: Optional[int], user_ids: list[int]) -> dict:
     familia = familia_do_cadastro(adulto, db, family_id)
     validos = {u.id for u in opcoes_de_destinatario(db, familia)}
-    invalidos = [i for i in user_ids if i not in validos]
+    ja_salvos = {
+        d.user_id for d in db.query(LocationSosDestinatario).filter(LocationSosDestinatario.family_id == familia)
+    }
+    # Quem já estava na lista e perdeu o acesso pode continuar (não some em silêncio); ninguém novo sem acesso entra.
+    invalidos = [i for i in user_ids if i not in validos and i not in ja_salvos]
     if invalidos:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Só adultos desta família que veem o mapa podem receber o SOS.",
+        )
+    if user_ids and not any(i in validos and i != adulto.id for i in user_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Escolha pelo menos um adulto que veja o mapa além de você: senão o seu próprio SOS não avisa ninguém.",
         )
     db.query(LocationSosDestinatario).filter(LocationSosDestinatario.family_id == familia).delete(synchronize_session=False)
     for user_id in dict.fromkeys(user_ids):

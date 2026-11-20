@@ -45,10 +45,12 @@ object RegrasSos {
         val hora = SimpleDateFormat("HH:mm", Locale("pt", "BR")).apply { timeZone = fuso }.format(Date(agoraMs))
         return when (resposta) {
             is Resposta.Ok -> {
+                val n = resposta.corpo.optInt("avisados", 0)
                 if (resposta.corpo.optBoolean("repetido", false)) {
-                    "Seu pedido de socorro já tinha sido enviado. A família já foi avisada."
+                    // Só diz que alguém foi avisado quando o servidor confirma pelo menos 1.
+                    if (n > 0) "Seu pedido de socorro já tinha sido enviado. ${if (n == 1) "1 familiar foi avisado" else "$n familiares foram avisados"}."
+                    else "Seu pedido de socorro já tinha sido registrado, mas ninguém da família foi avisado. Ligue para um familiar. $EMERGENCIA"
                 } else {
-                    val n = resposta.corpo.optInt("avisados", 0)
                     if (n > 0) "Pedido de socorro enviado às $hora. ${if (n == 1) "1 familiar foi avisado" else "$n familiares foram avisados"}."
                     else "Pedido de socorro registrado às $hora, mas ninguém da família foi avisado. Ligue para um familiar. $EMERGENCIA"
                 }

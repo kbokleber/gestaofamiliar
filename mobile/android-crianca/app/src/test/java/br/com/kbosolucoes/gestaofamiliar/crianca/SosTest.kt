@@ -48,7 +48,13 @@ class SosTest {
             "Pedido de socorro enviado às 11:05. 2 familiares foram avisados.",
             RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject("""{"id":1,"repetido":false,"avisados":2}""")), agora, sp),
         )
-        assertTrue(RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject("""{"id":1,"repetido":true,"avisados":2}""")), agora, sp).contains("já tinha sido enviado"))
+        assertTrue(RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject("""{"id":1,"repetido":true,"avisados":2}""")), agora, sp).contains("2 familiares foram avisados"))
+        // QA: avisados=0 (novo ou repetido) nunca diz que a família foi avisada.
+        for (corpo in listOf("""{"id":1,"repetido":true,"avisados":0}""", """{"id":1,"repetido":false,"avisados":0,"motivo":"sem destinatário elegível"}""")) {
+            val texto = RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject(corpo)), agora, sp)
+            assertTrue(texto, texto.contains("ninguém da família foi avisado"))
+            assertFalse(texto, texto.contains("foi avisada") || texto.contains("foram avisados") || texto.contains("familiar foi avisado"))
+        }
         assertTrue(RegrasSos.mensagemDoResultado(Resposta.TentarDepois("sem rede"), agora, sp).contains("não foi enviado agora (sem rede)"))
         assertTrue(RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject("""{"id":1,"avisados":0}""")), agora, sp).contains("ninguém da família"))
         // S6: falha ou ninguém avisado mostram 190, 192 e 193.

@@ -32,6 +32,7 @@ from app.schemas.location import (
     SosEnviadoOut,
     SosIn,
     SosOut,
+    SosSemDestinatarioOut,
     TrajetoOut,
 )
 from app.services.localizacao import (
@@ -288,6 +289,12 @@ def pedir_socorro(
 @router.get("/sos", response_model=list[SosOut])
 def ler_sos(db: Session = Depends(get_db), adulto: User = Depends(adulto_localizacao)):
     return servico_sos.listar_sos(db, adulto)
+
+
+@router.get("/sos/sem-destinatario", response_model=list[SosSemDestinatarioOut])
+def ler_sos_sem_destinatario(db: Session = Depends(get_db), adulto: User = Depends(adulto_localizacao)):
+    """Alerta só para o admin: SOS que não avisou ninguém nas últimas 24 h (sem posição)."""
+    return servico_sos.sos_sem_destinatario(db, adulto)
 
 
 @router.post("/sos/{sos_id}/visto", response_model=SosOut)

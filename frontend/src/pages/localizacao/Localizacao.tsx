@@ -16,6 +16,7 @@ import {
 import { CirculosLugares, MapaBase, iconeBolinha, iconeGrupo } from './Mapa'
 import { agruparProximos, casarFotos } from './fotosEGrupos'
 import BaixarApp from './BaixarApp'
+import { useAuthStore } from '../../stores/authStore'
 
 type Aba = 'agora' | 'trajeto' | 'lugares' | 'celulares'
 
@@ -137,6 +138,15 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
   const queryClient = useQueryClient()
   const pedidosSos = useQuery({ queryKey: ['localizacao', 'sos'], queryFn: localizacaoApi.sos, refetchInterval: 30_000 })
   const sosAbertos = (pedidosSos.data ?? []).filter((pedido) => !pedido.visto_em)
+  // Só o admin: SOS que não avisou ninguém (lista de destinatários sem ninguém com acesso).
+  const ehAdmin = !!useAuthStore((state) => state.user)?.is_superuser
+  const semDestinatario = useQuery({
+    queryKey: ['localizacao', 'sos-sem-destinatario'],
+    queryFn: localizacaoApi.sosSemDestinatario,
+    enabled: ehAdmin,
+    refetchInterval: 60_000,
+    retry: false,
+  })
   const comSos = new Set(sosAbertos.map((pedido) => pedido.pessoa_id))
   const visto = useMutation({
     mutationFn: (id: number) => localizacaoApi.marcarSosVisto(id),
@@ -155,6 +165,12 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
     <div className="space-y-4">
       {sosAbertos.map((pedido) => (
         <FaixaSos key={pedido.id} pedido={pedido} onVisto={() => visto.mutate(pedido.id)} ocupado={visto.isPending} />
+      ))}
+      {(semDestinatario.data ?? []).map((alerta) => (
+        <div key={`sem-${alerta.id}`} role="alert" className="rounded-lg border-2 border-amber-500 bg-amber-50 p-4">
+          <p className="font-bold text-amber-900">SOS de {alerta.nome} às {formatarHora(alerta.criado_em)} não avisou ninguém</p>
+          <p className="text-sm text-amber-900">Motivo: {alerta.motivo}. Revise "Quem recebe o SOS" na aba Celulares.</p>
+        </div>
       ))}
       <div className="grid gap-3 sm:grid-cols-2">
         {criancas.map((crianca) => (
@@ -250,13 +266,18 @@ function DestinatariosSos() {
       <p className="mt-1 text-sm text-gray-600">
         O botão SOS do app avisa só as pessoas marcadas, com nome, última posição, horário e bateria. Sem nenhuma marcada, avisa todos os adultos que veem o mapa.
       </p>
+      {(dados.data.sem_acesso ?? []).length > 0 && (
+        <p role="alert" className="mt-2 rounded-md bg-red-50 p-2 text-sm text-red-800">
+          Destinatário sem acesso: {(dados.data.sem_acesso ?? []).map((p) => p.nome).join(', ')}. Continua na lista, mas não recebe o SOS até voltar a ter o menu Localização.
+        </p>
+      )}
       {atuais.length === 0 && (
         <p role="status" className="mt-2 rounded-md bg-amber-50 p-2 text-sm text-amber-800">
           Nenhum familiar marcado: hoje o SOS avisa todos os adultos que veem o mapa. Marque quem deve receber.
         </p>
       )}
       <div className="mt-3 space-y-2">
-        {dados.data.opcoes.map((pessoa) => (
+        {[...dados.data.opcoes, ...(dados.data.sem_acesso ?? []).map((p) => ({ ...p, semAcesso: true }))].map((pessoa) => (
           <label key={pessoa.id} className="flex min-h-11 items-center gap-3 text-base text-gray-800">
             <input
               type="checkbox"
@@ -265,6 +286,7 @@ function DestinatariosSos() {
               onChange={(e) => setEscolhidos(e.target.checked ? [...atuais, pessoa.id] : atuais.filter((id) => id !== pessoa.id))}
             />
             {pessoa.nome}
+            {'semAcesso' in pessoa && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">sem acesso</span>}
           </label>
         ))}
       </div>

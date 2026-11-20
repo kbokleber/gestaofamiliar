@@ -203,6 +203,7 @@ class SosEnviadoOut(BaseModel):
     id: int
     repetido: bool = False
     avisados: int = 0
+    motivo: Optional[str] = None
 
 
 class SosOut(BaseModel):
@@ -218,6 +219,15 @@ class SosOut(BaseModel):
     posicao_em: Optional[datetime] = None
     visto_em: Optional[datetime] = None
     visto_por: Optional[str] = None
+    motivo: Optional[str] = None
+
+
+class SosSemDestinatarioOut(BaseModel):
+    """Alerta para o admin: SOS que não avisou ninguém. Sem posição (o admin pode não ter sido avisado)."""
+    id: int
+    nome: str
+    criado_em: datetime
+    motivo: str
 
 
 class SosPessoaOut(BaseModel):
@@ -229,6 +239,9 @@ class SosDestinatariosOut(BaseModel):
     family_id: int
     opcoes: list[SosPessoaOut]
     escolhidos: list[int]
+    # Escolhidos que perderam o acesso (sem Localização, inativos ou fora da família): continuam na lista,
+    # mas não recebem até voltar a ter acesso. O site avisa.
+    sem_acesso: list[SosPessoaOut] = []
 
 
 class SosDestinatariosIn(BaseModel):

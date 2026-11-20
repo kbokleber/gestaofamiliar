@@ -123,12 +123,22 @@ export interface Sos {
   posicao_em: string | null
   visto_em: string | null
   visto_por: string | null
+  motivo?: string | null
+}
+
+export interface SosSemDestinatario {
+  id: number
+  nome: string
+  criado_em: string
+  motivo: string
 }
 
 export interface SosDestinatarios {
   family_id: number
   opcoes: Array<{ id: number; nome: string }>
   escolhidos: number[]
+  /** Escolhidos que perderam o acesso: continuam na lista, mas não recebem. */
+  sem_acesso?: Array<{ id: number; nome: string }>
 }
 
 const BASE = '/localizacao'
@@ -163,6 +173,7 @@ export const localizacaoApi = {
       { apelido },
     )).data,
   sos: async () => (await api.get<Sos[]>(`${BASE}/sos`)).data,
+  sosSemDestinatario: async () => (await api.get<SosSemDestinatario[]>(`${BASE}/sos/sem-destinatario`)).data,
   marcarSosVisto: async (id: number) => (await api.post<Sos>(`${BASE}/sos/${id}/visto`)).data,
   destinatariosSos: async () => (await api.get<SosDestinatarios>(`${BASE}/sos/destinatarios`)).data,
   salvarDestinatariosSos: async (familyId: number, userIds: number[]) =>

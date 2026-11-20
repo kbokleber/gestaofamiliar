@@ -143,6 +143,8 @@ class LocationSos(Base):
     battery_level = Column(Integer, nullable=True)
     posicao_em = Column(DateTime(timezone=True), nullable=True)
     avisados = Column(Integer, nullable=False, default=0)
+    # Por que ninguém foi avisado (ex.: "sem destinatário elegível"); o site mostra ao admin.
+    motivo = Column(String(60), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     visto_em = Column(DateTime(timezone=True), nullable=True)
     visto_por_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
