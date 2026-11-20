@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     NOMINATIM_USER_AGENT: str = "GestaoFamiliar-Localizacao/1.0"
     # Dias que os pontos de localização e os avisos de chegada/saída ficam guardados.
     LOCALIZACAO_RETENCAO_DIAS: int = 90
+    # Pontos de ADULTO que compartilha a posição: prazo prometido no consentimento do app (7 dias).
+    # Não é configurável por ambiente de propósito: mudar o prazo exige mudar o texto do app junto.
     # Proxies na frente da API (Traefik + nginx do frontend). Define de onde sai o IP do cliente.
     PROXIES_CONFIAVEIS: int = 2
     # SHA-256 do certificado que assina o app da família (separe vários por vírgula). Vazio = não confere.

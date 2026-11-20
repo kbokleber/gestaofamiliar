@@ -39,6 +39,8 @@ LACUNA_MAX = timedelta(minutes=30)
 PARADA_RAIO_M = 80.0
 PARADA_MIN = timedelta(minutes=5)
 PONTO_ANTIGO_MAX = timedelta(days=7)
+# Consentimento do app 2.0.5: o histórico do adulto fica 7 dias e depois é apagado.
+RETENCAO_ADULTO = timedelta(days=7)
 FUTURO_MAX = timedelta(minutes=5)
 PREPOSICOES = ("em", "na", "no")
 SAIDA = {"em": "de", "na": "da", "no": "do"}
@@ -150,15 +152,25 @@ def adulto_com_localizacao(usuario: Optional[User]) -> bool:
     return "localizacao" in (usuario.allowed_menus or [])
 
 
-def _adultos_no_mapa(db: Session, familias: list[int]):
-    """Adultos da família que já ligaram um celular para compartilhar a posição."""
-    com_celular = db.query(LocationDevice.child_user_id).filter(LocationDevice.family_id.in_(familias))
-    return db.query(User).filter(
-        User.is_child.is_(False),
-        User.is_active.is_(True),
-        User.family_id.in_(familias),
-        User.id.in_(com_celular),
+def _adultos_no_mapa(db: Session, familias: list[int]) -> list[User]:
+    """Adultos que compartilham AGORA: celular ativo (não revogado) e acesso ao menu Localização.
+    Quem parou de compartilhar, foi revogado ou perdeu o menu sai do mapa e do trajeto na hora."""
+    com_celular_ativo = db.query(LocationDevice.child_user_id).filter(
+        LocationDevice.family_id.in_(familias),
+        LocationDevice.revoked_at.is_(None),
     )
+    candidatos = (
+        db.query(User)
+        .filter(
+            User.is_child.is_(False),
+            User.is_active.is_(True),
+            User.family_id.in_(familias),
+            User.id.in_(com_celular_ativo),
+        )
+        .order_by(User.first_name, User.last_name, User.username)
+        .all()
+    )
+    return [usuario for usuario in candidatos if adulto_com_localizacao(usuario)]
 
 
 def obter_membro(db: Session, familias: list[int], membro_id: int) -> User:
@@ -170,7 +182,7 @@ def obter_membro(db: Session, familias: list[int], membro_id: int) -> User:
     )
     if usuario is not None and usuario.is_child:
         return usuario
-    if usuario is not None and _adultos_no_mapa(db, familias).filter(User.id == usuario.id).first() is not None:
+    if usuario is not None and any(adulto.id == usuario.id for adulto in _adultos_no_mapa(db, familias)):
         return usuario
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
@@ -273,7 +285,7 @@ def listar_membros(db: Session, adulto: User) -> list[dict]:
         .order_by(User.first_name, User.last_name, User.username)
         .all()
     )
-    adultos = _adultos_no_mapa(db, familias).order_by(User.first_name, User.last_name, User.username).all()
+    adultos = _adultos_no_mapa(db, familias)
     return _resumo_no_mapa(db, familias, criancas) + _resumo_no_mapa(db, familias, adultos)
 
 
@@ -450,6 +462,10 @@ def montar_trajeto(db: Session, adulto: User, child_id: int, dia: date, com_adul
         .all()
     )
     do_dia = [ponto for ponto in pontos if inicio <= como_utc(ponto.recorded_at) < fim]
+    if not crianca.is_child:
+        # Mesmo antes da limpeza rodar, nada do adulto além do prazo prometido aparece.
+        corte_adulto = datetime.now(timezone.utc) - RETENCAO_ADULTO
+        do_dia = [ponto for ponto in do_dia if como_utc(ponto.recorded_at) >= corte_adulto]
     eventos = (
         db.query(LocationPlaceEvent)
         .filter(
@@ -525,6 +541,8 @@ def parear_crianca_logada(db: Session, crianca: User, rotulo: Optional[str], tok
         ).first()
         if antigo is not None:
             antigo.revoked_at = agora
+            # Era o celular de um adulto que compartilhava: os pontos dele saem junto.
+            _apagar_pontos_de_adulto(db, antigo)
     token = secrets.token_urlsafe(32)
     nome = (rotulo or "").strip() or f"Celular de {nome_de(crianca)}"
     aparelho = LocationDevice(
@@ -553,15 +571,13 @@ def parear_adulto_logado(db: Session, adulto: User, rotulo: Optional[str], token
     if not adulto_com_localizacao(adulto) or not adulto.family_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só um adulto com acesso à Localização pode compartilhar a posição.")
     agora = datetime.now(timezone.utc)
-    if token_anterior and len(token_anterior.strip()) >= 20:
-        # O mesmo celular volta a compartilhar: o pareamento antigo dele para.
-        antigo = db.query(LocationDevice).filter(
-            LocationDevice.token_hash == hash_segredo(token_anterior.strip()),
-            LocationDevice.child_user_id == adulto.id,
-            LocationDevice.revoked_at.is_(None),
-        ).first()
-        if antigo is not None:
-            antigo.revoked_at = agora
+    # Um celular ativo por adulto: ligar de novo (neste ou em outro celular) revoga os anteriores,
+    # com ou sem token_anterior. O histórico recente continua (o adulto segue compartilhando).
+    for antigo in db.query(LocationDevice).filter(
+        LocationDevice.child_user_id == adulto.id,
+        LocationDevice.revoked_at.is_(None),
+    ).all():
+        antigo.revoked_at = agora
     token = secrets.token_urlsafe(32)
     nome = (rotulo or "").strip() or f"Celular de {nome_de(adulto)}"
     aparelho = LocationDevice(
@@ -668,6 +684,15 @@ def limpar_historico_antigo(db: Session, agora: Optional[datetime] = None) -> di
     eventos = (
         db.query(LocationPlaceEvent)
         .filter(LocationPlaceEvent.recorded_at < corte)
+        .delete(synchronize_session=False)
+    )
+    adultos = db.query(User.id).filter(User.is_child.is_(False))
+    pontos += (
+        db.query(LocationPoint)
+        .filter(
+            LocationPoint.child_user_id.in_(adultos),
+            LocationPoint.recorded_at < agora - RETENCAO_ADULTO,
+        )
         .delete(synchronize_session=False)
     )
     avisos_app.limpar_antigos(db)
@@ -851,18 +876,27 @@ def _aparelho_da_familia(db: Session, familias: list[int], device_id: int) -> Lo
     return aparelho
 
 
+def _apagar_pontos_de_adulto(db: Session, aparelho: LocationDevice) -> None:
+    """Adulto parou de compartilhar: os pontos deste celular são apagados (criança mantém o histórico)."""
+    dono = db.query(User).filter(User.id == aparelho.child_user_id).first()
+    if dono is not None and not dono.is_child:
+        db.query(LocationPoint).filter(LocationPoint.device_id == aparelho.id).delete(synchronize_session=False)
+
+
 def revogar_dispositivo(db: Session, adulto: User, device_id: int) -> dict:
     aparelho = _aparelho_da_familia(db, familias_do_adulto(adulto, db), device_id)
     if aparelho.revoked_at is None:
         aparelho.revoked_at = datetime.now(timezone.utc)
-        db.commit()
+    _apagar_pontos_de_adulto(db, aparelho)
+    db.commit()
     return {"revogado": True}
 
 
 def revogar_proprio(db: Session, aparelho: LocationDevice) -> dict:
     if aparelho.revoked_at is None:
         aparelho.revoked_at = datetime.now(timezone.utc)
-        db.commit()
+    _apagar_pontos_de_adulto(db, aparelho)
+    db.commit()
     return {"revogado": True}
 
 

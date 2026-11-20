@@ -936,3 +936,100 @@ def test_celular_de_adulto_nao_consome_os_alertas_do_adulto(ambiente):
     r = _enviar(cliente, token, latitude=-23.55, longitude=-46.63, app_versao=9)
     assert r.json()["avisos"] == []
     assert _avisos_de(db, 3) == ["Guilherme chegou na Escola"]  # continua na fila do canal de alertas
+
+
+# ---------------------------------------------------------------- correções da Segurança (C1 a C3)
+
+def test_c1_historico_do_adulto_fica_no_maximo_7_dias(ambiente):
+    from app.models.location import LocationPoint
+
+    cliente, db, estado = ambiente
+    token_mae = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    estado["user"] = db.query(User).get(1)
+    token_gui = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    agora = datetime.now(timezone.utc)
+    for token in (token_mae, token_gui):
+        assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63,
+                       recorded_at=_iso(agora - timedelta(minutes=5))).status_code == 200
+    # Pontos de 8 dias atrás (gravados direto, como se tivessem chegado na época).
+    for dono, device in ((3, None), (16, None)):
+        ultimo = db.query(LocationPoint).filter(LocationPoint.child_user_id == dono).first()
+        db.add(LocationPoint(device_id=ultimo.device_id, family_id=1, child_user_id=dono, latitude=-23.5,
+                             longitude=-46.6, recorded_at=agora - timedelta(days=8), received_at=agora))
+    db.commit()
+    # Antes da limpeza: o trajeto do adulto já não mostra nada além de 7 dias.
+    dia_antigo = (agora - timedelta(days=8)).astimezone(servico.FUSO).date().isoformat()
+    assert cliente.get(f"/api/v1/localizacao/membros/3/trajeto?dia={dia_antigo}").json()["pontos"] == []
+    assert len(cliente.get(f"/api/v1/localizacao/membros/16/trajeto?dia={dia_antigo}").json()["pontos"]) == 1
+
+    servico.limpar_historico_antigo(db, agora)
+    db.commit()
+    do_adulto = db.query(LocationPoint).filter(LocationPoint.child_user_id == 3).all()
+    da_crianca = db.query(LocationPoint).filter(LocationPoint.child_user_id == 16).all()
+    assert len(do_adulto) == 1 and como_utc_teste(do_adulto[0].recorded_at) > agora - timedelta(days=7)
+    assert len(da_crianca) == 2  # criança continua com LOCALIZACAO_RETENCAO_DIAS (90)
+
+
+def como_utc_teste(momento):
+    return momento if momento.tzinfo else momento.replace(tzinfo=timezone.utc)
+
+
+def test_c2_parar_de_compartilhar_tira_o_adulto_do_mapa_e_apaga_os_pontos(ambiente):
+    from app.models.location import LocationPoint
+
+    cliente, db, estado = ambiente
+    r = _parear_adulto(cliente, estado, db, 3).json()
+    assert _enviar(cliente, r["device_token"], latitude=-23.55, longitude=-46.63).status_code == 200
+    dia = datetime.now(servico.FUSO).date().isoformat()
+    estado["user"] = db.query(User).get(1)
+    assert "Mãe" in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+
+    # Parar de compartilhar pelo app (revogar-me).
+    assert cliente.post("/api/v1/localizacao/dispositivos/revogar-me",
+                        headers={"X-Device-Token": r["device_token"]}).status_code == 200
+    assert "Mãe" not in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+    assert cliente.get(f"/api/v1/localizacao/membros/3/trajeto?dia={dia}").status_code == 404
+    assert db.query(LocationPoint).filter(LocationPoint.child_user_id == 3).count() == 0
+
+    # Revogado pelo site: mesmo efeito.
+    r2 = _parear_adulto(cliente, estado, db, 3).json()
+    assert _enviar(cliente, r2["device_token"], latitude=-23.55, longitude=-46.63).status_code == 200
+    estado["user"] = db.query(User).get(1)
+    assert cliente.post(f"/api/v1/localizacao/dispositivos/{r2['device_id']}/revogar").status_code == 200
+    assert "Mãe" not in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+    assert cliente.get(f"/api/v1/localizacao/membros/3/trajeto?dia={dia}").status_code == 404
+    assert db.query(LocationPoint).filter(LocationPoint.child_user_id == 3).count() == 0
+
+    # Perdeu o menu Localização: some do mapa e do trajeto, mesmo com celular ativo.
+    r3 = _parear_adulto(cliente, estado, db, 3).json()
+    assert _enviar(cliente, r3["device_token"], latitude=-23.55, longitude=-46.63).status_code == 200
+    mae = db.query(User).get(3)
+    mae.allowed_menus = ["estudos"]
+    db.commit()
+    estado["user"] = db.query(User).get(1)
+    assert "Mãe" not in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+    assert cliente.get(f"/api/v1/localizacao/membros/3/trajeto?dia={dia}").status_code == 404
+
+
+def test_c2_crianca_que_assume_o_celular_do_adulto_apaga_os_pontos_dele(ambiente):
+    from app.models.location import LocationPoint
+
+    cliente, db, estado = ambiente
+    r = _parear_adulto(cliente, estado, db, 3).json()
+    assert _enviar(cliente, r["device_token"], latitude=-23.55, longitude=-46.63).status_code == 200
+    estado["user"] = db.query(User).get(16)
+    troca = cliente.post("/api/v1/localizacao/dispositivos/parear-me", json={"token_anterior": r["device_token"]})
+    assert troca.status_code == 200
+    assert db.query(LocationPoint).filter(LocationPoint.child_user_id == 3).count() == 0
+    estado["user"] = db.query(User).get(1)
+    assert "Mãe" not in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+
+
+def test_c3_um_celular_ativo_por_adulto_mesmo_sem_token_anterior(ambiente):
+    from app.models.location import LocationDevice
+
+    cliente, db, estado = ambiente
+    tokens = [_parear_adulto(cliente, estado, db, 3).json()["device_token"] for _ in range(3)]
+    ativos = db.query(LocationDevice).filter(LocationDevice.child_user_id == 3, LocationDevice.revoked_at.is_(None)).count()
+    assert ativos == 1
+    assert [_enviar(cliente, t, latitude=-23.55, longitude=-46.63).status_code for t in tokens] == [401, 401, 200]
