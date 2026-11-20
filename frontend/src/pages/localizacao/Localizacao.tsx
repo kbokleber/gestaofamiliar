@@ -13,7 +13,8 @@ import {
   mensagemDeErro, sugerirPreposicao,
   type Crianca, type Lugar, type LugarEntrada, type Pareamento, type Preposicao, type Trajeto,
 } from './api'
-import { CirculosLugares, MapaBase, iconeBolinha, iconeCrianca } from './Mapa'
+import { CirculosLugares, MapaBase, iconeBolinha, iconeGrupo } from './Mapa'
+import { agruparProximos, casarFotos } from './fotosEGrupos'
 import BaixarApp from './BaixarApp'
 
 type Aba = 'agora' | 'trajeto' | 'lugares' | 'celulares'
@@ -126,6 +127,18 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
     [comPosicao, lugares],
   )
   const chave = `${comPosicao.map((c) => c.id).join(',')}|${lugares.length}`
+  const membrosComFoto = useQuery({
+    queryKey: ['localizacao', 'fotos'],
+    queryFn: localizacaoApi.fotosDaFamilia,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  })
+  const fotos = useMemo(() => casarFotos(criancas, membrosComFoto.data ?? []), [criancas, membrosComFoto.data])
+  // Quem está a poucos metros de outra pessoa aparece no mesmo marcador, lado a lado.
+  const grupos = useMemo(
+    () => agruparProximos(comPosicao.map((c) => ({ ...c, latitude: c.latitude!, longitude: c.longitude! })), 30),
+    [comPosicao],
+  )
 
   if (criancas.length === 0) return <SemCriancas />
 
@@ -162,13 +175,19 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
 
       <MapaBase pontos={pontos} chaveEnquadramento={chave} altura="h-[55vh] min-h-72">
         <CirculosLugares lugares={lugares} />
-        {comPosicao.map((crianca) => (
+        {grupos.map((grupo) => (
           <Marker
-            key={crianca.id}
-            position={[crianca.latitude!, crianca.longitude!]}
-            icon={iconeCrianca(crianca.nome, crianca.bateria, crianca.apelido, crianca.adulto)}
+            key={grupo.pessoas.map((p) => p.id).join('-')}
+            position={[grupo.latitude, grupo.longitude]}
+            icon={iconeGrupo(grupo.pessoas.map((p) => ({
+              nome: p.nome, bateria: p.bateria, apelido: p.apelido, adulto: p.adulto, foto: fotos[p.id] ?? null,
+            })))}
           >
-            <Tooltip direction="top">{crianca.status.frase} · {haQuantoTempo(crianca.ha_segundos)}</Tooltip>
+            <Tooltip direction="top">
+              {grupo.pessoas.map((p) => (
+                <div key={p.id}>{p.status.frase} · {haQuantoTempo(p.ha_segundos)}</div>
+              ))}
+            </Tooltip>
           </Marker>
         ))}
       </MapaBase>

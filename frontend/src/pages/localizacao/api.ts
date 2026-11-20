@@ -115,6 +115,11 @@ const BASE = '/localizacao'
 export const localizacaoApi = {
   // Crianças e adultos que compartilham a posição (cada um com o campo "adulto").
   criancas: async () => (await api.get<Crianca[]>(`${BASE}/membros`)).data,
+  // Fotos do cadastro de Saúde (rota que já existe; foto reduzida). Sem acesso ou erro: o mapa usa a inicial.
+  fotosDaFamilia: async () =>
+    (await api.get<Array<{ name: string; family_id: number; photo?: string | null }>>('/healthcare/members', {
+      params: { include_photos: true, photo_thumb: true },
+    })).data,
   trajeto: async (criancaId: number, dia: string) =>
     (await api.get<Trajeto>(`${BASE}/membros/${criancaId}/trajeto`, { params: { dia } })).data,
   lugares: async () => (await api.get<Lugar[]>(`${BASE}/lugares`)).data,

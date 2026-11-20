@@ -78,26 +78,51 @@ function escaparHtml(texto: string): string {
   return texto.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c)
 }
 
-/** Marcador da criança: apelido (ou início do nome) e a bateria logo abaixo, com a cor do nível. */
-export function iconeCrianca(nome: string, bateria: number | null, apelido?: string | null, adulto = false): L.DivIcon {
-  // Sem apelido, duas letras: irmãos com a mesma inicial não ficam iguais no mapa.
-  const letras = nome.trim().slice(0, 2) || '?'
-  const rotulo = apelido?.trim() || letras[0].toUpperCase() + letras.slice(1).toLowerCase()
-  const inicial = escaparHtml(rotulo)
+export interface PessoaNoMarcador {
+  nome: string
+  bateria: number | null
+  apelido?: string | null
+  adulto?: boolean
+  /** data:image/... já conferido (fotoParaSrc). Sem foto, mostra a inicial. */
+  foto?: string | null
+}
+
+function rostoHtml(pessoa: PessoaNoMarcador): string {
+  // Sem foto: apelido ou as duas primeiras letras (irmãos com a mesma inicial não ficam iguais).
+  const letras = pessoa.nome.trim().slice(0, 2) || '?'
+  const rotulo = pessoa.apelido?.trim() || letras[0].toUpperCase() + letras.slice(1).toLowerCase()
   const fonte = rotulo.length <= 2 ? 15 : rotulo.length === 3 ? 13 : 10
-  const cor = corBateria(bateria).hex
-  const textoBateria = bateria == null ? '—' : `${bateria}%`
+  const fundo = pessoa.adulto ? '#0f766e' : '#7c3aed'
+  const conteudo = pessoa.foto
+    ? `<img src="${escaparHtml(pessoa.foto)}" alt="${escaparHtml(pessoa.nome)}" style="width:100%;height:100%;object-fit:cover;display:block" />`
+    : escaparHtml(rotulo)
+  const cor = corBateria(pessoa.bateria).hex
+  const textoBateria = pessoa.bateria == null ? '—' : `${pessoa.bateria}%`
+  return `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:44px">
+      <div style="width:40px;height:40px;border-radius:9999px;background:${fundo};color:#fff;font-weight:700;font-size:${fonte}px;line-height:1;text-align:center;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid ${pessoa.foto ? fundo : '#fff'};box-shadow:0 1px 4px rgba(0,0,0,.4)">${conteudo}</div>
+      <div style="background:${cor};color:#fff;font-size:12px;font-weight:700;padding:0 6px;border-radius:9999px;box-shadow:0 1px 3px rgba(0,0,0,.3)">${textoBateria}</div>
+    </div>`
+}
+
+/**
+ * Marcador de uma ou mais pessoas no mesmo lugar: foto (ou inicial) e a bateria embaixo de cada uma,
+ * lado a lado, sem empilhar. Borda verde-azulada para adulto, roxa para criança.
+ */
+export function iconeGrupo(pessoas: PessoaNoMarcador[]): L.DivIcon {
+  const largura = Math.max(1, pessoas.length) * 46
   return L.divIcon({
     className: '',
-    iconSize: [44, 58],
-    iconAnchor: [22, 22],
+    iconSize: [largura, 58],
+    iconAnchor: [largura / 2, 22],
     tooltipAnchor: [0, -22],
-    html: `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-        <div style="width:40px;height:40px;border-radius:9999px;background:${adulto ? '#0f766e' : '#7c3aed'};color:#fff;font-weight:700;font-size:${fonte}px;line-height:1;text-align:center;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)">${inicial}</div>
-        <div style="background:${cor};color:#fff;font-size:12px;font-weight:700;padding:0 6px;border-radius:9999px;box-shadow:0 1px 3px rgba(0,0,0,.3)">${textoBateria}</div>
-      </div>`,
+    html: `<div style="display:flex;gap:2px;justify-content:center">${pessoas.map(rostoHtml).join('')}</div>`,
   })
+}
+
+/** Marcador de uma pessoa só (mantido para quem já usa). */
+export function iconeCrianca(nome: string, bateria: number | null, apelido?: string | null, adulto = false, foto?: string | null): L.DivIcon {
+  return iconeGrupo([{ nome, bateria, apelido, adulto, foto }])
 }
 
 /** Bolinha simples para início, fim, paradas e o ponto escolhido no cadastro. */
