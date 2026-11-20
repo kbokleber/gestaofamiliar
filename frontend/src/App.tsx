@@ -28,6 +28,7 @@ import { canSeeMenu, firstAllowedPath, type MenuKey } from './lib/menus'
 
 // Mapa (Leaflet) só carrega quando o adulto abre a Localização.
 const Localizacao = lazy(() => import('./pages/localizacao/Localizacao'))
+const MinhaLocalizacao = lazy(() => import('./pages/localizacao/MinhaLocalizacao'))
 
 function ProfileRoute({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((state) => state.user)
@@ -96,6 +97,7 @@ function App() {
         <Route path="/finance/categories" element={<MenuRoute menu="financas"><FinanceCategories /></MenuRoute>} />
         <Route path="/finance/import-category-rules" element={<MenuRoute menu="financas"><FinanceImportRules /></MenuRoute>} />
         
+        <Route path="/minha-localizacao" element={<MenuRoute menu="compartilhar_localizacao"><Suspense fallback={<p className="p-4 text-sm text-gray-500">Carregando...</p>}><MinhaLocalizacao /></Suspense></MenuRoute>} />
         <Route path="/localizacao" element={<MenuRoute menu="localizacao"><Suspense fallback={<p className="p-4 text-sm text-gray-500">Carregando...</p>}><Localizacao /></Suspense></MenuRoute>} />
 
         {/* Admin Routes */}

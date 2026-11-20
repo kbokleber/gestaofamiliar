@@ -1,10 +1,13 @@
 """Menus que o aplicativo pode liberar por usuário."""
 from typing import Optional
 
-MENU_KEYS = ("dashboard", "saude", "manutencao", "financas", "estudos", "localizacao")
+MENU_KEYS = ("dashboard", "saude", "manutencao", "financas", "estudos", "localizacao", "compartilhar_localizacao")
+
+# "compartilhar_localizacao": adulto (ex.: avô ou avó) que SÓ compartilha a própria posição pelo app,
+# sem ver o mapa nem ninguém da família. Quem tem "localizacao" já pode compartilhar e ver.
 
 # A criança não vê estes menus, mesmo que a lista salva os inclua.
-MENUS_SO_ADULTO = frozenset({"localizacao"})
+MENUS_SO_ADULTO = frozenset({"localizacao", "compartilhar_localizacao"})
 
 
 def normalize_menus(value: Optional[list[str]]) -> Optional[list[str]]:

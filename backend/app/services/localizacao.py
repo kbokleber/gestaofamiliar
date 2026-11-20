@@ -144,12 +144,20 @@ def obter_crianca(db: Session, familias: list[int], child_id: int) -> User:
 
 
 def adulto_com_localizacao(usuario: Optional[User]) -> bool:
-    """Adulto ativo com o menu Localização liberado: pode ver o mapa e compartilhar a própria posição."""
+    """Adulto ativo com o menu Localização liberado: pode VER o mapa (e também compartilhar)."""
     if usuario is None or usuario.is_child or not usuario.is_active:
         return False
     if usuario.is_superuser or usuario.allowed_menus is None:
         return True
     return "localizacao" in (usuario.allowed_menus or [])
+
+
+def adulto_compartilha(usuario: Optional[User]) -> bool:
+    """Adulto que pode COMPARTILHAR a própria posição: quem vê o mapa, ou quem só é visto
+    (permissão "compartilhar_localizacao", ex.: avós). Este último nunca vê ninguém."""
+    if usuario is None or usuario.is_child or not usuario.is_active:
+        return False
+    return adulto_com_localizacao(usuario) or "compartilhar_localizacao" in (usuario.allowed_menus or [])
 
 
 def _adultos_no_mapa(db: Session, familias: list[int]) -> list[User]:
@@ -170,7 +178,7 @@ def _adultos_no_mapa(db: Session, familias: list[int]) -> list[User]:
         .order_by(User.first_name, User.last_name, User.username)
         .all()
     )
-    return [usuario for usuario in candidatos if adulto_com_localizacao(usuario)]
+    return [usuario for usuario in candidatos if adulto_compartilha(usuario)]
 
 
 def obter_membro(db: Session, familias: list[int], membro_id: int) -> User:
@@ -570,7 +578,7 @@ def parear_crianca_logada(db: Session, crianca: User, rotulo: Optional[str], tok
 
 def parear_adulto_logado(db: Session, adulto: User, rotulo: Optional[str], token_anterior: Optional[str] = None) -> dict:
     """O adulto escolhe, no app, compartilhar a própria posição com os adultos da família."""
-    if not adulto_com_localizacao(adulto) or not adulto.family_id:
+    if not adulto_compartilha(adulto) or not adulto.family_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só um adulto com acesso à Localização pode compartilhar a posição.")
     agora = datetime.now(timezone.utc)
     # Um celular ativo por adulto: ligar de novo (neste ou em outro celular) revoga os anteriores,
@@ -660,8 +668,8 @@ def buscar_dispositivo(db: Session, token: str) -> Optional[LocationDevice]:
     dono = db.query(User).filter(User.id == aparelho.child_user_id).first()
     if dono is None or not dono.is_active:
         return None
-    if not dono.is_child and not adulto_com_localizacao(dono):
-        # Adulto que perdeu o acesso à Localização deixa de compartilhar.
+    if not dono.is_child and not adulto_compartilha(dono):
+        # Adulto que perdeu a permissão de compartilhar (ou de ver) deixa de enviar.
         return None
     crianca = dono
     if crianca.family_id != aparelho.family_id:

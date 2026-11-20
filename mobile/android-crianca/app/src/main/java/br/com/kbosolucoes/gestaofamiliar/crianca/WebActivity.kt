@@ -36,8 +36,17 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
+import android.widget.FrameLayout
+import android.os.BatteryManager
+import android.os.Handler
+import android.os.Looper
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import java.io.File
+import java.time.Instant
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Tela principal: o site do Gestão Familiar dentro do app, com o mesmo login e as mesmas funções
@@ -68,6 +77,9 @@ class WebActivity : Activity() {
     @Volatile private var loginAtual: String? = null
     @Volatile private var usuarioAtual: UsuarioSessao? = null
     private var dialogoCompartilhar: AlertDialog? = null
+    private lateinit var botaoSos: BotaoSos
+    private var dialogoSos: AlertDialog? = null
+    private val relogio = Handler(Looper.getMainLooper())
     /** Último pedido de login do Keycloak aberto aqui (para refazer no navegador quando for pelo Google). */
     private var pedidoDeLogin: String? = null
     private var versaoConferidaEm = 0L
@@ -193,11 +205,114 @@ class WebActivity : Activity() {
             addView(web, LinearLayout.LayoutParams(-1, 0, 1f))
             addView(erro, LinearLayout.LayoutParams(-1, 0, 1f))
         }
-        setContentView(raiz)
+        // Botão SOS por cima do site, no canto de baixo: só no celular que compartilha a localização.
+        botaoSos = BotaoSos(
+            this,
+            aoSegurar = { comecarContagemSos() },
+            aoSoltarCedo = { Toast.makeText(this, "Para pedir socorro, segure o SOS por 3 segundos.", Toast.LENGTH_SHORT).show() },
+        )
+        val moldura = FrameLayout(this).apply {
+            addView(raiz, FrameLayout.LayoutParams(-1, -1))
+            addView(botaoSos, FrameLayout.LayoutParams(dp(72), dp(72), Gravity.BOTTOM or Gravity.END).apply {
+                setMargins(0, 0, dp(16), dp(24))
+            })
+        }
+        setContentView(moldura)
+        atualizarBotaoSos()
+    }
+
+    private fun atualizarBotaoSos() {
+        if (!::botaoSos.isInitialized) return
+        botaoSos.visibility = if (configuracao.pareado && !configuracao.pararPendente) View.VISIBLE else View.GONE
+    }
+
+    // ------------------------------------------------------------ SOS
+
+    /** Segurou 3 s: contagem de 5 s com "Cancelar". Só envia se ninguém cancelar. */
+    private fun comecarContagemSos() {
+        if (isFinishing || isDestroyed || dialogoSos?.isShowing == true) return
+        val inicio = System.currentTimeMillis()
+        val texto = TextView(this).apply {
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.rgb(185, 28, 28))
+            setPadding(dp(24), dp(24), dp(24), dp(8))
+        }
+        val cancelado = AtomicBoolean(false)
+        val dialogo = AlertDialog.Builder(this)
+            .setTitle("Pedir socorro")
+            .setView(texto)
+            .setCancelable(false)
+            .setNegativeButton("CANCELAR") { _, _ -> cancelado.set(true) }
+            .create()
+        dialogoSos = dialogo
+        val passo = object : Runnable {
+            override fun run() {
+                if (cancelado.get() || !dialogo.isShowing) return
+                val restam = RegrasSos.segundosRestantes(inicio, System.currentTimeMillis())
+                if (restam > 0) {
+                    texto.text = "Enviando o SOS em $restam…\n\nToque em CANCELAR se foi sem querer."
+                    relogio.postDelayed(this, 200)
+                } else {
+                    dialogo.dismiss()
+                    enviarSos()
+                }
+            }
+        }
+        dialogo.setOnDismissListener { relogio.removeCallbacks(passo) }
+        dialogo.show()
+        dialogo.getButton(AlertDialog.BUTTON_NEGATIVE)?.apply { textSize = 18f }
+        passo.run()
+    }
+
+    /** Pega a posição do momento (até 8 s) e envia; sem posição, o servidor usa a última conhecida. */
+    @SuppressLint("MissingPermission")
+    private fun enviarSos() {
+        val token = configuracao.token
+        if (token.isNullOrBlank()) {
+            mostrarResultadoSos(Resposta.Desconectado)
+            return
+        }
+        Toast.makeText(this, "Enviando o pedido de socorro…", Toast.LENGTH_SHORT).show()
+        val enviado = AtomicBoolean(false)
+        fun mandar(local: android.location.Location?) {
+            if (!enviado.compareAndSet(false, true)) return
+            val gerenciador = getSystemService(BATTERY_SERVICE) as BatteryManager
+            val bateria = gerenciador.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
+            val corpo = RegrasSos.montarCorpo(
+                local?.latitude, local?.longitude, local?.takeIf { it.hasAccuracy() }?.accuracy, bateria,
+                local?.let { Instant.ofEpochMilli(it.time) },
+            )
+            fundo.execute {
+                val resposta = ApiClient(configuracao.site).enviarSos(token, corpo)
+                runOnUiThread { mostrarResultadoSos(resposta) }
+            }
+        }
+        if (configuracao.temLocalizacao()) {
+            val cancelar = CancellationTokenSource()
+            LocationServices.getFusedLocationProviderClient(this)
+                .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancelar.token)
+                .addOnSuccessListener { mandar(it) }
+                .addOnFailureListener { mandar(null) }
+            relogio.postDelayed({ cancelar.cancel(); mandar(null) }, 8_000)
+        } else {
+            mandar(null)
+        }
+    }
+
+    private fun mostrarResultadoSos(resposta: Resposta) {
+        if (isFinishing || isDestroyed) return
+        AlertDialog.Builder(this)
+            .setTitle(if (resposta is Resposta.Ok) "SOS enviado" else "SOS não enviado")
+            .setMessage(RegrasSos.mensagemDoResultado(resposta, System.currentTimeMillis()))
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     /** Faixas no topo, só quando há algo a resolver. */
     private fun desenharFaixas() {
+        atualizarBotaoSos()
         faixas.removeAllViews()
         if (configuracao.pareado && (!configuracao.temLocalizacao() || !configuracao.temLocalizacaoSempre())) {
             faixa("Falta liberar a localização neste celular. Toque para ajustar.", alerta = true) { abrirConfiguracoes() }

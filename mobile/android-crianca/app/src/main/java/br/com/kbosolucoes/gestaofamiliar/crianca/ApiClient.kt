@@ -31,6 +31,10 @@ class ApiClient(baseUrl: String, private val timeoutMs: Int = 20_000) {
         return post("/api/v1/localizacao/dispositivos/parear", corpo, token = null)
     }
 
+    /** Botão SOS: avisa os familiares escolhidos (o servidor ignora repetição em 2 min). */
+    fun enviarSos(token: String, corpo: JSONObject): Resposta =
+        post("/api/v1/localizacao/dispositivos/sos", corpo, token)
+
     fun enviarPosicao(token: String, ponto: JSONObject): Resposta =
         post("/api/v1/localizacao/dispositivos/posicao", ponto, token)
 

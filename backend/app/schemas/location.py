@@ -188,3 +188,49 @@ class ApelidoOut(BaseModel):
 
 class RevogacaoOut(BaseModel):
     revogado: bool = True
+
+
+class SosIn(BaseModel):
+    """Posição do momento, se o celular conseguiu; sem ela, vale a última conhecida."""
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    accuracy_m: Optional[float] = None
+    battery_level: Optional[int] = Field(default=None, ge=0, le=100)
+    recorded_at: Optional[datetime] = None
+
+
+class SosEnviadoOut(BaseModel):
+    id: int
+    repetido: bool = False
+    avisados: int = 0
+
+
+class SosOut(BaseModel):
+    id: int
+    pessoa_id: int
+    nome: str
+    adulto: bool = False
+    criado_em: datetime
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    accuracy_m: Optional[float] = None
+    bateria: Optional[int] = None
+    posicao_em: Optional[datetime] = None
+    visto_em: Optional[datetime] = None
+    visto_por: Optional[str] = None
+
+
+class SosPessoaOut(BaseModel):
+    id: int
+    nome: str
+
+
+class SosDestinatariosOut(BaseModel):
+    family_id: int
+    opcoes: list[SosPessoaOut]
+    escolhidos: list[int]
+
+
+class SosDestinatariosIn(BaseModel):
+    family_id: Optional[int] = None
+    user_ids: list[int] = Field(default_factory=list, max_length=50)

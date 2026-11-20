@@ -1050,3 +1050,155 @@ def test_qa3_criancas_mantem_o_formato_do_204_e_membros_traz_adulto(ambiente):
     membros = cliente.get("/api/v1/localizacao/membros").json()
     assert all(set(item) == formato_204 | {"adulto"} for item in membros)
     assert {m["nome"]: m["adulto"] for m in membros} == {"Guilherme": False, "Giovana": False, "Mãe": True}
+
+
+# ---------------------------------------------------------------- avós só são vistos + SOS
+
+def _avo(db, family_id=1, user_id=30, menus=("compartilhar_localizacao",)):
+    agora = datetime.now(timezone.utc)
+    avo = User(id=user_id, username=f"avo{user_id}", first_name="Avô", last_name="", family_id=family_id,
+               password="x", email="", is_staff=False, is_superuser=False, is_active=True, is_child=False,
+               date_joined=agora, allowed_menus=list(menus))
+    db.add(avo)
+    db.commit()
+    return avo
+
+
+def test_avo_compartilha_e_aparece_mas_nunca_ve_ninguem(ambiente):
+    from app.models.location import LocationDevice
+
+    cliente, db, estado = ambiente
+    _avo(db)
+    _app_adulto(db, 30)  # o avô tem o app registrado para avisos
+    token_mae = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    assert _enviar(cliente, token_mae, latitude=-23.55, longitude=-46.63).status_code == 200
+    estado["user"] = db.query(User).get(1)
+    token_gui = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    assert _enviar(cliente, token_gui, latitude=-23.55, longitude=-46.63, battery_level=10).status_code == 200
+
+    r = _parear_adulto(cliente, estado, db, 30)
+    assert r.status_code == 200, r.text
+    resposta = _enviar(cliente, r.json()["device_token"], latitude=-23.56, longitude=-46.64, battery_level=70)
+    assert resposta.status_code == 200 and resposta.json()["avisos"] == []
+
+    # Quem vê o mapa vê o avô.
+    estado["user"] = db.query(User).get(1)
+    assert "Avô" in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+
+    # O avô não vê ninguém, em nenhuma rota de leitura ou de gestão.
+    estado["user"] = db.query(User).get(30)
+    dia = datetime.now(servico.FUSO).date().isoformat()
+    aparelho_gui = db.query(LocationDevice).filter(LocationDevice.child_user_id == 16).first().id
+    for metodo, rota, corpo in (
+        ("get", "/api/v1/localizacao/membros", None),
+        ("get", "/api/v1/localizacao/criancas", None),
+        ("get", f"/api/v1/localizacao/membros/3/trajeto?dia={dia}", None),
+        ("get", f"/api/v1/localizacao/criancas/16/trajeto?dia={dia}", None),
+        ("put", "/api/v1/localizacao/membros/16/apelido", {"apelido": "x"}),
+        ("get", "/api/v1/localizacao/lugares", None),
+        ("post", "/api/v1/localizacao/pareamentos", {"child_user_id": 16}),
+        ("post", f"/api/v1/localizacao/dispositivos/{aparelho_gui}/revogar", None),
+        ("get", "/api/v1/localizacao/sos", None),
+        ("get", "/api/v1/localizacao/sos/destinatarios", None),
+        ("put", "/api/v1/localizacao/sos/destinatarios", {"user_ids": [30]}),
+        ("post", "/api/v1/localizacao/sos/1/visto", None),
+    ):
+        resposta = getattr(cliente, metodo)(rota, **({"json": corpo} if corpo is not None else {}))
+        assert resposta.status_code == 403, (rota, resposta.status_code, resposta.text)
+        assert "Guilherme" not in resposta.text and "Mãe" not in resposta.text
+    # Nem por alerta: bateria baixa do Gui e chegada/saída não vão para o avô.
+    assert _avisos_de(db, 30) == []
+
+
+def test_so_compartilhar_exige_a_permissao_e_cai_ao_perder(ambiente):
+    cliente, db, estado = ambiente
+    assert _parear_adulto(cliente, estado, db, 2).status_code == 403   # Tia: só Estudos
+    assert _parear_adulto(cliente, estado, db, 16).status_code == 403  # criança
+    avo = _avo(db)
+    token = _parear_adulto(cliente, estado, db, 30).json()["device_token"]
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63).status_code == 200
+    avo.allowed_menus = ["estudos"]
+    db.commit()
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63).status_code == 401
+    estado["user"] = db.query(User).get(1)
+    assert "Avô" not in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+
+
+def test_sos_avisa_so_os_escolhidos_com_nome_posicao_horario_e_bateria(ambiente):
+    from app.models.location import LocationSos
+
+    cliente, db, estado = ambiente
+    _app_adulto(db, 1)
+    _app_adulto(db, 3)
+    estado["user"] = db.query(User).get(1)
+    opcoes = cliente.get("/api/v1/localizacao/sos/destinatarios").json()
+    assert {o["nome"] for o in opcoes["opcoes"]} == {"Kleber", "Mãe"} and opcoes["escolhidos"] == []
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).json()["escolhidos"] == [3]
+
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63, battery_level=40,
+                   recorded_at=_iso(datetime.now(timezone.utc) - timedelta(minutes=3))).status_code == 200
+    sos = cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token})
+    assert sos.status_code == 200, sos.text
+    assert sos.json()["repetido"] is False and sos.json()["avisados"] == 1
+    avisos_mae = _avisos_de(db, 3)
+    assert len(avisos_mae) == 1
+    assert avisos_mae[0].startswith("Guilherme pediu socorro às ") and "Última posição às " in avisos_mae[0] and "Bateria 40%." in avisos_mae[0]
+    assert _avisos_de(db, 1) == []  # Kleber não foi escolhido
+
+    # Toque repetido em menos de 2 min: o mesmo pedido, sem novo aviso.
+    de_novo = cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token})
+    assert de_novo.json() == {"id": sos.json()["id"], "repetido": True, "avisados": 1}
+    assert db.query(LocationSos).count() == 1
+
+    # No mapa: aparece com a última posição e some do "aberto" quando alguém marca Visto.
+    lista = cliente.get("/api/v1/localizacao/sos").json()
+    assert lista[0]["nome"] == "Guilherme" and lista[0]["latitude"] == -23.55 and lista[0]["bateria"] == 40 and lista[0]["visto_em"] is None
+    visto = cliente.post(f"/api/v1/localizacao/sos/{sos.json()['id']}/visto").json()
+    assert visto["visto_em"] is not None and visto["visto_por"] == "Kleber"
+
+    # Passados 2 min, um novo SOS vale de novo e usa a posição enviada pelo celular.
+    registro = db.query(LocationSos).first()
+    registro.created_at = datetime.now(timezone.utc) - timedelta(minutes=3)
+    db.commit()
+    novo = cliente.post("/api/v1/localizacao/dispositivos/sos", json={"latitude": -23.6, "longitude": -46.7, "battery_level": 35},
+                        headers={"X-Device-Token": token})
+    assert novo.json()["repetido"] is False
+    assert db.query(LocationSos).order_by(LocationSos.id.desc()).first().latitude == -23.6
+
+
+def test_sos_sem_escolhidos_avisa_quem_ve_o_mapa_e_nunca_quem_pediu_nem_avos(ambiente):
+    cliente, db, estado = ambiente
+    _avo(db)
+    for user_id in (1, 2, 3, 30):
+        _app_adulto(db, user_id)
+    token = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    r = cliente.post("/api/v1/localizacao/dispositivos/sos", json={"latitude": -23.55, "longitude": -46.63},
+                     headers={"X-Device-Token": token})
+    assert r.status_code == 200 and r.json()["avisados"] == 1
+    assert len(_avisos_de(db, 1)) == 1                        # Kleber (vê o mapa)
+    assert _avisos_de(db, 3) == []                            # quem pediu
+    assert _avisos_de(db, 2) == [] and _avisos_de(db, 30) == []  # Tia sem Localização; avô só é visto
+    # O avô também pode pedir socorro (ele compartilha).
+    token_avo = _parear_adulto(cliente, estado, db, 30).json()["device_token"]
+    assert cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token_avo}).json()["avisados"] == 2
+
+
+def test_sos_isolado_por_familia_e_longe_das_criancas(ambiente):
+    cliente, db, estado = ambiente
+    _adulto_outra_familia(db)  # Tio, família 2, com Localização
+    estado["user"] = db.query(User).get(1)
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    sos_id = cliente.post("/api/v1/localizacao/dispositivos/sos", json={"latitude": -23.55, "longitude": -46.63},
+                          headers={"X-Device-Token": token}).json()["id"]
+    estado["user"] = db.query(User).get(20)
+    assert cliente.get("/api/v1/localizacao/sos").json() == []
+    assert cliente.post(f"/api/v1/localizacao/sos/{sos_id}/visto").status_code == 404
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).status_code == 400
+    estado["user"] = db.query(User).get(1)
+    for invalido in ([16], [2], [20]):  # criança, adulto sem Localização, outra família
+        assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": invalido}).status_code == 400
+    estado["user"] = db.query(User).get(16)
+    assert cliente.get("/api/v1/localizacao/sos").status_code == 403
+    assert cliente.get("/api/v1/localizacao/sos/destinatarios").status_code == 403
+    assert cliente.post("/api/v1/localizacao/dispositivos/sos", json={}).status_code == 401  # sem token de celular

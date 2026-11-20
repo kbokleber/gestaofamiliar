@@ -40,6 +40,8 @@ from app.models.location import (
     LocationPlaceEvent,
     LocationPlaceState,
     LocationPoint,
+    LocationSos,
+    LocationSosDestinatario,
 )
 
 __all__ = [

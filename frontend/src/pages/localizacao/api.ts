@@ -110,6 +110,27 @@ export interface Pareamento {
   validade_minutos: number
 }
 
+export interface Sos {
+  id: number
+  pessoa_id: number
+  nome: string
+  adulto: boolean
+  criado_em: string
+  latitude: number | null
+  longitude: number | null
+  accuracy_m: number | null
+  bateria: number | null
+  posicao_em: string | null
+  visto_em: string | null
+  visto_por: string | null
+}
+
+export interface SosDestinatarios {
+  family_id: number
+  opcoes: Array<{ id: number; nome: string }>
+  escolhidos: number[]
+}
+
 const BASE = '/localizacao'
 
 export const localizacaoApi = {
@@ -141,6 +162,11 @@ export const localizacaoApi = {
       `${BASE}/membros/${criancaId}/apelido`,
       { apelido },
     )).data,
+  sos: async () => (await api.get<Sos[]>(`${BASE}/sos`)).data,
+  marcarSosVisto: async (id: number) => (await api.post<Sos>(`${BASE}/sos/${id}/visto`)).data,
+  destinatariosSos: async () => (await api.get<SosDestinatarios>(`${BASE}/sos/destinatarios`)).data,
+  salvarDestinatariosSos: async (familyId: number, userIds: number[]) =>
+    (await api.put<SosDestinatarios>(`${BASE}/sos/destinatarios`, { family_id: familyId, user_ids: userIds })).data,
   revogar: async (aparelhoId: number) => {
     await api.post(`${BASE}/dispositivos/${aparelhoId}/revogar`)
   },

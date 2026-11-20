@@ -96,6 +96,7 @@ export default function Layout() {
       ]
     },
     { name: 'Localização', href: '/localizacao', icon: MapPin, menu: 'localizacao' },
+    { name: 'Minha localização', href: '/minha-localizacao', icon: MapPin, menu: 'compartilhar_localizacao' },
   ]
 
   // Adicionar menu de admin se for superuser (apenas admins, não staff)
@@ -109,7 +110,9 @@ export default function Layout() {
     ]
   }] : []
 
-  const visibleNavigation = navigation.filter((item) => item.menu && canSeeMenu(user, item.menu))
+  // "Minha localização" é só para quem compartilha sem ver o mapa (avós); quem vê o mapa já tem "Localização".
+  const visibleNavigation = navigation.filter((item) => item.menu && canSeeMenu(user, item.menu)
+    && !(item.menu === 'compartilhar_localizacao' && canSeeMenu(user, 'localizacao')))
   const allNavigation = [...visibleNavigation, ...adminNavigation]
 
   return (

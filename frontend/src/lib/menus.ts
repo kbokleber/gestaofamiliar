@@ -5,12 +5,14 @@ export const MENUS = [
   { key: 'financas', label: 'Finanças', href: '/finance' },
   { key: 'estudos', label: 'Estudos', href: '/estudos/painel' },
   { key: 'localizacao', label: 'Localização', href: '/localizacao' },
+  // Avós: só compartilham a própria posição pelo app; não veem o mapa nem ninguém.
+  { key: 'compartilhar_localizacao', label: 'Só compartilhar a própria localização (avós)', href: '/minha-localizacao' },
 ] as const
 
 export type MenuKey = (typeof MENUS)[number]['key']
 
 /** Menus que só adulto vê. A API também recusa criança nesses menus. */
-export const MENUS_SO_ADULTO: readonly MenuKey[] = ['localizacao']
+export const MENUS_SO_ADULTO: readonly MenuKey[] = ['localizacao', 'compartilhar_localizacao']
 
 /** Menus que podem ser marcados para a pessoa, conforme ela seja criança ou não. */
 export function menusDoPerfil(isChild?: boolean) {

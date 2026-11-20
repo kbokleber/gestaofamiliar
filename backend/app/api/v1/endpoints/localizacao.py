@@ -27,6 +27,11 @@ from app.schemas.location import (
     PosicaoIn,
     PosicaoOut,
     RevogacaoOut,
+    SosDestinatariosIn,
+    SosDestinatariosOut,
+    SosEnviadoOut,
+    SosIn,
+    SosOut,
     TrajetoOut,
 )
 from app.services.localizacao import (
@@ -52,6 +57,7 @@ from app.services.localizacao import (
     parear_crianca_logada,
 )
 from app.services.limite_tentativas import LimiteTentativas, ip_do_pedido
+from app.services import sos as servico_sos
 
 router = APIRouter()
 
@@ -228,9 +234,10 @@ def parear_pelo_login(
 def parear_adulto(
     dados: ParearMeIn,
     db: Session = Depends(get_db),
-    adulto: User = Depends(adulto_localizacao),
+    adulto: User = Depends(get_current_user),
 ):
-    """O app do adulto, logado com a conta dele, passa a compartilhar a posição dele com os adultos da família."""
+    """O app do adulto, logado com a conta dele, passa a compartilhar a posição dele com os adultos da família.
+    Vale para quem vê o mapa e para quem só é visto (avós); a regra fica em parear_adulto_logado."""
     return parear_adulto_logado(db, adulto, dados.device_label, dados.token_anterior)
 
 
@@ -263,3 +270,44 @@ def revogar_este_celular(
     db: Session = Depends(get_db),
 ):
     return revogar_proprio(db, aparelho)
+
+
+# ---------------------------------------------------------------- SOS
+
+@router.post("/dispositivos/sos", response_model=SosEnviadoOut)
+def pedir_socorro(
+    dados: SosIn,
+    aparelho: LocationDevice = Depends(dispositivo_atual),
+    db: Session = Depends(get_db),
+):
+    """Botão SOS do app (criança ou adulto que compartilha). Avisa só os familiares escolhidos.
+    Um SOS por celular a cada 2 minutos: repetir dentro desse tempo devolve o mesmo pedido."""
+    return servico_sos.registrar_sos(db, aparelho, dados)
+
+
+@router.get("/sos", response_model=list[SosOut])
+def ler_sos(db: Session = Depends(get_db), adulto: User = Depends(adulto_localizacao)):
+    return servico_sos.listar_sos(db, adulto)
+
+
+@router.post("/sos/{sos_id}/visto", response_model=SosOut)
+def marcar_sos_visto(sos_id: int, db: Session = Depends(get_db), adulto: User = Depends(adulto_localizacao)):
+    return servico_sos.marcar_visto(db, adulto, sos_id)
+
+
+@router.get("/sos/destinatarios", response_model=SosDestinatariosOut)
+def ler_destinatarios_sos(
+    family_id: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    return servico_sos.ler_destinatarios(db, adulto, family_id)
+
+
+@router.put("/sos/destinatarios", response_model=SosDestinatariosOut)
+def salvar_destinatarios_sos(
+    dados: SosDestinatariosIn,
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    return servico_sos.salvar_destinatarios(db, adulto, dados.family_id, dados.user_ids)

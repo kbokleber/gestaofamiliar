@@ -125,3 +125,36 @@ class LocationChildSettings(Base):
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
     apelido = Column(String(12), nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class LocationSos(Base):
+    """Pedido de socorro feito pelo botão SOS do app (criança ou adulto que compartilha)."""
+
+    __tablename__ = "location_sos"
+    __table_args__ = (Index("ix_location_sos_device_time", "device_id", "created_at"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
+    device_id = Column(Integer, ForeignKey("location_device.id"), nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    accuracy_m = Column(Float, nullable=True)
+    battery_level = Column(Integer, nullable=True)
+    posicao_em = Column(DateTime(timezone=True), nullable=True)
+    avisados = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    visto_em = Column(DateTime(timezone=True), nullable=True)
+    visto_por_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
+
+
+class LocationSosDestinatario(Base):
+    """Familiar escolhido para receber o SOS da família (só adultos que veem o mapa)."""
+
+    __tablename__ = "location_sos_destinatario"
+    __table_args__ = (UniqueConstraint("family_id", "user_id", name="uq_location_sos_destinatario"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

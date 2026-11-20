@@ -11,7 +11,7 @@ import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import {
   corBateria, formatarDuracao, formatarHora, haQuantoTempo, hojeSaoPaulo, localizacaoApi,
   mensagemDeErro, sugerirPreposicao,
-  type Crianca, type Lugar, type LugarEntrada, type Pareamento, type Preposicao, type Trajeto,
+  type Crianca, type Lugar, type LugarEntrada, type Pareamento, type Preposicao, type Sos, type Trajeto,
 } from './api'
 import { CirculosLugares, MapaBase, iconeBolinha, iconeGrupo } from './Mapa'
 import { agruparProximos, casarFotos } from './fotosEGrupos'
@@ -134,6 +134,15 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
     retry: false,
   })
   const fotos = useMemo(() => casarFotos(criancas, membrosComFoto.data ?? []), [criancas, membrosComFoto.data])
+  const queryClient = useQueryClient()
+  const pedidosSos = useQuery({ queryKey: ['localizacao', 'sos'], queryFn: localizacaoApi.sos, refetchInterval: 30_000 })
+  const sosAbertos = (pedidosSos.data ?? []).filter((pedido) => !pedido.visto_em)
+  const comSos = new Set(sosAbertos.map((pedido) => pedido.pessoa_id))
+  const visto = useMutation({
+    mutationFn: (id: number) => localizacaoApi.marcarSosVisto(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['localizacao', 'sos'] }),
+    onError: (e) => alert(mensagemDeErro(e, 'Não foi possível marcar como visto.')),
+  })
   // Quem está a poucos metros de outra pessoa aparece no mesmo marcador, lado a lado.
   const grupos = useMemo(
     () => agruparProximos(comPosicao.map((c) => ({ ...c, latitude: c.latitude!, longitude: c.longitude! })), 30),
@@ -144,6 +153,9 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
 
   return (
     <div className="space-y-4">
+      {sosAbertos.map((pedido) => (
+        <FaixaSos key={pedido.id} pedido={pedido} onVisto={() => visto.mutate(pedido.id)} ocupado={visto.isPending} />
+      ))}
       <div className="grid gap-3 sm:grid-cols-2">
         {criancas.map((crianca) => (
           <div key={crianca.id} className="rounded-lg bg-white p-4 shadow-sm">
@@ -181,6 +193,7 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
             position={[grupo.latitude, grupo.longitude]}
             icon={iconeGrupo(grupo.pessoas.map((p) => ({
               nome: p.nome, bateria: p.bateria, apelido: p.apelido, adulto: p.adulto, foto: fotos[p.id] ?? null,
+              sos: comSos.has(p.id),
             })))}
           >
             <Tooltip direction="top">
@@ -190,8 +203,69 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
             </Tooltip>
           </Marker>
         ))}
+        {sosAbertos.filter((pedido) => pedido.latitude != null && pedido.longitude != null).map((pedido) => (
+          <Marker key={`sos-${pedido.id}`} position={[pedido.latitude!, pedido.longitude!]} icon={iconeBolinha('#dc2626', 'SOS')}>
+            <Tooltip direction="top">SOS de {pedido.nome} às {formatarHora(pedido.criado_em)}</Tooltip>
+          </Marker>
+        ))}
       </MapaBase>
       <p className="text-xs text-gray-500">Atualiza sozinho a cada minuto. Os círculos roxos são os lugares cadastrados.</p>
+    </div>
+  )
+}
+
+function FaixaSos({ pedido, onVisto, ocupado }: { pedido: Sos; onVisto: () => void; ocupado: boolean }) {
+  return (
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-red-600 bg-red-50 p-4">
+      <div className="min-w-0">
+        <p className="text-lg font-bold text-red-800">SOS de {pedido.nome} às {formatarHora(pedido.criado_em)}</p>
+        <p className="text-sm text-red-900">
+          {pedido.posicao_em ? `Última posição às ${formatarHora(pedido.posicao_em)} (marcada no mapa)` : 'Sem posição conhecida'}
+          {pedido.bateria != null ? ` · bateria ${pedido.bateria}%` : ''}
+        </p>
+      </div>
+      <Button onClick={onVisto} disabled={ocupado} className="min-h-11">Visto</Button>
+    </div>
+  )
+}
+
+/** Quem recebe o SOS: só adultos da família que veem o mapa. Nenhum marcado = todos eles. */
+function DestinatariosSos() {
+  const queryClient = useQueryClient()
+  const dados = useQuery({ queryKey: ['localizacao', 'sos-destinatarios'], queryFn: localizacaoApi.destinatariosSos })
+  const [escolhidos, setEscolhidos] = useState<number[] | null>(null)
+  const atuais = escolhidos ?? dados.data?.escolhidos ?? []
+  const salvar = useMutation({
+    mutationFn: () => localizacaoApi.salvarDestinatariosSos(dados.data!.family_id, atuais),
+    onSuccess: () => {
+      setEscolhidos(null)
+      void queryClient.invalidateQueries({ queryKey: ['localizacao', 'sos-destinatarios'] })
+    },
+    onError: (e) => alert(mensagemDeErro(e, 'Não foi possível salvar quem recebe o SOS.')),
+  })
+  if (!dados.data) return null
+  return (
+    <div className="rounded-lg bg-white p-4 shadow-sm">
+      <p className="text-lg font-semibold text-gray-900">Quem recebe o SOS</p>
+      <p className="mt-1 text-sm text-gray-600">
+        O botão SOS do app avisa só as pessoas marcadas, com nome, última posição, horário e bateria. Sem nenhuma marcada, avisa todos os adultos que veem o mapa.
+      </p>
+      <div className="mt-3 space-y-2">
+        {dados.data.opcoes.map((pessoa) => (
+          <label key={pessoa.id} className="flex min-h-11 items-center gap-3 text-base text-gray-800">
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={atuais.includes(pessoa.id)}
+              onChange={(e) => setEscolhidos(e.target.checked ? [...atuais, pessoa.id] : atuais.filter((id) => id !== pessoa.id))}
+            />
+            {pessoa.nome}
+          </label>
+        ))}
+      </div>
+      <Button onClick={() => salvar.mutate()} disabled={salvar.isPending || escolhidos == null} className="mt-3">
+        Salvar
+      </Button>
     </div>
   )
 }
@@ -627,6 +701,7 @@ function AbaCelulares({ criancas }: { criancas: Crianca[] }) {
   return (
     <div className="space-y-4">
       <BaixarApp />
+      <DestinatariosSos />
       <p className="text-sm text-gray-600">
         Para ligar o celular da criança, gere um código e digite no app do celular. O código vale 15 minutos e serve uma vez só.
       </p>

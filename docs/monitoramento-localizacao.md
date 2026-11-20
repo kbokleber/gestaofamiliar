@@ -212,3 +212,8 @@ Não fazer esse deploy agora.
 - Mudanças de infraestrutura e deploys ficam com a equipe de infraestrutura (bot Infra Estrutura).
 - O projeto é da KBO Soluções Tecnológicas, chamada sempre de "KBO Soluções" e nunca só de "KBO".
 - A comunicação é sempre em português.
+
+## Avós (só compartilham) e SOS
+
+- **Só compartilhar** (`allowed_menus` com `compartilhar_localizacao`, sem `localizacao`): o adulto (ex.: avô ou avó) pareia pelo app e envia a própria posição, aparece no mapa de quem tem Localização, mas **não vê ninguém**: toda rota de leitura de localização e de SOS responde 403 para ele. Ele não recebe alertas nem SOS de outros. No site, só tem a tela "Minha localização" (`/minha-localizacao`).
+- **SOS** (`POST /api/v1/localizacao/dispositivos/sos`, com o token do celular): o app só envia depois de **segurar 3 s** e de uma **contagem de 5 s com Cancelar**. O servidor guarda o pedido (`location_sos`) com nome, posição do momento ou a última conhecida, horário e bateria, e avisa **só os familiares escolhidos** (`location_sos_destinatario`, configurável em Localização › Celulares; só adultos que veem o mapa). Sem nenhum escolhido, avisa todos os adultos que veem o mapa. Quem pediu nunca recebe o próprio aviso. Canal: a fila de avisos do app e o Web Push do navegador (sem Firebase). Repetição em menos de 2 min devolve o mesmo pedido, sem novo aviso. No mapa, a faixa vermelha e o selo SOS ficam até alguém tocar em "Visto".
