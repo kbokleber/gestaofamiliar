@@ -1124,23 +1124,35 @@ def test_so_compartilhar_exige_a_permissao_e_cai_ao_perder(ambiente):
     assert "Avô" not in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
 
 
+def _adulto_que_ve(db, user_id=31, nome="Ana"):
+    agora = datetime.now(timezone.utc)
+    pessoa = User(id=user_id, username=f"adulto{user_id}", first_name=nome, last_name="", family_id=1, password="x",
+                  email="", is_staff=False, is_superuser=False, is_active=True, is_child=False, date_joined=agora,
+                  allowed_menus=["localizacao"])
+    db.add(pessoa)
+    db.commit()
+    return pessoa
+
+
 def test_sos_avisa_so_os_escolhidos_com_nome_posicao_horario_e_bateria(ambiente):
     from app.models.location import LocationSos
 
     cliente, db, estado = ambiente
-    _app_adulto(db, 1)
-    _app_adulto(db, 3)
+    _adulto_que_ve(db)  # Ana, id 31, vê o mapa
+    for user_id in (1, 3, 31):
+        _app_adulto(db, user_id)
     estado["user"] = db.query(User).get(1)
     opcoes = cliente.get("/api/v1/localizacao/sos/destinatarios").json()
-    assert {o["nome"] for o in opcoes["opcoes"]} == {"Kleber", "Mãe"} and opcoes["escolhidos"] == []
-    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).json()["escolhidos"] == [3]
+    assert {o["nome"] for o in opcoes["opcoes"]} == {"Kleber", "Mãe", "Ana"} and opcoes["escolhidos"] == []
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3, 31]}).json()["escolhidos"] == [3, 31]
 
     token = _parear(cliente, 16, "Celular do Gui")["device_token"]
     assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63, battery_level=40,
                    recorded_at=_iso(datetime.now(timezone.utc) - timedelta(minutes=3))).status_code == 200
     sos = cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token})
     assert sos.status_code == 200, sos.text
-    assert sos.json()["repetido"] is False and sos.json()["avisados"] == 1
+    assert sos.json()["repetido"] is False and sos.json()["avisados"] == 2
+    assert len(_avisos_de(db, 31)) == 1
     avisos_mae = _avisos_de(db, 3)
     assert len(avisos_mae) == 1
     assert avisos_mae[0].startswith("Guilherme pediu socorro às ") and "Última posição às " in avisos_mae[0] and "Bateria 40%." in avisos_mae[0]
@@ -1148,7 +1160,7 @@ def test_sos_avisa_so_os_escolhidos_com_nome_posicao_horario_e_bateria(ambiente)
 
     # Toque repetido em menos de 2 min: o mesmo pedido, sem novo aviso.
     de_novo = cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token})
-    assert de_novo.json() == {"id": sos.json()["id"], "repetido": True, "avisados": 1, "motivo": None}
+    assert de_novo.json() == {"id": sos.json()["id"], "repetido": True, "avisados": 2, "motivo": None}
     assert db.query(LocationSos).count() == 1
 
     # S1: o Kleber (não escolhido, não avisado) não vê o SOS nem a posição, e não marca Visto.
@@ -1275,41 +1287,70 @@ def test_sos_s5_horario_fora_do_limite_usa_a_ultima_posicao_conhecida(ambiente):
 
 
 def test_qa_lista_so_com_o_proprio_adulto_e_recusada(ambiente):
+    """Reescrito para a regra de 2 elegíveis: lista de 1 (o próprio ou outro) é recusada."""
     cliente, db, estado = ambiente
+    _adulto_que_ve(db)
     estado["user"] = db.query(User).get(1)
     r = cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [1]})
-    assert r.status_code == 400 and "além de você" in r.json()["detail"]
+    assert r.status_code == 400 and "pelo menos 2 adultos" in r.json()["detail"]
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).status_code == 400
     assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [1, 3]}).status_code == 200
-    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).status_code == 200
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3, 31]}).status_code == 200
     assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": []}).status_code == 200  # vazio: regra atual
 
 
-def test_qa_unica_escolhida_perde_o_menu_sos_fica_com_zero_avisados_e_alerta_o_admin(ambiente):
+def test_qa_mae_salva_so_o_kleber_e_recusado_e_sempre_sobra_um_elegivel(ambiente):
+    """O outro caminho do QA: quem salva não está na lista, mas a pessoa da lista também pede SOS."""
     from app.models.location import LocationSos
 
     cliente, db, estado = ambiente
-    _app_adulto(db, 1)
-    _app_adulto(db, 3)
+    _adulto_que_ve(db)
+    for user_id in (1, 3, 31):
+        _app_adulto(db, user_id)
+    estado["user"] = db.query(User).get(3)
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [1]}).status_code == 400   # Mãe salva [Kleber]
     estado["user"] = db.query(User).get(1)
-    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).status_code == 200
-    mae = db.query(User).get(3)
-    mae.allowed_menus = ["estudos"]
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3]}).status_code == 400   # Kleber salva [Mãe]
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3, 31]}).status_code == 200
+    # Com a lista [Mãe, Ana], o SOS de qualquer uma delas ainda avisa a outra.
+    for quem, outra in ((3, 31), (31, 3)):
+        token = _parear_adulto(cliente, estado, db, quem).json()["device_token"]
+        r = cliente.post("/api/v1/localizacao/dispositivos/sos", json={"latitude": -23.55, "longitude": -46.63},
+                         headers={"X-Device-Token": token}).json()
+        assert r["avisados"] == 1 and r["motivo"] is None
+    assert len(_avisos_de(db, 31)) == 1 and len(_avisos_de(db, 3)) == 1
+    assert db.query(LocationSos).filter(LocationSos.avisados == 0).count() == 0
+
+
+def test_qa_unica_escolhida_perde_o_menu_sos_fica_com_zero_avisados_e_alerta_o_admin(ambiente):
+    """Reescrito para a regra de 2 elegíveis: os DOIS escolhidos perdem o menu depois de salvos."""
+    from app.models.location import LocationSos
+
+    cliente, db, estado = ambiente
+    _adulto_que_ve(db)
+    for user_id in (1, 3, 31):
+        _app_adulto(db, user_id)
+    estado["user"] = db.query(User).get(1)
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3, 31]}).status_code == 200
+    for user_id in (3, 31):
+        pessoa = db.query(User).get(user_id)
+        pessoa.allowed_menus = ["estudos"]
     db.commit()
 
-    # A lista salva não muda em silêncio: a Mãe continua nela, marcada como sem acesso.
+    # A lista salva não muda em silêncio: os dois continuam nela, marcados como sem acesso.
     lista = cliente.get("/api/v1/localizacao/sos/destinatarios").json()
-    assert lista["escolhidos"] == [3] and lista["sem_acesso"] == [{"id": 3, "nome": "Mãe"}]
-    # Salvar de novo mantendo a Mãe (já estava) é aceito; incluir alguém novo sem acesso, não.
-    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3, 1]}).status_code == 400  # só o próprio Kleber elegível
+    assert lista["escolhidos"] == [3, 31] and {p["nome"] for p in lista["sem_acesso"]} == {"Mãe", "Ana"}
+    # Salvar mantendo-os mais só o Kleber (1 elegível) é recusado; incluir alguém novo sem acesso, também.
+    assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [3, 31, 1]}).status_code == 400
     assert cliente.put("/api/v1/localizacao/sos/destinatarios", json={"user_ids": [2]}).status_code == 400
-    assert cliente.get("/api/v1/localizacao/sos/destinatarios").json()["escolhidos"] == [3]
+    assert cliente.get("/api/v1/localizacao/sos/destinatarios").json()["escolhidos"] == [3, 31]
 
     token = _parear(cliente, 16, "Celular do Gui")["device_token"]
     r = cliente.post("/api/v1/localizacao/dispositivos/sos", json={"latitude": -23.55, "longitude": -46.63},
                      headers={"X-Device-Token": token}).json()
     assert r["avisados"] == 0 and r["motivo"] == "sem destinatário elegível" and r["repetido"] is False
     assert db.query(LocationSos).get(r["id"]).motivo == "sem destinatário elegível"
-    assert _avisos_de(db, 1) == [] and _avisos_de(db, 3) == []
+    assert _avisos_de(db, 1) == [] and _avisos_de(db, 3) == [] and _avisos_de(db, 31) == []
 
     # O admin vê o alerta (sem posição); quem não é admin, não.
     alerta = cliente.get("/api/v1/localizacao/sos/sem-destinatario").json()

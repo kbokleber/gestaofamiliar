@@ -39,6 +39,7 @@ INTERVALO_SOS = timedelta(minutes=2)
 # Teto por família: no máximo 10 SOS por hora (protege contra acionamento em massa).
 MAX_SOS_FAMILIA_HORA = 10
 MOTIVO_SEM_DESTINATARIO = "sem destinatário elegível"
+MIN_ELEGIVEIS_NA_LISTA = 2
 VALIDADE_AVISO_SOS = timedelta(hours=24)
 RECENTES = timedelta(hours=24)
 
@@ -293,10 +294,18 @@ def salvar_destinatarios(db: Session, adulto: User, family_id: Optional[int], us
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Só adultos desta família que veem o mapa podem receber o SOS.",
         )
-    if user_ids and not any(i in validos and i != adulto.id for i in user_ids):
+    # Regra: uma lista não vazia precisa de pelo menos 2 adultos elegíveis (que veem o mapa).
+    # Todo elegível também pode compartilhar e pedir SOS, e quem pede não recebe o próprio aviso;
+    # com 2 ou mais, o SOS de qualquer pessoa da lista (ou de quem salvou) ainda avisa alguém.
+    # Equivale a "para qualquer pessoa da lista sobra outro destinatário elegível".
+    elegiveis = {i for i in user_ids if i in validos}
+    if user_ids and len(elegiveis) < MIN_ELEGIVEIS_NA_LISTA:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Escolha pelo menos um adulto que veja o mapa além de você: senão o seu próprio SOS não avisa ninguém.",
+            detail=(
+                "Escolha pelo menos 2 adultos que veem o mapa: quem pede socorro não recebe o próprio aviso, "
+                "e com um só, o SOS dessa pessoa não avisaria ninguém. Para avisar todos, deixe a lista vazia."
+            ),
         )
     db.query(LocationSosDestinatario).filter(LocationSosDestinatario.family_id == familia).delete(synchronize_session=False)
     for user_id in dict.fromkeys(user_ids):

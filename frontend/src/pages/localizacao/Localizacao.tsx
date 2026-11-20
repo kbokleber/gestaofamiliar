@@ -264,7 +264,7 @@ function DestinatariosSos() {
     <div className="rounded-lg bg-white p-4 shadow-sm">
       <p className="text-lg font-semibold text-gray-900">Quem recebe o SOS</p>
       <p className="mt-1 text-sm text-gray-600">
-        O botão SOS do app avisa só as pessoas marcadas, com nome, última posição, horário e bateria. Sem nenhuma marcada, avisa todos os adultos que veem o mapa.
+        O botão SOS do app avisa só as pessoas marcadas, com nome, última posição, horário e bateria. Marque pelo menos 2 adultos: quem pede socorro não recebe o próprio aviso. Sem nenhuma marcada, avisa todos os adultos que veem o mapa.
       </p>
       {(dados.data.sem_acesso ?? []).length > 0 && (
         <p role="alert" className="mt-2 rounded-md bg-red-50 p-2 text-sm text-red-800">
