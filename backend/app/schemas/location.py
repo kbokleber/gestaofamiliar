@@ -91,6 +91,8 @@ class CriancaOut(BaseModel):
     speed_kmh: Optional[float] = None
     status: StatusLugar
     aparelhos: list[AparelhoOut]
+    # True para o adulto que compartilha a posição (só aparece em /membros, nunca para a criança).
+    adulto: bool = False
 
 
 class PontoTrajeto(BaseModel):

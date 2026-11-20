@@ -131,8 +131,9 @@ class LocationService : Service() {
         configuracao.salvarRegistroDeAvisos(registro)
         configuracao.registrarEnvio(resultado)
         if (resultado.desconectado) {
+            val adulto = configuracao.compartilhandoComoAdulto
             configuracao.marcarDesconectado()
-            avisarDesconectado()
+            avisarDesconectado(adulto)
             ContextCompat.getMainExecutor(this).execute { pararServico() }
         }
     }
@@ -148,10 +149,11 @@ class LocationService : Service() {
             this, 0, Intent(this, ConfiguracaoActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
         )
         val nome = configuracao.criancaNome.ifBlank { "este celular" }
+        val adulto = configuracao.compartilhandoComoAdulto
         return NotificationCompat.Builder(this, CANAL_ID)
             .setSmallIcon(R.drawable.ic_notificacao)
-            .setContentTitle("Localização compartilhada com a família")
-            .setContentText("Gestão Familiar está acompanhando $nome.")
+            .setContentTitle(if (adulto) "Sua localização está compartilhada" else "Localização compartilhada com a família")
+            .setContentText(if (adulto) "Só os adultos da família veem. Toque para desligar." else "Gestão Familiar está acompanhando $nome.")
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(abrir)
@@ -161,7 +163,7 @@ class LocationService : Service() {
 
     private fun mostrarAviso(aviso: Aviso) = Notificador.mostrarAviso(this, configuracao.site, aviso)
 
-    private fun avisarDesconectado() {
+    private fun avisarDesconectado(adulto: Boolean) {
         val gerenciador = getSystemService(NotificationManager::class.java)
         val abrir = PendingIntent.getActivity(
             this, 1, Intent(this, ConfiguracaoActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
@@ -170,8 +172,11 @@ class LocationService : Service() {
             NOTIFICACAO_DESCONECTADO_ID,
             NotificationCompat.Builder(this, CANAL_ID)
                 .setSmallIcon(R.drawable.ic_notificacao)
-                .setContentTitle("Celular desconectado da família")
-                .setContentText("Entre de novo no app com a sua conta ou peça um código novo para um adulto.")
+                .setContentTitle(if (adulto) "Compartilhamento desligado" else "Celular desconectado da família")
+                .setContentText(
+                    if (adulto) "Sua localização deixou de ser compartilhada. Ligue de novo no app, se quiser."
+                    else "Entre de novo no app com a sua conta ou peça um código novo para um adulto.",
+                )
                 .setContentIntent(abrir)
                 .setAutoCancel(true)
                 .build(),

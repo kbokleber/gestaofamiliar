@@ -23,6 +23,8 @@ export interface Crianca {
   longitude: number | null
   accuracy_m: number | null
   speed_kmh: number | null
+  /** Adulto que compartilha a própria posição pelo app (só aparece para adultos). */
+  adulto?: boolean
   status: {
     codigo: 'dentro' | 'fora' | 'sem_posicao' | 'sem_lugares'
     frase: string
@@ -111,9 +113,10 @@ export interface Pareamento {
 const BASE = '/localizacao'
 
 export const localizacaoApi = {
-  criancas: async () => (await api.get<Crianca[]>(`${BASE}/criancas`)).data,
+  // Crianças e adultos que compartilham a posição (cada um com o campo "adulto").
+  criancas: async () => (await api.get<Crianca[]>(`${BASE}/membros`)).data,
   trajeto: async (criancaId: number, dia: string) =>
-    (await api.get<Trajeto>(`${BASE}/criancas/${criancaId}/trajeto`, { params: { dia } })).data,
+    (await api.get<Trajeto>(`${BASE}/membros/${criancaId}/trajeto`, { params: { dia } })).data,
   lugares: async () => (await api.get<Lugar[]>(`${BASE}/lugares`)).data,
   criarLugar: async (dados: LugarEntrada) => (await api.post<Lugar>(`${BASE}/lugares`, dados)).data,
   editarLugar: async (id: number, dados: LugarEntrada) =>
@@ -130,7 +133,7 @@ export const localizacaoApi = {
     (await api.post<Pareamento>(`${BASE}/pareamentos`, { child_user_id: criancaId })).data,
   salvarApelido: async (criancaId: number, apelido: string) =>
     (await api.put<{ crianca_id: number; apelido: string | null }>(
-      `${BASE}/criancas/${criancaId}/apelido`,
+      `${BASE}/membros/${criancaId}/apelido`,
       { apelido },
     )).data,
   revogar: async (aparelhoId: number) => {

@@ -43,6 +43,17 @@ class ApiClient(baseUrl: String, private val timeoutMs: Int = 20_000) {
     }
 
     /** Adulto logado: registra o celular para receber alertas. Devolve device_token e device_id. */
+    /** O adulto logado passa a compartilhar a posição deste celular (app 2.0.5+). */
+    fun parearAdulto(login: String, nomeCelular: String?, tokenAnterior: String?): Resposta {
+        val corpo = JSONObject().put("device_label", nomeCelular ?: "")
+        if (!tokenAnterior.isNullOrBlank()) corpo.put("token_anterior", tokenAnterior)
+        return chamar("POST", "/api/v1/localizacao/dispositivos/parear-adulto", corpo, mapOf("Authorization" to "Bearer $login"), comToken = false)
+    }
+
+    /** Este celular para de enviar a posição (o token de posição deixa de valer). */
+    fun revogarLocalizacao(token: String): Resposta =
+        post("/api/v1/localizacao/dispositivos/revogar-me", JSONObject(), token)
+
     fun registrarAdulto(login: String, nomeCelular: String?, versao: Int): Resposta {
         val corpo = JSONObject().put("app_versao", versao)
         if (!nomeCelular.isNullOrBlank()) corpo.put("device_label", nomeCelular.trim().take(80))

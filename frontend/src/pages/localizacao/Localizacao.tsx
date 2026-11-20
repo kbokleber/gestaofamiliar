@@ -136,7 +136,10 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
           <div key={crianca.id} className="rounded-lg bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-lg font-semibold text-gray-900">{crianca.nome}</p>
+                <p className="text-lg font-semibold text-gray-900">
+                  {crianca.nome}
+                  {crianca.adulto && <span className="ml-2 rounded-full bg-teal-100 px-2 py-0.5 align-middle text-xs font-medium text-teal-800">Adulto</span>}
+                </p>
                 <p className={`mt-1 text-base ${crianca.status.codigo === 'dentro' ? 'font-medium text-purple-700' : 'text-gray-700'}`}>
                   {crianca.status.frase}
                 </p>
@@ -163,7 +166,7 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
           <Marker
             key={crianca.id}
             position={[crianca.latitude!, crianca.longitude!]}
-            icon={iconeCrianca(crianca.nome, crianca.bateria, crianca.apelido)}
+            icon={iconeCrianca(crianca.nome, crianca.bateria, crianca.apelido, crianca.adulto)}
           >
             <Tooltip direction="top">{crianca.status.frase} · {haQuantoTempo(crianca.ha_segundos)}</Tooltip>
           </Marker>
@@ -191,13 +194,13 @@ function AbaTrajeto({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar
     <div className="space-y-4">
       <div className="grid gap-3 rounded-lg bg-white p-4 shadow-sm sm:grid-cols-2">
         <label className="text-sm font-medium text-gray-700">
-          Criança
+          Pessoa
           <select
             value={criancaId ?? ''}
             onChange={(e) => setCriancaId(Number(e.target.value))}
             className="mt-1 block min-h-11 w-full rounded-lg border border-gray-300 px-3"
           >
-            {criancas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            {criancas.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.adulto ? ' (adulto)' : ''}</option>)}
           </select>
         </label>
         <label className="text-sm font-medium text-gray-700">
@@ -611,15 +614,22 @@ function AbaCelulares({ criancas }: { criancas: Crianca[] }) {
       {criancas.map((crianca) => (
         <div key={crianca.id} className="rounded-lg bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-lg font-semibold text-gray-900">{crianca.nome}</p>
-            <Button
-              variant="outline"
-              onClick={() => gerar.mutate(crianca.id)}
-              disabled={gerar.isPending}
-              className="flex items-center gap-1"
-            >
-              <Smartphone className="h-4 w-4" /> Gerar código
-            </Button>
+            <p className="text-lg font-semibold text-gray-900">
+              {crianca.nome}
+              {crianca.adulto && <span className="ml-2 rounded-full bg-teal-100 px-2 py-0.5 align-middle text-xs font-medium text-teal-800">Adulto</span>}
+            </p>
+            {crianca.adulto ? (
+              <p className="text-xs text-gray-500">Liga e desliga pelo app, no próprio celular.</p>
+            ) : (
+              <Button
+                variant="outline"
+                onClick={() => gerar.mutate(crianca.id)}
+                disabled={gerar.isPending}
+                className="flex items-center gap-1"
+              >
+                <Smartphone className="h-4 w-4" /> Gerar código
+              </Button>
+            )}
           </div>
           <CampoApelido crianca={crianca} />
           {crianca.aparelhos.length === 0 ? (

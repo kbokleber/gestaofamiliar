@@ -79,7 +79,7 @@ function escaparHtml(texto: string): string {
 }
 
 /** Marcador da criança: apelido (ou início do nome) e a bateria logo abaixo, com a cor do nível. */
-export function iconeCrianca(nome: string, bateria: number | null, apelido?: string | null): L.DivIcon {
+export function iconeCrianca(nome: string, bateria: number | null, apelido?: string | null, adulto = false): L.DivIcon {
   // Sem apelido, duas letras: irmãos com a mesma inicial não ficam iguais no mapa.
   const letras = nome.trim().slice(0, 2) || '?'
   const rotulo = apelido?.trim() || letras[0].toUpperCase() + letras.slice(1).toLowerCase()
@@ -94,7 +94,7 @@ export function iconeCrianca(nome: string, bateria: number | null, apelido?: str
     tooltipAnchor: [0, -22],
     html: `
       <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-        <div style="width:40px;height:40px;border-radius:9999px;background:#7c3aed;color:#fff;font-weight:700;font-size:${fonte}px;line-height:1;text-align:center;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)">${inicial}</div>
+        <div style="width:40px;height:40px;border-radius:9999px;background:${adulto ? '#0f766e' : '#7c3aed'};color:#fff;font-weight:700;font-size:${fonte}px;line-height:1;text-align:center;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)">${inicial}</div>
         <div style="background:${cor};color:#fff;font-size:12px;font-weight:700;padding:0 6px;border-radius:9999px;box-shadow:0 1px 3px rgba(0,0,0,.3)">${textoBateria}</div>
       </div>`,
   })

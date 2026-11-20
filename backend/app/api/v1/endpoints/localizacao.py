@@ -1,4 +1,4 @@
-"""Mapa da família: o adulto lê, o celular da criança só envia."""
+"""Mapa da família: o adulto lê; o celular da criança envia; o adulto pode compartilhar a própria posição."""
 from datetime import date
 from typing import Optional
 
@@ -40,6 +40,8 @@ from app.services.localizacao import (
     gerar_pareamento,
     hoje_sao_paulo,
     listar_criancas,
+    listar_membros,
+    parear_adulto_logado,
     listar_lugares,
     montar_trajeto,
     registrar_posicao,
@@ -103,6 +105,35 @@ def salvar_apelido(
 ):
     """Apelido que aparece no marcador do mapa."""
     return definir_apelido(db, adulto, child_id, dados.apelido)
+
+
+@router.get("/membros", response_model=list[CriancaOut])
+def ler_membros(
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    """Crianças e adultos que compartilham a posição. Só para adultos com o menu Localização."""
+    return listar_membros(db, adulto)
+
+
+@router.get("/membros/{membro_id}/trajeto", response_model=TrajetoOut)
+def ler_trajeto_membro(
+    membro_id: int,
+    dia: Optional[date] = Query(default=None),
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    return montar_trajeto(db, adulto, membro_id, dia or hoje_sao_paulo(), com_adultos=True)
+
+
+@router.put("/membros/{membro_id}/apelido", response_model=ApelidoOut)
+def salvar_apelido_membro(
+    membro_id: int,
+    dados: ApelidoIn,
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    return definir_apelido(db, adulto, membro_id, dados.apelido, com_adultos=True)
 
 
 @router.post("/pareamentos", response_model=PareamentoOut)
@@ -190,6 +221,16 @@ def parear_pelo_login(
 ):
     """O app da criança, já logado com a conta dela, conecta o celular sem código de pareamento."""
     return parear_crianca_logada(db, usuario, dados.device_label, dados.token_anterior)
+
+
+@router.post("/dispositivos/parear-adulto", response_model=ParearDispositivoOut)
+def parear_adulto(
+    dados: ParearMeIn,
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    """O app do adulto, logado com a conta dele, passa a compartilhar a posição dele com os adultos da família."""
+    return parear_adulto_logado(db, adulto, dados.device_label, dados.token_anterior)
 
 
 @router.post("/dispositivos/parear", response_model=ParearDispositivoOut)

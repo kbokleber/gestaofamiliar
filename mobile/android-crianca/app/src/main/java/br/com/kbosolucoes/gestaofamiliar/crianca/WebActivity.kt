@@ -64,6 +64,10 @@ class WebActivity : Activity() {
     private var aguardandoPermissaoInstalar = false
     /** Criança para quem já disseram "não" à troca nesta abertura do app (não pergunta de novo a cada página). */
     @Volatile private var trocaRecusadaPara = 0
+    // Login e usuário do site aberto agora (só em memória): servem para o adulto ligar o compartilhamento.
+    @Volatile private var loginAtual: String? = null
+    @Volatile private var usuarioAtual: UsuarioSessao? = null
+    private var dialogoCompartilhar: AlertDialog? = null
     /** Último pedido de login do Keycloak aberto aqui (para refazer no navegador quando for pelo Google). */
     private var pedidoDeLogin: String? = null
     private var versaoConferidaEm = 0L
@@ -96,6 +100,9 @@ class WebActivity : Activity() {
         if (configuracao.pareado) LocationService.iniciar(this)
         if (configuracao.tokenAdulto != null) fundo.execute { AlertasAdulto.buscar(applicationContext) }
         conferirVersao()
+        // Voltou da tela de configurações, onde o adulto tocou em "Compartilhar minha localização".
+        if (configuracao.pedidoDeCompartilhar && loginAtual != null) explicarCompartilhamento()
+        desenharFaixas()
         // Voltou da tela do Android sem atualizar (cancelou, falhou ou saiu no meio): libera tentar de novo.
         if (estadoAtualizacao?.startsWith("Instalando") == true) {
             estadoAtualizacao = "A atualização não foi concluída. Toque para tentar de novo."
@@ -194,7 +201,24 @@ class WebActivity : Activity() {
         if (configuracao.pareado && (!configuracao.temLocalizacao() || !configuracao.temLocalizacaoSempre())) {
             faixa("Falta liberar a localização neste celular. Toque para ajustar.", alerta = true) { abrirConfiguracoes() }
         } else if (configuracao.foiDesconectado && !configuracao.pareado) {
-            faixa("Este celular foi desconectado da família. Entre de novo com a conta da criança.", alerta = true) { abrirConfiguracoes() }
+            val texto = if (configuracao.perfil == Configuracao.PERFIL_ADULTO) {
+                "O compartilhamento da sua localização foi desligado no site. Toque para ver."
+            } else {
+                "Este celular foi desconectado da família. Entre de novo com a conta da criança."
+            }
+            faixa(texto, alerta = true) { abrirConfiguracoes() }
+        }
+        if (deveOferecerCompartilhar(
+                adultoRegistrado = configuracao.tokenAdulto != null,
+                pareadoComoCrianca = configuracao.pareadoComoCrianca,
+                compartilhandoComoAdulto = configuracao.compartilhandoComoAdulto,
+                dispensadaAte = configuracao.ofertaDispensadaAte,
+                agora = System.currentTimeMillis(),
+            ) && loginAtual != null
+        ) {
+            faixa("Compartilhar a sua localização com os adultos da família? Toque para saber mais.", alerta = false) {
+                explicarCompartilhamento()
+            }
         }
         if (configuracao.tokenAdulto != null && !NotificationManagerCompat.from(this).areNotificationsEnabled()) {
             faixa("Ative as notificações para receber os alertas da família.", alerta = true) { pedirNotificacoes() }
@@ -428,9 +452,18 @@ class WebActivity : Activity() {
 
     private fun tratarSessao(login: String, usuario: UsuarioSessao) {
         val api = ApiClient(configuracao.site)
-        val acao = decidirSessao(usuario, configuracao.pareado, configuracao.criancaId, configuracao.adultoId)
+        loginAtual = login
+        usuarioAtual = usuario
+        // Outro adulto entrou num celular que compartilha a posição de um adulto: o anterior para de compartilhar.
+        if (devePararDeCompartilhar(configuracao.compartilhandoComoAdulto, configuracao.criancaId, usuario)) {
+            pararCompartilhamento(api)
+        }
+        // Celular de adulto: o que recebe alertas ou o que compartilha a posição de um adulto (pergunta antes de trocar).
+        val adultoDoCelular = configuracao.adultoId.takeIf { it != 0 }
+            ?: (if (configuracao.compartilhandoComoAdulto) configuracao.criancaId else 0)
+        val acao = decidirSessao(usuario, configuracao.pareadoComoCrianca, configuracao.criancaId, adultoDoCelular)
         when (acao) {
-            AcaoSessao.Nada -> if (configuracao.tokenAdulto != null && !configuracao.pareado) AlertasAdulto.agendar(applicationContext)
+            AcaoSessao.Nada -> if (configuracao.tokenAdulto != null && !configuracao.pareadoComoCrianca) AlertasAdulto.agendar(applicationContext)
             AcaoSessao.AnotarCrianca -> configuracao.anotarCrianca(usuario.id, usuario.nome)
             AcaoSessao.ParearCrianca -> parearCrianca(login)
             AcaoSessao.ConfirmarTrocaDeAdulto -> if (trocaRecusadaPara != usuario.id) runOnUiThread { confirmarTroca(login, usuario) }
@@ -450,6 +483,65 @@ class WebActivity : Activity() {
                 }
             }
         }
+        runOnUiThread {
+            desenharFaixas()
+            if (configuracao.pedidoDeCompartilhar && !usuario.crianca) explicarCompartilhamento()
+        }
+    }
+
+    // ------------------------------------------------------------ adulto compartilhando a posição
+
+    /** Explica o que é compartilhado antes de pedir qualquer permissão. */
+    private fun explicarCompartilhamento() {
+        if (isFinishing || isDestroyed || dialogoCompartilhar?.isShowing == true) return
+        val usuario = usuarioAtual
+        val login = loginAtual
+        if (usuario == null || login == null || usuario.crianca || configuracao.pareadoComoCrianca) {
+            configuracao.pedirCompartilhar(false)
+            return
+        }
+        configuracao.pedirCompartilhar(false)
+        dialogoCompartilhar = AlertDialog.Builder(this)
+            .setTitle("Compartilhar a sua localização")
+            .setMessage(TEXTO_COMPARTILHAR)
+            .setPositiveButton("Compartilhar") { _, _ -> fundo.execute { comecarCompartilhamento(login) } }
+            .setNegativeButton("Agora não") { _, _ ->
+                configuracao.dispensarOferta(System.currentTimeMillis() + OFERTA_PAUSA_MS)
+                desenharFaixas()
+            }
+            .show()
+    }
+
+    /** Liga este celular à posição do adulto logado. Roda fora da tela. */
+    private fun comecarCompartilhamento(login: String) {
+        val resposta = ApiClient(configuracao.site).parearAdulto(login, Build.MODEL, configuracao.token)
+        if (resposta !is Resposta.Ok) {
+            val motivo = when (resposta) {
+                is Resposta.Recusado -> resposta.mensagem
+                is Resposta.TentarDepois -> "Não deu para falar com o site agora. Confira a internet e tente de novo."
+                else -> "Saia e entre de novo no app e tente outra vez."
+            }
+            runOnUiThread { Toast.makeText(this, motivo, Toast.LENGTH_LONG).show() }
+            return
+        }
+        configuracao.salvarPareamento(configuracao.site, ApiClient.lerPareamento(resposta.corpo), Configuracao.PERFIL_ADULTO)
+        runOnUiThread {
+            desenharFaixas()
+            if (configuracao.temLocalizacao() && configuracao.temLocalizacaoSempre()) {
+                LocationService.iniciar(this, enviarAgora = true)
+                Toast.makeText(this, "Pronto. Os adultos da família já veem você no mapa.", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "Falta liberar a localização \"o tempo todo\".", Toast.LENGTH_LONG).show()
+                abrirConfiguracoes()
+            }
+        }
+    }
+
+    /** Para de enviar a posição do adulto (os alertas continuam). Roda fora da tela. */
+    private fun pararCompartilhamento(api: ApiClient) {
+        configuracao.token?.let { api.revogarLocalizacao(it) }
+        configuracao.pararCompartilhamento()
+        stopService(Intent(this, LocationService::class.java))
     }
 
     /** Liga este celular à criança logada. Roda fora da tela. */
@@ -560,5 +652,14 @@ class WebActivity : Activity() {
         private const val PEDIDO_ARQUIVO = 20
         private const val PEDIDO_NOTIFICACAO = 21
         private const val INTERVALO_VERSAO_MS = 60 * 60 * 1000L
+        private const val OFERTA_PAUSA_MS = 30L * 24 * 60 * 60 * 1000
+
+        const val TEXTO_COMPARTILHAR =
+            "O que é compartilhado: a posição deste celular a cada 5 minutos e a bateria.\n\n" +
+                "Quem vê: só os adultos da família com acesso à Localização. As crianças nunca veem.\n\n" +
+                "Por quanto tempo: o histórico fica guardado 7 dias e depois é apagado.\n\n" +
+                "Você não recebe nem gera alertas de chegada e saída.\n\n" +
+                "Para desligar: Configurações do app › Parar de compartilhar, ou Revogar no site.\n\n" +
+                "Depois, o Android vai pedir a localização. Escolha \"Permitir o tempo todo\"."
     }
 }

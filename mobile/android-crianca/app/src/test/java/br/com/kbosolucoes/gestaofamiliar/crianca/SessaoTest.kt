@@ -113,4 +113,40 @@ class SessaoTest {
         assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", Atualizador.sha256(arquivo))
         arquivo.delete()
     }
+
+    // ------------------------------------------------------------ adulto compartilhando a posição (2.0.5)
+
+    private val mae = UsuarioSessao(3, "Mãe", crianca = false, familia = 1)
+
+    @Test
+    fun ofereceCompartilharSoParaAdultoNoProprioCelular() {
+        val agora = 1_000_000L
+        assertTrue(deveOferecerCompartilhar(true, false, false, 0L, agora))
+        // Celular de criança, já compartilhando, sem alertas de adulto ou "Agora não" recente: não oferece.
+        assertFalse(deveOferecerCompartilhar(true, true, false, 0L, agora))
+        assertFalse(deveOferecerCompartilhar(true, false, true, 0L, agora))
+        assertFalse(deveOferecerCompartilhar(false, false, false, 0L, agora))
+        assertFalse(deveOferecerCompartilhar(true, false, false, agora + 1, agora))
+        assertTrue(deveOferecerCompartilhar(true, false, false, agora, agora))
+    }
+
+    @Test
+    fun outroAdultoNoCelularParaOCompartilhamentoDoAnterior() {
+        assertTrue(devePararDeCompartilhar(true, 1, mae))
+        assertFalse(devePararDeCompartilhar(true, 3, mae)) // o próprio dono
+        assertFalse(devePararDeCompartilhar(false, 1, mae)) // não compartilha
+        assertFalse(devePararDeCompartilhar(true, 1, gui)) // criança: decide a troca com confirmação
+        assertFalse(devePararDeCompartilhar(true, 1, null))
+        assertFalse(devePararDeCompartilhar(true, 0, mae))
+    }
+
+    @Test
+    fun criancaNoCelularDeAdultoQueCompartilhaPerguntaAntes() {
+        // O app passa o id do adulto que compartilha como "adulto do celular": a criança só troca se confirmar.
+        assertEquals(AcaoSessao.ConfirmarTrocaDeAdulto, decidirSessao(gui, pareadoComoCrianca = false, criancaPareadaId = 1, adultoRegistradoId = 1))
+        // O dono, compartilhando, entra de novo: nada muda.
+        assertEquals(AcaoSessao.Nada, decidirSessao(pai, pareadoComoCrianca = false, criancaPareadaId = 1, adultoRegistradoId = 1))
+        // Celular de criança (como no 2.0.4): adulto entrando não muda nada nem passa a compartilhar.
+        assertEquals(AcaoSessao.Nada, decidirSessao(pai, pareadoComoCrianca = true, criancaPareadaId = 16, adultoRegistradoId = 0))
+    }
 }

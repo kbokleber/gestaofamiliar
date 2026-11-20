@@ -141,6 +141,43 @@ def obter_crianca(db: Session, familias: list[int], child_id: int) -> User:
     return crianca
 
 
+def adulto_com_localizacao(usuario: Optional[User]) -> bool:
+    """Adulto ativo com o menu Localização liberado: pode ver o mapa e compartilhar a própria posição."""
+    if usuario is None or usuario.is_child or not usuario.is_active:
+        return False
+    if usuario.is_superuser or usuario.allowed_menus is None:
+        return True
+    return "localizacao" in (usuario.allowed_menus or [])
+
+
+def _adultos_no_mapa(db: Session, familias: list[int]):
+    """Adultos da família que já ligaram um celular para compartilhar a posição."""
+    com_celular = db.query(LocationDevice.child_user_id).filter(LocationDevice.family_id.in_(familias))
+    return db.query(User).filter(
+        User.is_child.is_(False),
+        User.is_active.is_(True),
+        User.family_id.in_(familias),
+        User.id.in_(com_celular),
+    )
+
+
+def obter_membro(db: Session, familias: list[int], membro_id: int) -> User:
+    """Criança da família ou adulto da família que compartilha a posição. Só para quem vê o mapa (adulto)."""
+    usuario = (
+        db.query(User)
+        .filter(User.id == membro_id, User.family_id.in_(familias))
+        .first()
+    )
+    if usuario is not None and usuario.is_child:
+        return usuario
+    if usuario is not None and _adultos_no_mapa(db, familias).filter(User.id == usuario.id).first() is not None:
+        return usuario
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Pessoa não encontrada nesta família.",
+    )
+
+
 def familia_do_cadastro(adulto: User, db: Session, family_id: Optional[int]) -> int:
     familias = familias_do_adulto(adulto, db)
     if family_id is not None:
@@ -213,6 +250,7 @@ def _velocidade_kmh(speed_mps: Optional[float]) -> Optional[float]:
 
 
 def listar_criancas(db: Session, adulto: User) -> list[dict]:
+    """Rota antiga (/criancas): só as crianças, como sempre."""
     # Também limpa aqui, para o histórico antigo sair mesmo sem celular enviando.
     _limpar_se_preciso(db, datetime.now(timezone.utc))
     familias = familias_do_adulto(adulto, db)
@@ -222,6 +260,24 @@ def listar_criancas(db: Session, adulto: User) -> list[dict]:
         .order_by(User.first_name, User.last_name, User.username)
         .all()
     )
+    return _resumo_no_mapa(db, familias, criancas)
+
+
+def listar_membros(db: Session, adulto: User) -> list[dict]:
+    """Mapa do adulto: crianças e adultos que compartilham a posição, cada um com o campo "adulto"."""
+    _limpar_se_preciso(db, datetime.now(timezone.utc))
+    familias = familias_do_adulto(adulto, db)
+    criancas = (
+        db.query(User)
+        .filter(User.is_child.is_(True), User.is_active.is_(True), User.family_id.in_(familias))
+        .order_by(User.first_name, User.last_name, User.username)
+        .all()
+    )
+    adultos = _adultos_no_mapa(db, familias).order_by(User.first_name, User.last_name, User.username).all()
+    return _resumo_no_mapa(db, familias, criancas) + _resumo_no_mapa(db, familias, adultos)
+
+
+def _resumo_no_mapa(db: Session, familias: list[int], criancas: list[User]) -> list[dict]:
     lugares = db.query(LocationPlace).filter(LocationPlace.family_id.in_(familias)).all()
     apelidos = {
         pref.child_user_id: pref.apelido
@@ -264,6 +320,7 @@ def listar_criancas(db: Session, adulto: User) -> list[dict]:
             "speed_kmh": _velocidade_kmh(ponto.speed_mps) if ponto is not None else None,
             "status": status_da_crianca(crianca, ponto, da_familia),
             "aparelhos": aparelhos,
+            "adulto": not crianca.is_child,
         })
     return saida
 
@@ -376,9 +433,9 @@ def calcular_trajeto(pontos: list) -> dict:
     }
 
 
-def montar_trajeto(db: Session, adulto: User, child_id: int, dia: date) -> dict:
+def montar_trajeto(db: Session, adulto: User, child_id: int, dia: date, com_adultos: bool = False) -> dict:
     familias = familias_do_adulto(adulto, db)
-    crianca = obter_crianca(db, familias, child_id)
+    crianca = obter_membro(db, familias, child_id) if com_adultos else obter_crianca(db, familias, child_id)
     inicio, fim = limites_do_dia(dia)
     margem = timedelta(hours=14)
     pontos = (
@@ -491,6 +548,43 @@ def parear_crianca_logada(db: Session, crianca: User, rotulo: Optional[str], tok
     }
 
 
+def parear_adulto_logado(db: Session, adulto: User, rotulo: Optional[str], token_anterior: Optional[str] = None) -> dict:
+    """O adulto escolhe, no app, compartilhar a própria posição com os adultos da família."""
+    if not adulto_com_localizacao(adulto) or not adulto.family_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só um adulto com acesso à Localização pode compartilhar a posição.")
+    agora = datetime.now(timezone.utc)
+    if token_anterior and len(token_anterior.strip()) >= 20:
+        # O mesmo celular volta a compartilhar: o pareamento antigo dele para.
+        antigo = db.query(LocationDevice).filter(
+            LocationDevice.token_hash == hash_segredo(token_anterior.strip()),
+            LocationDevice.child_user_id == adulto.id,
+            LocationDevice.revoked_at.is_(None),
+        ).first()
+        if antigo is not None:
+            antigo.revoked_at = agora
+    token = secrets.token_urlsafe(32)
+    nome = (rotulo or "").strip() or f"Celular de {nome_de(adulto)}"
+    aparelho = LocationDevice(
+        family_id=adulto.family_id,
+        child_user_id=adulto.id,  # a coluna guarda o dono do celular, criança ou adulto
+        token_hash=hash_segredo(token),
+        label=nome[:80],
+        created_by_id=adulto.id,
+        created_at=agora,
+    )
+    db.add(aparelho)
+    db.commit()
+    db.refresh(aparelho)
+    logger.info("celular de adulto pareado device_id=%s user_id=%s", aparelho.id, adulto.id)
+    return {
+        "device_token": token,
+        "device_id": aparelho.id,
+        "crianca_id": adulto.id,
+        "crianca_nome": nome_de(adulto),
+        "mensagem": "Sua localização está compartilhada com os adultos da família. Desligue quando quiser no app.",
+    }
+
+
 def trocar_codigo(db: Session, codigo: str, rotulo: Optional[str]) -> dict:
     normalizado = normalizar_codigo(codigo)
     if len(normalizado) < 6:
@@ -545,11 +639,15 @@ def buscar_dispositivo(db: Session, token: str) -> Optional[LocationDevice]:
     )
     if aparelho is None or aparelho.revoked_at is not None:
         return None
-    crianca = db.query(User).filter(User.id == aparelho.child_user_id).first()
-    if crianca is None or not crianca.is_active or not crianca.is_child:
+    dono = db.query(User).filter(User.id == aparelho.child_user_id).first()
+    if dono is None or not dono.is_active:
         return None
+    if not dono.is_child and not adulto_com_localizacao(dono):
+        # Adulto que perdeu o acesso à Localização deixa de compartilhar.
+        return None
+    crianca = dono
     if crianca.family_id != aparelho.family_id:
-        # A criança mudou de família: o celular não pode seguir mandando pontos para a antiga.
+        # O dono mudou de família: o celular não pode seguir mandando pontos para a antiga.
         aparelho.revoked_at = datetime.now(timezone.utc)
         db.commit()
         logger.info("celular revogado por troca de familia device_id=%s", aparelho.id)
@@ -687,11 +785,13 @@ def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="A localização é antiga demais para registrar.",
         )
+    dono = db.query(User).filter(User.id == aparelho.child_user_id).first()
+    adulto = dono is not None and not dono.is_child
     repetido = _ponto_repetido(db, aparelho.id, recorded)
     if repetido is not None:
         aparelho.last_seen_at = agora
         aparelho.alerta_sem_sinal_em = None
-        avisos = avisos_app.atualizar_e_entregar(db, aparelho, dados.app_versao, dados.notificacoes, dados.avisos_recebidos)
+        avisos = _avisos_do_aparelho(db, aparelho, dados, adulto)
         return {"id": repetido.id, "recebido": True, "repetido": True, "avisos": avisos}
 
     ponto = LocationPoint(
@@ -712,18 +812,32 @@ def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -
     aparelho.alerta_sem_sinal_em = None
     db.add(ponto)
     db.flush()
-    if dados.battery_level is not None and (anterior is None or como_utc(anterior.recorded_at) <= recorded):
-        crianca = db.query(User).filter(User.id == aparelho.child_user_id).first()
-        if crianca is not None:
-            alertas_adultos.bateria(db, nome_de(crianca), aparelho, dados.battery_level, bateria_anterior)
-    lugares = db.query(LocationPlace).filter(LocationPlace.family_id == aparelho.family_id).all()
-    registrar_presenca(db, ponto, lugares)
+    # Adulto aparece só no mapa: sem alerta de bateria e sem chegada/saída dos lugares.
+    if not adulto and dados.battery_level is not None and (anterior is None or como_utc(anterior.recorded_at) <= recorded):
+        if dono is not None:
+            alertas_adultos.bateria(db, nome_de(dono), aparelho, dados.battery_level, bateria_anterior)
+    if not adulto:
+        lugares = db.query(LocationPlace).filter(LocationPlace.family_id == aparelho.family_id).all()
+        registrar_presenca(db, ponto, lugares)
     db.commit()
     _limpar_se_preciso(db, agora)
     db.refresh(ponto)
     logger.info("posicao recebida device_id=%s ponto_id=%s", aparelho.id, ponto.id)
-    avisos = avisos_app.atualizar_e_entregar(db, aparelho, dados.app_versao, dados.notificacoes, dados.avisos_recebidos)
+    avisos = _avisos_do_aparelho(db, aparelho, dados, adulto)
     return {"id": ponto.id, "recebido": True, "repetido": False, "avisos": avisos}
+
+
+def _avisos_do_aparelho(db: Session, aparelho: LocationDevice, dados: PosicaoIn, adulto: bool) -> list[dict]:
+    """Criança recebe os lembretes junto com a posição. O adulto já recebe os alertas pelo canal próprio
+    (/app-android/dispositivos/avisos): aqui só anota a versão e não consome a fila dele."""
+    if not adulto:
+        return avisos_app.atualizar_e_entregar(db, aparelho, dados.app_versao, dados.notificacoes, dados.avisos_recebidos)
+    if dados.app_versao is not None:
+        aparelho.app_versao = dados.app_versao
+    if dados.notificacoes is not None:
+        aparelho.notificacoes_ativas = dados.notificacoes
+    db.commit()
+    return []
 
 
 def _aparelho_da_familia(db: Session, familias: list[int], device_id: int) -> LocationDevice:
@@ -890,9 +1004,10 @@ def geocodificar_endereco(endereco: str) -> dict:
     return achado
 
 
-def definir_apelido(db: Session, adulto: User, child_id: int, apelido: Optional[str]) -> dict:
+def definir_apelido(db: Session, adulto: User, child_id: int, apelido: Optional[str], com_adultos: bool = False) -> dict:
     """Apelido curto do marcador no mapa (ex.: Gui, Gi). Vazio volta para o início do nome."""
-    crianca = obter_crianca(db, familias_do_adulto(adulto, db), child_id)
+    familias = familias_do_adulto(adulto, db)
+    crianca = obter_membro(db, familias, child_id) if com_adultos else obter_crianca(db, familias, child_id)
     limpo = (apelido or "").strip()[:12] or None
     pref = db.query(LocationChildSettings).filter(LocationChildSettings.child_user_id == crianca.id).first()
     if pref is None:

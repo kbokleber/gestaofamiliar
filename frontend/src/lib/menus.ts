@@ -25,7 +25,8 @@ type MenuUser = {
 
 export function visibleMenuKeys(user: MenuUser): MenuKey[] {
   if (!user) return []
-  const doPerfil = menusDoPerfil(user.is_child && !user.is_superuser).map((menu) => menu.key)
+  // Igual à API: criança nunca vê Localização, mesmo marcada como administradora.
+  const doPerfil = menusDoPerfil(!!user.is_child).map((menu) => menu.key)
   if (user.is_superuser || user.allowed_menus == null) {
     return doPerfil
   }

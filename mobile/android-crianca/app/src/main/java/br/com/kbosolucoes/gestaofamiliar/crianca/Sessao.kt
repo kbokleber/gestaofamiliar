@@ -41,7 +41,7 @@ sealed class AcaoSessao {
  * Regras:
  * - Criança logada: o celular passa a enviar a localização dela.
  * - Adulto logado num celular que já é de uma criança (ex.: o pai conferindo algo): nada muda.
- * - Adulto no próprio celular: recebe alertas; o celular dele nunca envia localização.
+ * - Adulto no próprio celular: recebe alertas; só envia a própria localização se escolher (app 2.0.5+).
  * - Criança num celular de adulto: pergunta antes de transformar no celular da criança.
  */
 fun decidirSessao(
@@ -64,6 +64,25 @@ fun decidirSessao(
     if (pareadoComoCrianca) return AcaoSessao.Nada
     return if (adultoRegistradoId == usuario.id) AcaoSessao.Nada else AcaoSessao.RegistrarAdulto
 }
+
+/**
+ * Mostra a faixa "Compartilhar minha localização"? Só para o adulto no próprio celular (que recebe os
+ * alertas), que ainda não compartilha, não está num celular de criança e não tocou em "Agora não" há pouco.
+ */
+fun deveOferecerCompartilhar(
+    adultoRegistrado: Boolean,
+    pareadoComoCrianca: Boolean,
+    compartilhandoComoAdulto: Boolean,
+    dispensadaAte: Long,
+    agora: Long,
+): Boolean = adultoRegistrado && !pareadoComoCrianca && !compartilhandoComoAdulto && agora >= dispensadaAte
+
+/**
+ * Outro adulto entrou num celular que compartilha a posição de um adulto: o compartilhamento do
+ * anterior para, para a posição deste celular não aparecer com o nome errado.
+ */
+fun devePararDeCompartilhar(compartilhandoComoAdulto: Boolean, donoDaPosicaoId: Int, usuario: UsuarioSessao?): Boolean =
+    compartilhandoComoAdulto && usuario != null && !usuario.crianca && donoDaPosicaoId != 0 && donoDaPosicaoId != usuario.id
 
 /** Compara versões "2.0.0" e "2.0.10". Positivo se [a] é mais nova. Partes não numéricas valem 0. */
 fun compararVersoes(a: String, b: String): Int {

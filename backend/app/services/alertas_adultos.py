@@ -101,7 +101,8 @@ def verificar_sem_sinal(db: Session, agora: Optional[datetime] = None) -> int:
     for aparelho in aparelhos:
         crianca = db.query(User).filter(User.id == aparelho.child_user_id).first()
         aparelho.alerta_sem_sinal_em = agora
-        if crianca is None or not crianca.is_active:
+        # Celular de adulto aparece só no mapa: não gera alerta de "sem localização".
+        if crianca is None or not crianca.is_active or not crianca.is_child:
             continue
         nome = (crianca.first_name or "").strip() or crianca.username
         texto = f"O celular de {nome} não envia localização desde {_hora(aparelho.last_seen_at)}."

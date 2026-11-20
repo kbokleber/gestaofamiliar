@@ -57,12 +57,39 @@ class ConfiguracaoActivity : Activity() {
     private fun desenhar() {
         raiz.removeAllViews()
         titulo("Gestão Familiar")
+        val adulto = configuracao.compartilhandoComoAdulto || (!configuracao.pareado && configuracao.tokenAdulto != null)
         texto(
-            "Este app envia a localização e a bateria deste celular para a família, a cada 5 minutos, e mostra os lembretes de atividades. " +
-                "Ele não grava áudio, não vê a tela, as fotos nem as mensagens.",
+            if (adulto) {
+                "Neste celular você recebe os alertas da família. Se quiser, também pode compartilhar a sua localização: " +
+                    "só os adultos da família veem, e as crianças nunca."
+            } else {
+                "Este app envia a localização e a bateria deste celular para a família, a cada 5 minutos, e mostra os lembretes de atividades. " +
+                    "Ele não grava áudio, não vê a tela, as fotos nem as mensagens."
+            },
             cinza = true,
         )
-        if (configuracao.pareado) telaPareado() else telaParear()
+        if (configuracao.pareado) {
+            telaPareado()
+        } else {
+            // Adulto no próprio celular: primeiro a opção de compartilhar; o código continua disponível embaixo.
+            if (configuracao.tokenAdulto != null) telaAdulto()
+            telaParear()
+        }
+    }
+
+    // ------------------------------------------------------------ adulto
+
+    /** Adulto no próprio celular, ainda sem compartilhar: explica e leva para a tela principal ligar. */
+    private fun telaAdulto() {
+        if (configuracao.foiDesconectado && configuracao.perfil == Configuracao.PERFIL_ADULTO) {
+            aviso("O compartilhamento da sua localização foi desligado no site.")
+        }
+        subtitulo("Compartilhar a minha localização")
+        texto(WebActivity.TEXTO_COMPARTILHAR, cinza = true)
+        botao("Compartilhar a minha localização") {
+            configuracao.pedirCompartilhar(true)
+            finish() // a tela principal mostra a confirmação, com a conta que está logada
+        }
     }
 
     // ------------------------------------------------------------ pareamento
@@ -112,8 +139,9 @@ class ConfiguracaoActivity : Activity() {
     // ------------------------------------------------------------ pareado
 
     private fun telaPareado() {
-        val nome = configuracao.criancaNome.ifBlank { "criança" }
-        subtitulo("Conectado como $nome")
+        val adulto = configuracao.compartilhandoComoAdulto
+        val nome = configuracao.criancaNome.ifBlank { if (adulto) "você" else "criança" }
+        subtitulo(if (adulto) "Compartilhando a localização de $nome" else "Conectado como $nome")
 
         subtitulo("Para funcionar sempre")
         passo(
@@ -148,7 +176,20 @@ class ConfiguracaoActivity : Activity() {
             LocationService.iniciar(this, enviarAgora = true)
             raiz.postDelayed({ desenhar() }, 4000)
         }
-        texto("Para desligar, um adulto revoga este celular no site.", cinza = true)
+        if (adulto) {
+            texto("Só os adultos da família veem a sua posição. O histórico fica 7 dias.", cinza = true)
+            botao("Parar de compartilhar") {
+                val token = configuracao.token
+                Thread {
+                    token?.let { ApiClient(configuracao.site).revogarLocalizacao(it) }
+                    configuracao.pararCompartilhamento()
+                    stopService(Intent(this, LocationService::class.java))
+                    runOnUiThread { desenhar() }
+                }.start()
+            }
+        } else {
+            texto("Para desligar, um adulto revoga este celular no site.", cinza = true)
+        }
         botao("Voltar ao app") { finish() }
     }
 

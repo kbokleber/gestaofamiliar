@@ -759,3 +759,180 @@ def test_alerta_sem_sinal_uma_vez_e_volta_a_valer_depois_de_novo_envio(ambiente)
     assert r.status_code == 200, r.text
     db.refresh(aparelho)
     assert aparelho.alerta_sem_sinal_em is None, r.json()
+
+
+# ---------------------------------------------------------------- adultos no radar
+
+def _parear_adulto(cliente, estado, db, user_id, **corpo):
+    estado["user"] = db.query(User).get(user_id)
+    return cliente.post("/api/v1/localizacao/dispositivos/parear-adulto", json=corpo)
+
+
+def _adulto_outra_familia(db):
+    agora = datetime.now(timezone.utc)
+    tio = User(id=20, username="tio", first_name="Tio", family_id=2, password="x", email="",
+               last_name="", is_staff=False, is_superuser=False, is_active=True, is_child=False,
+               date_joined=agora, allowed_menus=["localizacao"])
+    db.add(tio)
+    db.commit()
+    return tio
+
+
+def test_adulto_compartilha_e_aparece_so_no_mapa_dos_adultos(ambiente):
+    from app.models.lembrete import AvisoApp
+    from app.models.location import LocationPlaceEvent
+
+    cliente, db, estado = ambiente
+    _app_adulto(db, 1)  # Kleber recebe alertas pelo app
+    casa = (-23.55, -46.63)
+    assert cliente.post("/api/v1/localizacao/lugares", json={
+        "nome": "Casa", "preposicao": "em", "latitude": casa[0], "longitude": casa[1], "raio_m": 150,
+    }).status_code == 201
+
+    r = _parear_adulto(cliente, estado, db, 3, device_label="Celular da Mãe")
+    assert r.status_code == 200, r.text
+    assert r.json()["crianca_id"] == 3  # mesmo formato que o app 2.0.4 já lê
+    token = r.json()["device_token"]
+    agora = datetime.now(timezone.utc)
+    um_km = 1000 / 111_320
+    fora = _enviar(cliente, token, latitude=casa[0] - um_km, longitude=casa[1], battery_level=50,
+                   recorded_at=_iso(agora - timedelta(minutes=10)))
+    assert fora.status_code == 200, fora.text
+    dentro = _enviar(cliente, token, latitude=casa[0], longitude=casa[1], battery_level=10,
+                     recorded_at=_iso(agora - timedelta(minutes=5)), app_versao=9, notificacoes=True)
+    assert dentro.status_code == 200 and dentro.json()["avisos"] == []
+
+    # Decisão do Kleber: adulto aparece só no mapa. Sem chegada/saída, sem bateria, sem evento de lugar.
+    assert db.query(AvisoApp).count() == 0
+    assert db.query(LocationPlaceEvent).filter(LocationPlaceEvent.child_user_id == 3).count() == 0
+
+    estado["user"] = db.query(User).get(1)
+    # Rota antiga (/criancas, usada até hoje): continua só com as crianças.
+    assert {c["nome"] for c in cliente.get("/api/v1/localizacao/criancas").json()} == {"Guilherme", "Giovana"}
+    membros = cliente.get("/api/v1/localizacao/membros")
+    assert membros.status_code == 200, membros.text
+    por_nome = {m["nome"]: m for m in membros.json()}
+    assert set(por_nome) == {"Guilherme", "Giovana", "Mãe"}
+    assert por_nome["Mãe"]["adulto"] is True and por_nome["Guilherme"]["adulto"] is False
+    assert por_nome["Mãe"]["bateria"] == 10
+    assert por_nome["Mãe"]["status"]["frase"] == "Mãe está em Casa"
+    dia = datetime.now(servico.FUSO).date().isoformat()
+    trajeto = cliente.get(f"/api/v1/localizacao/membros/3/trajeto?dia={dia}")
+    assert trajeto.status_code == 200, trajeto.text
+    assert trajeto.json()["eventos"] == []
+    # Pelas rotas antigas, o adulto continua invisível.
+    assert cliente.get(f"/api/v1/localizacao/criancas/3/trajeto?dia={dia}").status_code == 404
+    assert cliente.put("/api/v1/localizacao/criancas/3/apelido", json={"apelido": "Mã"}).status_code == 404
+    assert cliente.put("/api/v1/localizacao/membros/3/apelido", json={"apelido": "Mã"}).json()["apelido"] == "Mã"
+    # Adulto que nunca ligou o compartilhamento não aparece nem tem trajeto.
+    assert cliente.get(f"/api/v1/localizacao/membros/1/trajeto?dia={dia}").status_code == 404
+
+
+def test_crianca_nao_ve_adulto_em_nenhuma_rota(ambiente):
+    cliente, db, estado = ambiente
+    token_mae = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    assert _enviar(cliente, token_mae, latitude=-23.55, longitude=-46.63).status_code == 200
+    estado["user"] = db.query(User).get(1)
+    token_gui = _parear(cliente, 16, "Celular do Gui")["device_token"]
+
+    estado["user"] = db.query(User).get(16)
+    dia = datetime.now(servico.FUSO).date().isoformat()
+    for metodo, rota, corpo in (
+        ("get", "/api/v1/localizacao/membros", None),
+        ("get", f"/api/v1/localizacao/membros/3/trajeto?dia={dia}", None),
+        ("put", "/api/v1/localizacao/membros/3/apelido", {"apelido": "x"}),
+        ("get", "/api/v1/localizacao/criancas", None),
+        ("get", f"/api/v1/localizacao/criancas/3/trajeto?dia={dia}", None),
+        ("get", "/api/v1/localizacao/lugares", None),
+        ("post", "/api/v1/localizacao/dispositivos/parear-adulto", {}),
+    ):
+        resposta = getattr(cliente, metodo)(rota, **({"json": corpo} if corpo is not None else {}))
+        assert resposta.status_code == 403, (rota, resposta.status_code, resposta.text)
+        assert "Mãe" not in resposta.text
+    # O celular da criança recebe a resposta da posição sem nada sobre o adulto.
+    r = _enviar(cliente, token_gui, latitude=-23.55, longitude=-46.63)
+    assert r.status_code == 200 and "Mãe" not in r.text
+    # O token do adulto não serve para a criança pedir o mapa (só envia posição).
+    assert cliente.get("/api/v1/localizacao/membros", headers={"X-Device-Token": token_mae}).status_code == 403
+
+
+def test_adultos_no_mapa_isolados_por_familia(ambiente):
+    cliente, db, estado = ambiente
+    _adulto_outra_familia(db)
+    token_tio = _parear_adulto(cliente, estado, db, 20).json()["device_token"]
+    assert _enviar(cliente, token_tio, latitude=-22.9, longitude=-43.2).status_code == 200
+    token_mae = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    assert _enviar(cliente, token_mae, latitude=-23.55, longitude=-46.63).status_code == 200
+    dia = datetime.now(servico.FUSO).date().isoformat()
+
+    estado["user"] = db.query(User).get(1)
+    assert "Tio" not in {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+    assert cliente.get(f"/api/v1/localizacao/membros/20/trajeto?dia={dia}").status_code == 404
+    assert cliente.put("/api/v1/localizacao/membros/20/apelido", json={"apelido": "x"}).status_code == 404
+
+    estado["user"] = db.query(User).get(20)
+    vistos = {m["nome"] for m in cliente.get("/api/v1/localizacao/membros").json()}
+    assert vistos == {"Primo", "Tio"}
+    assert cliente.get(f"/api/v1/localizacao/membros/3/trajeto?dia={dia}").status_code == 404
+
+
+def test_adulto_sem_menu_nao_compartilha_e_perde_o_token_ao_perder_o_menu(ambiente):
+    cliente, db, estado = ambiente
+    assert _parear_adulto(cliente, estado, db, 2).status_code == 403  # Tia: só Estudos
+    r = _parear_adulto(cliente, estado, db, 3)
+    token = r.json()["device_token"]
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63).status_code == 200
+    mae = db.query(User).get(3)
+    mae.allowed_menus = ["estudos"]
+    db.commit()
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63).status_code == 401
+
+
+def test_celular_do_adulto_revogado_trocado_ou_de_outra_familia_para_de_enviar(ambiente):
+    from app.models.location import LocationDevice
+
+    cliente, db, estado = ambiente
+    primeiro = _parear_adulto(cliente, estado, db, 3).json()
+    # Religar no mesmo celular revoga o token anterior.
+    segundo = _parear_adulto(cliente, estado, db, 3, token_anterior=primeiro["device_token"]).json()
+    assert _enviar(cliente, primeiro["device_token"], latitude=-23.55, longitude=-46.63).status_code == 401
+    assert _enviar(cliente, segundo["device_token"], latitude=-23.55, longitude=-46.63).status_code == 200
+    # Revogado pelo site.
+    estado["user"] = db.query(User).get(1)
+    assert cliente.post(f"/api/v1/localizacao/dispositivos/{segundo['device_id']}/revogar").status_code == 200
+    assert _enviar(cliente, segundo["device_token"], latitude=-23.55, longitude=-46.63).status_code == 401
+    # Mudou de família: revogado automaticamente.
+    terceiro = _parear_adulto(cliente, estado, db, 3).json()
+    mae = db.query(User).get(3)
+    mae.family_id = 2
+    db.commit()
+    assert _enviar(cliente, terceiro["device_token"], latitude=-23.55, longitude=-46.63).status_code == 401
+    assert db.query(LocationDevice).get(terceiro["device_id"]).revoked_at is not None
+
+
+def test_celular_de_adulto_sem_sinal_nao_gera_alerta(ambiente):
+    from app.models.location import LocationDevice
+    from app.services import alertas_adultos
+
+    cliente, db, estado = ambiente
+    _app_adulto(db, 1)
+    token = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    _enviar(cliente, token, latitude=-23.55, longitude=-46.63,
+            recorded_at=_iso(datetime.now(timezone.utc) - timedelta(minutes=45)))
+    aparelho = db.query(LocationDevice).filter(LocationDevice.child_user_id == 3).first()
+    aparelho.last_seen_at = datetime.now(timezone.utc) - timedelta(minutes=40)
+    db.commit()
+    assert alertas_adultos.verificar_sem_sinal(db) == 0
+    assert _avisos_de(db, 1) == []
+
+
+def test_celular_de_adulto_nao_consome_os_alertas_do_adulto(ambiente):
+    from app.services import avisos_app
+
+    cliente, db, estado = ambiente
+    token = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    avisos_app.enfileirar(db, db.query(User).get(3), "Localização", "Guilherme chegou na Escola", "/localizacao", tipo="alerta-y")
+    db.commit()
+    r = _enviar(cliente, token, latitude=-23.55, longitude=-46.63, app_versao=9)
+    assert r.json()["avisos"] == []
+    assert _avisos_de(db, 3) == ["Guilherme chegou na Escola"]  # continua na fila do canal de alertas
