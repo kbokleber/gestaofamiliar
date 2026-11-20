@@ -40,29 +40,31 @@ export function fotoParaSrc(photo: string | null | undefined): string | null {
 }
 
 /**
- * Foto de cada pessoa (por id). Regras, sempre dentro da mesma família:
- * 1) nome completo igual (sem acento e sem diferença de maiúsculas) e um só membro com esse nome;
- * 2) senão, primeiro nome igual, um só membro E uma só pessoa no mapa com esse primeiro nome.
- * Qualquer dúvida: sem foto (o marcador mostra a inicial).
+ * Foto de cada pessoa (por id). Casa contra TODOS os membros da mesma família (com ou sem foto)
+ * e só depois pega a foto de quem casou; sem foto ou na dúvida, fica sem foto (o marcador mostra a inicial).
+ * 1) Nome completo igual (sem acento e sem diferença de maiúsculas), com um só membro assim.
+ * 2) Só quando o nome no mapa é apenas o primeiro nome (ex.: "Guilherme"): um só membro com esse
+ *    primeiro nome e uma só pessoa no mapa com ele. Se o mapa tem sobrenome e o nome completo não
+ *    bate (ex.: "Guilherme Bueno" x "Guilherme Bueno Junior"), não casa.
+ * Nome vazio nunca casa.
  */
 export function casarFotos(pessoas: PessoaNoMapa[], membros: MembroComFoto[]): Record<number, string> {
   const fotos: Record<number, string> = {}
-  const comFoto = membros
-    .map((membro) => ({ ...membro, src: fotoParaSrc(membro.photo) }))
-    .filter((membro): membro is MembroComFoto & { src: string } => !!membro.src)
   for (const pessoa of pessoas) {
-    const daFamilia = comFoto.filter((membro) => membro.family_id === pessoa.family_id)
-    const iguais = daFamilia.filter((membro) => normalizarNome(membro.name) === normalizarNome(pessoa.nome))
+    const nome = normalizarNome(pessoa.nome)
+    if (!nome) continue
+    const daFamilia = membros.filter((membro) => membro.family_id === pessoa.family_id && normalizarNome(membro.name) !== '')
+    let escolhido: MembroComFoto | null = null
+    const iguais = daFamilia.filter((membro) => normalizarNome(membro.name) === nome)
     if (iguais.length === 1) {
-      fotos[pessoa.id] = iguais[0].src
-      continue
+      escolhido = iguais[0]
+    } else if (iguais.length === 0 && !nome.includes(' ')) {
+      const mesmoPrimeiro = daFamilia.filter((membro) => primeiroNome(membro.name) === nome)
+      const pessoasComEsse = pessoas.filter((outra) => outra.family_id === pessoa.family_id && primeiroNome(outra.nome) === nome)
+      if (mesmoPrimeiro.length === 1 && pessoasComEsse.length === 1) escolhido = mesmoPrimeiro[0]
     }
-    if (iguais.length > 1) continue
-    const primeiro = primeiroNome(pessoa.nome)
-    if (!primeiro) continue
-    const mesmoPrimeiro = daFamilia.filter((membro) => primeiroNome(membro.name) === primeiro)
-    const pessoasComEsse = pessoas.filter((outra) => outra.family_id === pessoa.family_id && primeiroNome(outra.nome) === primeiro)
-    if (mesmoPrimeiro.length === 1 && pessoasComEsse.length === 1) fotos[pessoa.id] = mesmoPrimeiro[0].src
+    const src = escolhido ? fotoParaSrc(escolhido.photo) : null
+    if (src) fotos[pessoa.id] = src
   }
   return fotos
 }

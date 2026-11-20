@@ -58,4 +58,33 @@ teste('mesmo ponto ou a poucos metros: um grupo, na ordem; longe: separado', () 
   assert.ok(Math.abs(grupos[0].latitude - (casa.latitude + 35 * m / 4)) < 1e-9)
 })
 
-console.log(`${ok}/4 OK`)
+teste('QA-A: "Guilherme Bueno" (pai) não pega a foto de "Guilherme Bueno Junior" (filho)', () => {
+  const fotos = casarFotos(
+    [{ id: 1, nome: 'Guilherme Bueno', family_id: 1 }],
+    [{ name: 'Guilherme Bueno Junior', family_id: 1, photo: JPG }],
+  )
+  assert.deepEqual(fotos, {})
+  // Com o cadastro do pai também, cada um fica com a própria foto (nome completo).
+  const PAI = '/9j/UEFJUEFJ'
+  const ambos = casarFotos(
+    [{ id: 1, nome: 'Guilherme Bueno', family_id: 1 }, { id: 2, nome: 'Guilherme Bueno Junior', family_id: 1 }],
+    [{ name: 'Guilherme Bueno Junior', family_id: 1, photo: JPG }, { name: 'Guilherme Bueno', family_id: 1, photo: PAI }],
+  )
+  assert.equal(ambos[1], `data:image/jpeg;base64,${PAI}`)
+  assert.equal(ambos[2], `data:image/jpeg;base64,${JPG}`)
+})
+
+teste('QA-B: "Ana Maria" sem foto não pega a foto de "Ana Clara"', () => {
+  const membros = [{ name: 'Ana Maria', family_id: 1, photo: null }, { name: 'Ana Clara', family_id: 1, photo: JPG }]
+  assert.deepEqual(casarFotos([{ id: 5, nome: 'Ana Maria', family_id: 1 }], membros), {})
+  // Só o primeiro nome "Ana" com duas Anas no cadastro (uma sem foto): ambíguo, sem foto.
+  assert.deepEqual(casarFotos([{ id: 5, nome: 'Ana', family_id: 1 }], membros), {})
+  // A Ana Clara continua com a dela.
+  assert.equal(casarFotos([{ id: 6, nome: 'Ana Clara', family_id: 1 }], membros)[6], `data:image/jpeg;base64,${JPG}`)
+})
+
+teste('nome vazio não casa com membro de nome vazio', () => {
+  assert.deepEqual(casarFotos([{ id: 7, nome: '  ', family_id: 1 }], [{ name: '', family_id: 1, photo: JPG }]), {})
+})
+
+console.log(`${ok}/7 OK`)
