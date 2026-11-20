@@ -3,7 +3,7 @@
  * Sem React nem Leaflet, para dar para testar sozinho.
  *
  * A foto vem do cadastro de Saúde (Membros da Família), que não tem ligação com o usuário:
- * por isso o casamento é pelo nome, dentro da mesma família, e só quando não há dúvida.
+ * por isso o casamento é pelo nome completo e exato, dentro da mesma família, e só quando não há dúvida.
  */
 
 export interface PessoaNoMapa {
@@ -27,10 +27,6 @@ export function normalizarNome(nome: string): string {
     .trim()
 }
 
-function primeiroNome(nome: string): string {
-  return normalizarNome(nome).split(' ')[0] ?? ''
-}
-
 /** Só aceita imagem embutida (data:image/...). Base64 puro vira JPEG, como no cadastro. */
 export function fotoParaSrc(photo: string | null | undefined): string | null {
   const valor = (photo ?? '').trim()
@@ -45,12 +41,10 @@ export function fotoParaSrc(photo: string | null | undefined): string | null {
 }
 
 /**
- * Foto de cada pessoa (por id). Casa contra TODOS os membros da mesma família (com ou sem foto)
- * e só depois pega a foto de quem casou; sem foto ou na dúvida, fica sem foto (o marcador mostra a inicial).
- * 1) Nome completo igual (sem acento e sem diferença de maiúsculas), com um só membro assim.
- * 2) Só quando o nome no mapa é apenas o primeiro nome (ex.: "Guilherme"): um só membro com esse
- *    primeiro nome e uma só pessoa no mapa com ele. Se o mapa tem sobrenome e o nome completo não
- *    bate (ex.: "Guilherme Bueno" x "Guilherme Bueno Junior"), não casa.
+ * Foto de cada pessoa (por id). Só casa pelo NOME COMPLETO e exato (sem acento e sem diferença de
+ * maiúsculas), com UM só membro assim na mesma família, comparando contra todos os membros (com ou
+ * sem foto); só depois pega a foto de quem casou. Não há regra de primeiro nome: "Guilherme" no mapa
+ * não casa com "Guilherme Bueno Junior". Na dúvida, sem foto (o marcador mostra a inicial).
  * Nome vazio nunca casa.
  */
 export function casarFotos(pessoas: PessoaNoMapa[], membros: MembroComFoto[]): Record<number, string> {
@@ -58,17 +52,11 @@ export function casarFotos(pessoas: PessoaNoMapa[], membros: MembroComFoto[]): R
   for (const pessoa of pessoas) {
     const nome = normalizarNome(pessoa.nome)
     if (!nome) continue
-    const daFamilia = membros.filter((membro) => membro.family_id === pessoa.family_id && normalizarNome(membro.name) !== '')
-    let escolhido: MembroComFoto | null = null
-    const iguais = daFamilia.filter((membro) => normalizarNome(membro.name) === nome)
-    if (iguais.length === 1) {
-      escolhido = iguais[0]
-    } else if (iguais.length === 0 && !nome.includes(' ')) {
-      const mesmoPrimeiro = daFamilia.filter((membro) => primeiroNome(membro.name) === nome)
-      const pessoasComEsse = pessoas.filter((outra) => outra.family_id === pessoa.family_id && primeiroNome(outra.nome) === nome)
-      if (mesmoPrimeiro.length === 1 && pessoasComEsse.length === 1) escolhido = mesmoPrimeiro[0]
-    }
-    const src = escolhido ? fotoParaSrc(escolhido.photo) : null
+    const iguais = membros.filter(
+      (membro) => membro.family_id === pessoa.family_id && normalizarNome(membro.name) === nome,
+    )
+    if (iguais.length !== 1) continue
+    const src = fotoParaSrc(iguais[0].photo)
     if (src) fotos[pessoa.id] = src
   }
   return fotos

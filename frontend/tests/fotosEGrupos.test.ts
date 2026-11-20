@@ -16,7 +16,7 @@ teste('foto: base64 vira data:image/jpeg; data:image aceito; outros recusados', 
   assert.equal(fotoParaSrc(null), null)
 })
 
-teste('casa por nome completo, sem acento, e por primeiro nome só sem ambiguidade', () => {
+teste('casa só por nome completo e exato (sem acento); primeiro nome sozinho não casa', () => {
   const pessoas = [
     { id: 16, nome: 'Guilherme', family_id: 1 },
     { id: 17, nome: 'Giovana', family_id: 1 },
@@ -30,7 +30,8 @@ teste('casa por nome completo, sem acento, e por primeiro nome só sem ambiguida
     { name: 'Kleber Bueno', family_id: 2, photo: JPG }, // outra família: nunca
   ]
   const fotos = casarFotos(pessoas, membros)
-  assert.deepEqual(Object.keys(fotos).sort(), ['16', '3'])
+  // Só a Mãe (nome completo igual). Guilherme e Giovana: só o primeiro nome no mapa, sem foto (inicial).
+  assert.deepEqual(Object.keys(fotos), ['3'])
 })
 
 teste('dois membros com o mesmo primeiro nome: sem foto (não arrisca)', () => {
@@ -108,4 +109,11 @@ teste('QA: fotos recusadas (svg, https, aspas, texto solto) e aceita a JPEG em d
   assert.equal(fotoParaSrc('/9j/AAA'), null) // tamanho inválido de base64
 })
 
-console.log(`${ok}/9 OK`)
+teste('"Guilherme" sozinho no mapa não pega a foto do único "Guilherme Bueno Junior" da Saúde', () => {
+  assert.deepEqual(
+    casarFotos([{ id: 16, nome: 'Guilherme', family_id: 1 }], [{ name: 'Guilherme Bueno Junior', family_id: 1, photo: JPG }]),
+    {},
+  )
+})
+
+console.log(`${ok}/10 OK`)
