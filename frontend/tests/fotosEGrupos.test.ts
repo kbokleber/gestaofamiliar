@@ -87,4 +87,25 @@ teste('nome vazio não casa com membro de nome vazio', () => {
   assert.deepEqual(casarFotos([{ id: 7, nome: '  ', family_id: 1 }], [{ name: '', family_id: 1, photo: JPG }]), {})
 })
 
-console.log(`${ok}/7 OK`)
+// Casos do arquivo do QA (qa-casos-casarFotos.test.ts), com o resultado esperado.
+teste('QA: dois Guilherme no mapa e um na Saúde: só o de nome igual recebe a foto', () => {
+  assert.deepEqual(
+    casarFotos([{ id: 1, nome: 'Guilherme', family_id: 1 }, { id: 2, nome: 'Guilherme Souza', family_id: 1 }],
+      [{ name: 'Guilherme', family_id: 1, photo: '/9j/AAAA' }]),
+    { 1: 'data:image/jpeg;base64,/9j/AAAA' },
+  )
+  assert.deepEqual(casarFotos([{ id: 1, nome: 'Guilherme', family_id: 1 }],
+    [{ name: 'Guilherme Silva', family_id: 1, photo: '/9j/AAAA' }, { name: 'Guilherme Souza', family_id: 1, photo: '/9j/BBBB' }]), {})
+  assert.deepEqual(casarFotos([{ id: 1, nome: 'Ana', family_id: 1 }], [{ name: 'Ana', family_id: 2, photo: '/9j/AAAA' }]), {})
+})
+
+teste('QA: fotos recusadas (svg, https, aspas, texto solto) e aceita a JPEG em data:image', () => {
+  assert.deepEqual(
+    ['data:image/svg+xml;base64,PHN2Zz4=', 'https://x/y.jpg', 'data:image/png;base64,AAA"onerror=1', '//evil', 'data:image/jpeg;base64,/9j/AAAA'].map(fotoParaSrc),
+    [null, null, null, null, 'data:image/jpeg;base64,/9j/AAAA'],
+  )
+  assert.equal(fotoParaSrc('iVBORw0K'), 'data:image/jpeg;base64,iVBORw0K')
+  assert.equal(fotoParaSrc('/9j/AAA'), null) // tamanho inválido de base64
+})
+
+console.log(`${ok}/9 OK`)

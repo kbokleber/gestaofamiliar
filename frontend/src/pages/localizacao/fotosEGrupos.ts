@@ -36,7 +36,12 @@ export function fotoParaSrc(photo: string | null | undefined): string | null {
   const valor = (photo ?? '').trim()
   if (!valor) return null
   if (valor.startsWith('data:')) return /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=\s]+$/i.test(valor) ? valor : null
-  return /^[A-Za-z0-9+/=\s]+$/.test(valor) ? `data:image/jpeg;base64,${valor.replace(/\s+/g, '')}` : null
+  // Base64 puro (como o cadastro guarda): só se for base64 válido e começar como imagem
+  // (JPEG /9j/, PNG iVBOR, GIF R0lGOD, WebP UklGR). Assim textos soltos como "//evil" não passam.
+  const limpo = valor.replace(/\s+/g, '')
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(limpo) || limpo.length % 4 !== 0) return null
+  if (!/^(\/9j\/|iVBOR|R0lGOD|UklGR)/.test(limpo)) return null
+  return `data:image/jpeg;base64,${limpo}`
 }
 
 /**
