@@ -149,4 +149,16 @@ class SessaoTest {
         // Celular de criança (como no 2.0.4): adulto entrando não muda nada nem passa a compartilhar.
         assertEquals(AcaoSessao.Nada, decidirSessao(pai, pareadoComoCrianca = true, criancaPareadaId = 16, adultoRegistradoId = 0))
     }
+
+    @Test
+    fun soApagaOTokenQuandoOServidorConfirmaARevogacao() {
+        // C4: 200 ou 401 concluem; sem rede, erro 5xx ou outra recusa mantêm o token para tentar de novo.
+        assertTrue(revogacaoConcluida(Resposta.Ok(org.json.JSONObject())))
+        assertTrue(revogacaoConcluida(Resposta.Desconectado))
+        assertFalse(revogacaoConcluida(Resposta.TentarDepois("sem internet")))
+        assertFalse(revogacaoConcluida(Resposta.Recusado(403, "Recusado")))
+        assertTrue(revogacaoConcluida(ApiClient.interpretar(200, "{}", comToken = true)))
+        assertTrue(revogacaoConcluida(ApiClient.interpretar(401, "{}", comToken = true)))
+        assertFalse(revogacaoConcluida(ApiClient.interpretar(503, "{}", comToken = true)))
+    }
 }

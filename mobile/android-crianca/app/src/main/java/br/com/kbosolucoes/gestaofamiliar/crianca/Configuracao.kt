@@ -24,6 +24,8 @@ class Configuracao(private val contexto: Context) {
     val compartilhandoComoAdulto: Boolean get() = pareado && perfil == PERFIL_ADULTO
     /** Até quando a faixa "Compartilhar minha localização" fica escondida (o adulto tocou em "Agora não"). */
     val ofertaDispensadaAte: Long get() = prefs.getLong(OFERTA_DISPENSADA_ATE, 0L)
+    /** O adulto parou de compartilhar, mas o servidor ainda não confirmou (sem rede): não envia e tenta de novo. */
+    val pararPendente: Boolean get() = prefs.getBoolean(PARAR_PENDENTE, false)
     /** O adulto pediu, na tela de configurações, para começar a compartilhar (o app faz isso na tela principal). */
     val pedidoDeCompartilhar: Boolean get() = prefs.getBoolean(PEDIR_COMPARTILHAR, false)
     val token: String? get() = prefs.getString(TOKEN, null)
@@ -45,6 +47,7 @@ class Configuracao(private val contexto: Context) {
             .putString(SITE, site)
             .putString(PERFIL, perfil)
             .remove(PEDIR_COMPARTILHAR)
+            .remove(PARAR_PENDENTE)
             .putString(TOKEN, pareamento.token)
             .putInt(APARELHO, pareamento.aparelhoId)
             .putString(CRIANCA, pareamento.criancaNome)
@@ -74,8 +77,12 @@ class Configuracao(private val contexto: Context) {
     /** O adulto parou de compartilhar: apaga o token de posição e a fila (os alertas continuam). */
     fun pararCompartilhamento() {
         prefs.edit().remove(TOKEN).remove(APARELHO).remove(CRIANCA).remove(CRIANCA_ID)
-            .remove(PERFIL).remove(ULTIMO_ERRO).putBoolean(DESCONECTADO, false).apply()
+            .remove(PERFIL).remove(ULTIMO_ERRO).remove(PARAR_PENDENTE).putBoolean(DESCONECTADO, false).apply()
         fila().limpar()
+    }
+
+    fun marcarPararPendente(pendente: Boolean) {
+        prefs.edit().putBoolean(PARAR_PENDENTE, pendente).apply()
     }
 
     fun dispensarOferta(ate: Long) {
@@ -146,6 +153,7 @@ class Configuracao(private val contexto: Context) {
         private const val PERFIL = "perfil"
         private const val OFERTA_DISPENSADA_ATE = "oferta_compartilhar_dispensada_ate"
         private const val PEDIR_COMPARTILHAR = "pedir_compartilhar"
+        private const val PARAR_PENDENTE = "parar_compartilhamento_pendente"
         private const val SITE = "site"
         private const val TOKEN = "token"
         private const val APARELHO = "aparelho_id"

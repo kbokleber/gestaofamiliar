@@ -99,6 +99,7 @@ class WebActivity : Activity() {
         web.onResume()
         if (configuracao.pareado) LocationService.iniciar(this)
         if (configuracao.tokenAdulto != null) fundo.execute { AlertasAdulto.buscar(applicationContext) }
+        if (configuracao.pararPendente) fundo.execute { PararCompartilhamento.tentar(applicationContext) }
         conferirVersao()
         // Voltou da tela de configurações, onde o adulto tocou em "Compartilhar minha localização".
         if (configuracao.pedidoDeCompartilhar && loginAtual != null) explicarCompartilhamento()
@@ -456,7 +457,7 @@ class WebActivity : Activity() {
         usuarioAtual = usuario
         // Outro adulto entrou num celular que compartilha a posição de um adulto: o anterior para de compartilhar.
         if (devePararDeCompartilhar(configuracao.compartilhandoComoAdulto, configuracao.criancaId, usuario)) {
-            pararCompartilhamento(api)
+            pararCompartilhamento()
         }
         // Celular de adulto: o que recebe alertas ou o que compartilha a posição de um adulto (pergunta antes de trocar).
         val adultoDoCelular = configuracao.adultoId.takeIf { it != 0 }
@@ -537,11 +538,9 @@ class WebActivity : Activity() {
         }
     }
 
-    /** Para de enviar a posição do adulto (os alertas continuam). Roda fora da tela. */
-    private fun pararCompartilhamento(api: ApiClient) {
-        configuracao.token?.let { api.revogarLocalizacao(it) }
-        configuracao.pararCompartilhamento()
-        stopService(Intent(this, LocationService::class.java))
+    /** Para de enviar a posição do adulto (os alertas continuam). Sem rede, conclui depois. Roda fora da tela. */
+    private fun pararCompartilhamento() {
+        PararCompartilhamento.pedir(applicationContext)
     }
 
     /** Liga este celular à criança logada. Roda fora da tela. */

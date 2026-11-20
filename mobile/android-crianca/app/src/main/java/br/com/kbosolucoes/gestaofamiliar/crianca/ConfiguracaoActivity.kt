@@ -46,6 +46,9 @@ class ConfiguracaoActivity : Activity() {
         super.onResume()
         desenhar()
         if (configuracao.pareado) LocationService.iniciar(this)
+        if (configuracao.pararPendente) Thread {
+            if (PararCompartilhamento.tentar(applicationContext)) runOnUiThread { desenhar() }
+        }.start()
     }
 
     override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
@@ -176,15 +179,23 @@ class ConfiguracaoActivity : Activity() {
             LocationService.iniciar(this, enviarAgora = true)
             raiz.postDelayed({ desenhar() }, 4000)
         }
-        if (adulto) {
+        if (adulto && configuracao.pararPendente) {
+            aviso("O envio já parou neste celular. Falta avisar o site: o app conclui sozinho assim que tiver internet.")
+        } else if (adulto) {
             texto("Só os adultos da família veem a sua posição. O histórico fica 7 dias.", cinza = true)
             botao("Parar de compartilhar") {
-                val token = configuracao.token
                 Thread {
-                    token?.let { ApiClient(configuracao.site).revogarLocalizacao(it) }
-                    configuracao.pararCompartilhamento()
-                    stopService(Intent(this, LocationService::class.java))
-                    runOnUiThread { desenhar() }
+                    val concluiu = PararCompartilhamento.pedir(applicationContext)
+                    runOnUiThread {
+                        if (!concluiu) {
+                            android.widget.Toast.makeText(
+                                this,
+                                "Parou de enviar. Sem internet agora: o app avisa o site assim que conectar.",
+                                android.widget.Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                        desenhar()
+                    }
                 }.start()
             }
         } else {

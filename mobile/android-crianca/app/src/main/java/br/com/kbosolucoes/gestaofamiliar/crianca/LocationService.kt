@@ -50,7 +50,7 @@ class LocationService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (!configuracao.pareado || !configuracao.temLocalizacao()) {
+        if (!configuracao.pareado || !configuracao.temLocalizacao() || configuracao.pararPendente) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -210,7 +210,7 @@ class LocationService : Service() {
         /** Liga o serviço se o celular está pareado e tem permissão de localização. */
         fun iniciar(contexto: Context, enviarAgora: Boolean = false) {
             val configuracao = Configuracao(contexto)
-            if (!configuracao.pareado || !configuracao.temLocalizacao()) return
+            if (!configuracao.pareado || !configuracao.temLocalizacao() || configuracao.pararPendente) return
             val intent = Intent(contexto, LocationService::class.java)
             if (enviarAgora) intent.action = ACAO_ENVIAR_AGORA
             ContextCompat.startForegroundService(contexto, intent)

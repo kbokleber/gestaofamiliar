@@ -84,6 +84,12 @@ fun deveOferecerCompartilhar(
 fun devePararDeCompartilhar(compartilhandoComoAdulto: Boolean, donoDaPosicaoId: Int, usuario: UsuarioSessao?): Boolean =
     compartilhandoComoAdulto && usuario != null && !usuario.crianca && donoDaPosicaoId != 0 && donoDaPosicaoId != usuario.id
 
+/**
+ * O revogar-me terminou? Só com 200 (revogado agora) ou 401 (o servidor já não reconhece o token).
+ * Sem rede, erro do servidor ou outra recusa: mantém o token e tenta de novo depois.
+ */
+fun revogacaoConcluida(resposta: Resposta): Boolean = resposta is Resposta.Ok || resposta is Resposta.Desconectado
+
 /** Compara versões "2.0.0" e "2.0.10". Positivo se [a] é mais nova. Partes não numéricas valem 0. */
 fun compararVersoes(a: String, b: String): Int {
     val pa = a.trim().split('.').map { it.takeWhile(Char::isDigit).toIntOrNull() ?: 0 }
