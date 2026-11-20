@@ -15,6 +15,7 @@ from app.schemas.location import (
     ApelidoIn,
     ApelidoOut,
     CriancaOut,
+    MembroOut,
     GeocodificarIn,
     GeocodificarOut,
     LugarIn,
@@ -107,7 +108,7 @@ def salvar_apelido(
     return definir_apelido(db, adulto, child_id, dados.apelido)
 
 
-@router.get("/membros", response_model=list[CriancaOut])
+@router.get("/membros", response_model=list[MembroOut])
 def ler_membros(
     db: Session = Depends(get_db),
     adulto: User = Depends(adulto_localizacao),

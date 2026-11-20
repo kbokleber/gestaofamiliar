@@ -1033,3 +1033,20 @@ def test_c3_um_celular_ativo_por_adulto_mesmo_sem_token_anterior(ambiente):
     ativos = db.query(LocationDevice).filter(LocationDevice.child_user_id == 3, LocationDevice.revoked_at.is_(None)).count()
     assert ativos == 1
     assert [_enviar(cliente, t, latitude=-23.55, longitude=-46.63).status_code for t in tokens] == [401, 401, 200]
+
+
+def test_qa3_criancas_mantem_o_formato_do_204_e_membros_traz_adulto(ambiente):
+    cliente, db, estado = ambiente
+    token = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63).status_code == 200
+    estado["user"] = db.query(User).get(1)
+    # Campos de /criancas no app/site 2.0.4 (schemas/location.py em 8216587), sem nada a mais.
+    formato_204 = {
+        "id", "nome", "apelido", "family_id", "bateria", "atualizado_em", "ha_segundos",
+        "latitude", "longitude", "accuracy_m", "speed_kmh", "status", "aparelhos",
+    }
+    criancas = cliente.get("/api/v1/localizacao/criancas").json()
+    assert criancas and all(set(item) == formato_204 for item in criancas)
+    membros = cliente.get("/api/v1/localizacao/membros").json()
+    assert all(set(item) == formato_204 | {"adulto"} for item in membros)
+    assert {m["nome"]: m["adulto"] for m in membros} == {"Guilherme": False, "Giovana": False, "Mãe": True}

@@ -91,7 +91,10 @@ class CriancaOut(BaseModel):
     speed_kmh: Optional[float] = None
     status: StatusLugar
     aparelhos: list[AparelhoOut]
-    # True para o adulto que compartilha a posição (só aparece em /membros, nunca para a criança).
+
+
+class MembroOut(CriancaOut):
+    """Item de /membros: o mesmo de /criancas mais o campo "adulto". /criancas fica igual ao do app 2.0.4."""
     adulto: bool = False
 
 

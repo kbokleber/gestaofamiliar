@@ -272,7 +272,7 @@ def listar_criancas(db: Session, adulto: User) -> list[dict]:
         .order_by(User.first_name, User.last_name, User.username)
         .all()
     )
-    return _resumo_no_mapa(db, familias, criancas)
+    return _resumo_no_mapa(db, familias, criancas, com_adulto=False)
 
 
 def listar_membros(db: Session, adulto: User) -> list[dict]:
@@ -286,10 +286,11 @@ def listar_membros(db: Session, adulto: User) -> list[dict]:
         .all()
     )
     adultos = _adultos_no_mapa(db, familias)
-    return _resumo_no_mapa(db, familias, criancas) + _resumo_no_mapa(db, familias, adultos)
+    return _resumo_no_mapa(db, familias, criancas, com_adulto=True) + _resumo_no_mapa(db, familias, adultos, com_adulto=True)
 
 
-def _resumo_no_mapa(db: Session, familias: list[int], criancas: list[User]) -> list[dict]:
+def _resumo_no_mapa(db: Session, familias: list[int], criancas: list[User], com_adulto: bool) -> list[dict]:
+    """Resumo de cada pessoa no mapa. O campo "adulto" só vai para /membros (com_adulto=True)."""
     lugares = db.query(LocationPlace).filter(LocationPlace.family_id.in_(familias)).all()
     apelidos = {
         pref.child_user_id: pref.apelido
@@ -332,8 +333,9 @@ def _resumo_no_mapa(db: Session, familias: list[int], criancas: list[User]) -> l
             "speed_kmh": _velocidade_kmh(ponto.speed_mps) if ponto is not None else None,
             "status": status_da_crianca(crianca, ponto, da_familia),
             "aparelhos": aparelhos,
-            "adulto": not crianca.is_child,
         })
+        if com_adulto:
+            saida[-1]["adulto"] = not crianca.is_child
     return saida
 
 
