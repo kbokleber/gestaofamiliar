@@ -6,6 +6,8 @@ interface PonteNativa {
   salvarArquivo(base64: string, nome: string, tipo: string): void
   /** Informa ao app quem está logado (token vazio = saiu), para ele ligar localização ou alertas. */
   sessao?(token: string, usuarioJson: string): void
+  /** App 2.0.5+: abre a tela nativa "Configurações de envio" do próprio celular. */
+  abrirConfiguracoesDeEnvio?(): void
 }
 
 declare global {

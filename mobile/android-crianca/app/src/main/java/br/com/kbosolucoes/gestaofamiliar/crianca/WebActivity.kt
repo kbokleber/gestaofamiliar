@@ -442,6 +442,13 @@ class WebActivity : Activity() {
             }
         }
 
+        /** Item "Configurações de envio" do menu do site (app 2.0.5+). Não envia nada: só abre a tela do celular. */
+        @JavascriptInterface
+        fun abrirConfiguracoesDeEnvio() {
+            if (!mesmoSite(configuracao.site, paginaAtual)) return
+            runOnUiThread { abrirConfiguracoes() }
+        }
+
         @JavascriptInterface
         fun sessao(token: String, usuarioJson: String) {
             if (!mesmoSite(configuracao.site, paginaAtual)) return

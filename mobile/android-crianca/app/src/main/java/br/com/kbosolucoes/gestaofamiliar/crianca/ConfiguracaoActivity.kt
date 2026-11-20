@@ -18,8 +18,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import java.text.DateFormat
-import java.util.Date
+import androidx.core.app.NotificationManagerCompat
 
 /**
  * Configurações do celular da criança: mostra, passo a passo, o que falta liberar para a
@@ -59,7 +58,7 @@ class ConfiguracaoActivity : Activity() {
 
     private fun desenhar() {
         raiz.removeAllViews()
-        titulo("Gestão Familiar")
+        titulo("Configurações de envio")
         val adulto = configuracao.compartilhandoComoAdulto || (!configuracao.pareado && configuracao.tokenAdulto != null)
         texto(
             if (adulto) {
@@ -147,31 +146,21 @@ class ConfiguracaoActivity : Activity() {
         subtitulo(if (adulto) "Compartilhando a localização de $nome" else "Conectado como $nome")
 
         subtitulo("Para funcionar sempre")
-        passo(
-            "Localização", configuracao.temLocalizacao(),
-            "Toque em Permitir e escolha \"Localização precisa\".", "Permitir",
-        ) { pedirLocalizacao() }
+        val checagens = checagensDeEnvio(
+            localizacao = configuracao.temLocalizacao(),
+            notificacao = NotificationManagerCompat.from(this).areNotificationsEnabled(),
+            localizacaoSempre = configuracao.temLocalizacaoSempre(),
+            semEconomiaDeBateria = configuracao.semEconomiaDeBateria(),
+        )
+        for (checagem in checagens) {
+            passo(checagem.nome, checagem.ok, checagem.explicacao, "Abrir ajuste") { abrirAjuste(checagem.ajuste) }
+        }
         if (configuracao.temLocalizacao() && !configuracao.temLocalizacaoPrecisa()) {
             aviso("A localização está aproximada. Para mostrar \"está em Casa\" com segurança, ative \"Localização precisa\" nas configurações do app.")
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            passo(
-                "Notificação fixa", configuracao.temNotificacao(),
-                "Mostra os lembretes e que a localização está sendo compartilhada.", "Permitir",
-            ) { requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), PEDIDO_NOTIFICACAO) }
-        }
-        passo(
-            "Localização o tempo todo", configuracao.temLocalizacaoSempre(),
-            "Na tela que abrir, escolha \"Permitir o tempo todo\".", "Abrir",
-        ) { pedirLocalizacaoSempre() }
-        passo(
-            "Sem economia de bateria", configuracao.semEconomiaDeBateria(),
-            "Evita que o Android pare o envio para economizar bateria.", "Liberar",
-        ) { pedirSemEconomia() }
 
         subtitulo("Envio")
-        val ultimo = configuracao.ultimoEnvio
-        texto(if (ultimo > 0) "Último envio: ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(ultimo))}" else "Ainda não enviou nenhuma localização.")
+        texto(formatarUltimoEnvio(configuracao.ultimoEnvio))
         val pendentes = configuracao.fila().tamanho()
         if (pendentes > 0) texto("$pendentes ${if (pendentes == 1) "posição esperando" else "posições esperando"} a internet voltar.", cinza = true)
         configuracao.ultimoErro?.let { texto("Último problema: $it", cinza = true) }
@@ -179,10 +168,10 @@ class ConfiguracaoActivity : Activity() {
             LocationService.iniciar(this, enviarAgora = true)
             raiz.postDelayed({ desenhar() }, 4000)
         }
+        texto(textoHistorico(adulto), cinza = true)
         if (adulto && configuracao.pararPendente) {
             aviso("O envio já parou neste celular. Falta avisar o site: o app conclui sozinho assim que tiver internet.")
         } else if (adulto) {
-            texto("Só os adultos da família veem a sua posição. O histórico fica 7 dias.", cinza = true)
             botao("Parar de compartilhar") {
                 Thread {
                     val concluiu = PararCompartilhamento.pedir(applicationContext)
@@ -205,6 +194,23 @@ class ConfiguracaoActivity : Activity() {
     }
 
     // ------------------------------------------------------------ permissões
+
+    /** Leva direto à tela do Android que resolve aquela checagem. */
+    private fun abrirAjuste(ajuste: AjusteAndroid) {
+        val detalhesDoApp = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+        when (ajuste) {
+            AjusteAndroid.LOCALIZACAO -> runCatching { startActivity(detalhesDoApp) }.onFailure { pedirLocalizacao() }
+            AjusteAndroid.NOTIFICACOES -> {
+                val notificacoes = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                runCatching { startActivity(notificacoes) }.onFailure { runCatching { startActivity(detalhesDoApp) } }
+            }
+            // Android 10 mostra a opção "o tempo todo" no próprio diálogo; do 11 em diante só nos ajustes do app.
+            AjusteAndroid.LOCALIZACAO_SEMPRE ->
+                if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && configuracao.temLocalizacao()) pedirLocalizacaoSempre()
+                else runCatching { startActivity(detalhesDoApp) }.onFailure { pedirLocalizacaoSempre() }
+            AjusteAndroid.BATERIA -> pedirSemEconomia()
+        }
+    }
 
     private fun pedirLocalizacao() {
         requestPermissions(
@@ -322,6 +328,5 @@ class ConfiguracaoActivity : Activity() {
         val ROXO = Color.rgb(124, 58, 237)
         const val PEDIDO_LOCALIZACAO = 1
         const val PEDIDO_SEMPRE = 2
-        const val PEDIDO_NOTIFICACAO = 3
     }
 }

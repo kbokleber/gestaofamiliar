@@ -3,12 +3,12 @@ import { keycloakEnabled, logoutKeycloak } from '../lib/keycloak'
 import { useAuthStore } from '../stores/authStore'
 import { 
   Home, Users, Calendar, Pill, Wrench, Settings, LogOut, 
-  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen, ClipboardList, ClipboardCheck, FileText, Megaphone, StickyNote, LineChart, MapPin
+  Heart, Menu, X, Activity, Shield, Building2, User, Wallet, TrendingUp, ListFilter, BookOpen, ClipboardList, ClipboardCheck, FileText, Megaphone, StickyNote, LineChart, MapPin, Smartphone
 } from 'lucide-react'
 import { canSeeMenu, type MenuKey } from '../lib/menus'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useAppVersion } from '../hooks/useAppVersion'
-import { versaoDoApp } from '../lib/appNativo'
+import { ponteNativa, versaoDoApp } from '../lib/appNativo'
 
 export default function Layout() {
   const { user, logout } = useAuthStore()
@@ -17,6 +17,9 @@ export default function Layout() {
   const { revision, buildTimeLabel } = useAppVersion()
   // Dentro do app Android, mostra também a versão do app instalado.
   const versaoApp = versaoDoApp()
+  // App 2.0.5+: tela nativa com as permissões e o último envio deste celular (criança ou adulto).
+  const ponte = ponteNativa()
+  const temConfiguracoesDeEnvio = typeof ponte?.abrirConfiguracoesDeEnvio === 'function'
   const barraRef = useRef<HTMLDivElement>(null)
   const [alturaBarra, setAlturaBarra] = useState(0)
 
@@ -205,6 +208,19 @@ export default function Layout() {
         </nav>
 
         <div className="shrink-0 border-t border-gray-100 bg-white p-4 space-y-1">
+          {temConfiguracoesDeEnvio && (
+            <button
+              type="button"
+              onClick={() => {
+                setSidebarOpen(false)
+                ponte?.abrirConfiguracoesDeEnvio?.()
+              }}
+              className="flex items-center w-full px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 rounded-md transition-colors"
+            >
+              <Smartphone className="mr-3 h-5 w-5" />
+              Configurações de envio
+            </button>
+          )}
           {(user?.is_superuser || user?.is_staff) && (
             <Link
               to="/profile"
