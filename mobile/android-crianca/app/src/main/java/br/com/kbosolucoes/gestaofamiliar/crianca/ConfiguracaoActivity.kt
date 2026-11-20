@@ -66,7 +66,8 @@ class ConfiguracaoActivity : Activity() {
                     "só os adultos da família veem, e as crianças nunca."
             } else {
                 "Este app envia a localização e a bateria deste celular para a família, a cada 5 minutos, e mostra os lembretes de atividades. " +
-                    "Ele não grava áudio, não vê a tela, as fotos nem as mensagens."
+                    "Ele não grava áudio, não vê a tela, as fotos nem as mensagens. " +
+                    "O botão SOS envia nome, posição e bateria só para os familiares escolhidos; a posição do SOS fica 7 dias e o registro, 30 dias."
             },
             cinza = true,
         )

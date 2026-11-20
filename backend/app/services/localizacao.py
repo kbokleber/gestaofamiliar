@@ -24,6 +24,8 @@ from app.models.location import (
     LocationPlaceEvent,
     LocationPlaceState,
     LocationPoint,
+    LocationSos,
+    LocationSosAvisado,
 )
 from app.models.user import User
 from app.services import alertas_adultos, avisos_app
@@ -41,6 +43,9 @@ PARADA_MIN = timedelta(minutes=5)
 PONTO_ANTIGO_MAX = timedelta(days=7)
 # Consentimento do app 2.0.5: o histórico do adulto fica 7 dias e depois é apagado.
 RETENCAO_ADULTO = timedelta(days=7)
+# SOS (texto do app): posição e bateria do pedido ficam 7 dias; o registro inteiro, 30 dias.
+RETENCAO_SOS_POSICAO = timedelta(days=7)
+RETENCAO_SOS = timedelta(days=30)
 FUTURO_MAX = timedelta(minutes=5)
 PREPOSICOES = ("em", "na", "no")
 SAIDA = {"em": "de", "na": "da", "no": "do"}
@@ -705,6 +710,7 @@ def limpar_historico_antigo(db: Session, agora: Optional[datetime] = None) -> di
         )
         .delete(synchronize_session=False)
     )
+    sos = _limpar_sos_antigos(db, agora)
     avisos_app.limpar_antigos(db)
     codigos = (
         db.query(LocationPairingCode)
@@ -716,7 +722,7 @@ def limpar_historico_antigo(db: Session, agora: Optional[datetime] = None) -> di
     )
     if pontos or eventos or codigos:
         logger.info("limpeza localizacao pontos=%s eventos=%s codigos=%s", pontos, eventos, codigos)
-    return {"pontos": pontos, "eventos": eventos, "codigos": codigos}
+    return {"pontos": pontos, "eventos": eventos, "codigos": codigos, "sos": sos}
 
 
 def _limpar_se_preciso(db: Session, agora: datetime) -> None:
@@ -887,10 +893,31 @@ def _aparelho_da_familia(db: Session, familias: list[int], device_id: int) -> Lo
 
 
 def _apagar_pontos_de_adulto(db: Session, aparelho: LocationDevice) -> None:
-    """Adulto parou de compartilhar: os pontos deste celular são apagados (criança mantém o histórico)."""
+    """Adulto parou de compartilhar: os pontos deste celular são apagados (criança mantém o histórico),
+    e também a posição e a bateria dos SOS feitos por ele (fica só o registro de que houve SOS)."""
     dono = db.query(User).filter(User.id == aparelho.child_user_id).first()
     if dono is not None and not dono.is_child:
         db.query(LocationPoint).filter(LocationPoint.device_id == aparelho.id).delete(synchronize_session=False)
+        _apagar_posicao_do_sos(db.query(LocationSos).filter(LocationSos.device_id == aparelho.id))
+
+
+def _apagar_posicao_do_sos(consulta) -> int:
+    return consulta.filter(
+        (LocationSos.latitude.isnot(None)) | (LocationSos.longitude.isnot(None)) | (LocationSos.battery_level.isnot(None))
+    ).update(
+        {LocationSos.latitude: None, LocationSos.longitude: None, LocationSos.accuracy_m: None, LocationSos.battery_level: None},
+        synchronize_session=False,
+    )
+
+
+def _limpar_sos_antigos(db: Session, agora: datetime) -> int:
+    """SOS: posição e bateria saem em 7 dias; o pedido inteiro (e quem foi avisado), em 30 dias."""
+    _apagar_posicao_do_sos(db.query(LocationSos).filter(LocationSos.created_at < agora - RETENCAO_SOS_POSICAO))
+    velhos = [i for (i,) in db.query(LocationSos.id).filter(LocationSos.created_at < agora - RETENCAO_SOS).all()]
+    if not velhos:
+        return 0
+    db.query(LocationSosAvisado).filter(LocationSosAvisado.sos_id.in_(velhos)).delete(synchronize_session=False)
+    return db.query(LocationSos).filter(LocationSos.id.in_(velhos)).delete(synchronize_session=False)
 
 
 def revogar_dispositivo(db: Session, adulto: User, device_id: int) -> dict:

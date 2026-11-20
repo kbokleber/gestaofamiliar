@@ -49,7 +49,13 @@ class SosTest {
             RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject("""{"id":1,"repetido":false,"avisados":2}""")), agora, sp),
         )
         assertTrue(RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject("""{"id":1,"repetido":true,"avisados":2}""")), agora, sp).contains("já tinha sido enviado"))
-        assertTrue(RegrasSos.mensagemDoResultado(Resposta.TentarDepois("sem rede"), agora, sp).contains("Sem internet"))
+        assertTrue(RegrasSos.mensagemDoResultado(Resposta.TentarDepois("sem rede"), agora, sp).contains("não foi enviado agora (sem rede)"))
         assertTrue(RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject("""{"id":1,"avisados":0}""")), agora, sp).contains("ninguém da família"))
+        // S6: falha ou ninguém avisado mostram 190, 192 e 193.
+        for (resposta in listOf(Resposta.TentarDepois("sem rede"), Resposta.Desconectado, Resposta.Recusado(429, "Muitos pedidos"), Resposta.Ok(JSONObject("""{"id":1,"avisados":0}""")))) {
+            val texto = RegrasSos.mensagemDoResultado(resposta, agora, sp)
+            assertTrue(texto, texto.contains("190") && texto.contains("192") && texto.contains("193"))
+        }
+        assertFalse(RegrasSos.mensagemDoResultado(Resposta.Ok(JSONObject("""{"id":1,"avisados":2}""")), agora, sp).contains("190"))
     }
 }

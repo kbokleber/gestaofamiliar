@@ -780,6 +780,7 @@ class WebActivity : Activity() {
                 "Quem vê: só os adultos da família com acesso à Localização. As crianças nunca veem.\n\n" +
                 "Por quanto tempo: o histórico fica guardado 7 dias e depois é apagado.\n\n" +
                 "Você não recebe nem gera alertas de chegada e saída.\n\n" +
+                "SOS: se você usar o botão SOS, seu nome, posição e bateria vão só para os familiares escolhidos. A posição do SOS fica guardada 7 dias e o registro do SOS, 30 dias.\n\n" +
                 "Para desligar: Configurações do app › Parar de compartilhar, ou Revogar no site.\n\n" +
                 "Depois, o Android vai pedir a localização. Escolha \"Permitir o tempo todo\"."
     }

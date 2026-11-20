@@ -9,6 +9,9 @@ import java.util.TimeZone
 
 /** Regras do botão SOS, sem Android, para dar para testar sozinho. */
 object RegrasSos {
+    /** Não há central: quando o SOS falha ou ninguém é avisado, mostrar os números de emergência. */
+    const val EMERGENCIA = "Em emergência, ligue 190 (Polícia), 192 (SAMU) ou 193 (Bombeiros)."
+
     /** Segurar o botão por 3 s para começar; soltar antes não faz nada. */
     const val SEGURAR_MS = 3_000L
     /** Depois, 5 s de contagem com "Cancelar" antes de enviar. */
@@ -47,12 +50,12 @@ object RegrasSos {
                 } else {
                     val n = resposta.corpo.optInt("avisados", 0)
                     if (n > 0) "Pedido de socorro enviado às $hora. ${if (n == 1) "1 familiar foi avisado" else "$n familiares foram avisados"}."
-                    else "Pedido de socorro registrado às $hora, mas ninguém da família está marcado para receber. Ligue para um familiar."
+                    else "Pedido de socorro registrado às $hora, mas ninguém da família foi avisado. Ligue para um familiar. $EMERGENCIA"
                 }
             }
-            Resposta.Desconectado -> "Este celular foi desconectado da família. O pedido não foi enviado. Ligue para um familiar."
-            is Resposta.Recusado -> "O pedido não foi aceito: ${resposta.mensagem}. Ligue para um familiar."
-            is Resposta.TentarDepois -> "Sem internet agora: o pedido não foi enviado. Tente de novo ou ligue para um familiar."
+            Resposta.Desconectado -> "Este celular foi desconectado da família. O pedido não foi enviado. Ligue para um familiar. $EMERGENCIA"
+            is Resposta.Recusado -> "O pedido não foi aceito: ${resposta.mensagem}. Ligue para um familiar. $EMERGENCIA"
+            is Resposta.TentarDepois -> "O pedido não foi enviado agora (${resposta.motivo}). Tente de novo ou ligue para um familiar. $EMERGENCIA"
         }
     }
 }

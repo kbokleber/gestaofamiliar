@@ -1151,11 +1151,15 @@ def test_sos_avisa_so_os_escolhidos_com_nome_posicao_horario_e_bateria(ambiente)
     assert de_novo.json() == {"id": sos.json()["id"], "repetido": True, "avisados": 1}
     assert db.query(LocationSos).count() == 1
 
-    # No mapa: aparece com a última posição e some do "aberto" quando alguém marca Visto.
+    # S1: o Kleber (não escolhido, não avisado) não vê o SOS nem a posição, e não marca Visto.
+    assert cliente.get("/api/v1/localizacao/sos").json() == []
+    assert cliente.post(f"/api/v1/localizacao/sos/{sos.json()['id']}/visto").status_code == 404
+    # A Mãe (avisada) vê com a última posição; some do "aberto" quando ela marca Visto.
+    estado["user"] = db.query(User).get(3)
     lista = cliente.get("/api/v1/localizacao/sos").json()
     assert lista[0]["nome"] == "Guilherme" and lista[0]["latitude"] == -23.55 and lista[0]["bateria"] == 40 and lista[0]["visto_em"] is None
     visto = cliente.post(f"/api/v1/localizacao/sos/{sos.json()['id']}/visto").json()
-    assert visto["visto_em"] is not None and visto["visto_por"] == "Kleber"
+    assert visto["visto_em"] is not None and visto["visto_por"] == "Mãe"
 
     # Passados 2 min, um novo SOS vale de novo e usa a posição enviada pelo celular.
     registro = db.query(LocationSos).first()
@@ -1202,3 +1206,69 @@ def test_sos_isolado_por_familia_e_longe_das_criancas(ambiente):
     assert cliente.get("/api/v1/localizacao/sos").status_code == 403
     assert cliente.get("/api/v1/localizacao/sos/destinatarios").status_code == 403
     assert cliente.post("/api/v1/localizacao/dispositivos/sos", json={}).status_code == 401  # sem token de celular
+
+
+
+def test_sos_s2_posicao_some_em_7_dias_registro_em_30_e_na_revogacao_do_adulto(ambiente):
+    from app.models.location import LocationSos, LocationSosAvisado
+
+    cliente, db, estado = ambiente
+    estado["user"] = db.query(User).get(1)
+    token_gui = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    corpo = {"latitude": -23.55, "longitude": -46.63, "accuracy_m": 5, "battery_level": 50}
+    ids = []
+    for dias in (31, 8, 0):
+        r = cliente.post("/api/v1/localizacao/dispositivos/sos", json=corpo, headers={"X-Device-Token": token_gui})
+        ids.append(r.json()["id"])
+        registro = db.query(LocationSos).get(ids[-1])
+        registro.created_at = datetime.now(timezone.utc) - timedelta(days=dias, minutes=5)
+        db.commit()
+    servico.limpar_historico_antigo(db)
+    db.commit()
+    db.expire_all()
+    assert db.query(LocationSos).get(ids[0]) is None                     # 31 dias: apagado
+    assert db.query(LocationSosAvisado).filter(LocationSosAvisado.sos_id == ids[0]).count() == 0
+    oito = db.query(LocationSos).get(ids[1])                              # 8 dias: só o registro
+    assert (oito.latitude, oito.longitude, oito.accuracy_m, oito.battery_level) == (None, None, None, None)
+    hoje = db.query(LocationSos).get(ids[2])                              # recente: intacto
+    assert hoje.latitude == -23.55 and hoje.battery_level == 50
+
+    # Adulto que para de compartilhar: a posição dos SOS dele some na hora.
+    r = _parear_adulto(cliente, estado, db, 3).json()
+    sos_mae = cliente.post("/api/v1/localizacao/dispositivos/sos", json=corpo, headers={"X-Device-Token": r["device_token"]}).json()["id"]
+    assert cliente.post("/api/v1/localizacao/dispositivos/revogar-me", headers={"X-Device-Token": r["device_token"]}).status_code == 200
+    db.expire_all()
+    registro = db.query(LocationSos).get(sos_mae)
+    assert registro is not None and registro.latitude is None and registro.battery_level is None
+
+
+def test_sos_s4_teto_de_10_por_familia_por_hora(ambiente):
+    from app.models.location import LocationDevice, LocationSos
+
+    cliente, db, estado = ambiente
+    estado["user"] = db.query(User).get(1)
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    aparelho = db.query(LocationDevice).filter(LocationDevice.child_user_id == 16).first()
+    agora = datetime.now(timezone.utc)
+    for i in range(10):
+        db.add(LocationSos(family_id=1, user_id=17, device_id=aparelho.id, created_at=agora - timedelta(minutes=50 - i)))
+    db.commit()
+    r = cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token})
+    assert r.status_code == 429
+    assert db.query(LocationSos).count() == 10
+
+
+def test_sos_s5_horario_fora_do_limite_usa_a_ultima_posicao_conhecida(ambiente):
+    from app.models.location import LocationSos
+
+    cliente, db, estado = ambiente
+    estado["user"] = db.query(User).get(1)
+    token = _parear(cliente, 16, "Celular do Gui")["device_token"]
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63,
+                   recorded_at=_iso(datetime.now(timezone.utc) - timedelta(minutes=2))).status_code == 200
+    futuro = _iso(datetime.now(timezone.utc) + timedelta(hours=3))
+    r = cliente.post("/api/v1/localizacao/dispositivos/sos", json={"latitude": 10.0, "longitude": 10.0, "recorded_at": futuro},
+                     headers={"X-Device-Token": token})
+    assert r.status_code == 200
+    registro = db.query(LocationSos).get(r.json()["id"])
+    assert registro.latitude == -23.55  # descartou a posição com horário inválido

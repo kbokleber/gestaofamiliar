@@ -16,12 +16,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.lembrete import PushInscricao
-from app.models.location import LocationDevice, LocationSos, LocationSosDestinatario
+from app.models.location import LocationDevice, LocationSos, LocationSosAvisado, LocationSosDestinatario
 from app.models.user import User
 from app.schemas.location import SosIn
 from app.services import avisos_app
 from app.services.localizacao import (
     FUSO,
+    FUTURO_MAX,
+    PONTO_ANTIGO_MAX,
     adulto_com_localizacao,
     como_utc,
     familia_do_cadastro,
@@ -34,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 # Um SOS por celular a cada 2 minutos: o segundo toque por engano não manda outro aviso.
 INTERVALO_SOS = timedelta(minutes=2)
+# Teto por família: no máximo 10 SOS por hora (protege contra acionamento em massa).
+MAX_SOS_FAMILIA_HORA = 10
 VALIDADE_AVISO_SOS = timedelta(hours=24)
 RECENTES = timedelta(hours=24)
 
@@ -105,6 +109,8 @@ def texto_do_aviso(nome: str, criado_em: datetime, posicao_em: Optional[datetime
 
 def registrar_sos(db: Session, aparelho: LocationDevice, dados: SosIn) -> dict:
     agora = datetime.now(timezone.utc)
+    # Trava a linha do celular até o commit: dois toques ao mesmo tempo não geram dois SOS.
+    db.query(LocationDevice).filter(LocationDevice.id == aparelho.id).with_for_update().first()
     recente = (
         db.query(LocationSos)
         .filter(LocationSos.device_id == aparelho.id, LocationSos.created_at >= agora - INTERVALO_SOS)
@@ -114,13 +120,27 @@ def registrar_sos(db: Session, aparelho: LocationDevice, dados: SosIn) -> dict:
     if recente is not None:
         return {"id": recente.id, "repetido": True, "avisados": recente.avisados}
 
+    na_ultima_hora = db.query(LocationSos).filter(
+        LocationSos.family_id == aparelho.family_id, LocationSos.created_at >= agora - timedelta(hours=1)
+    ).count()
+    if na_ultima_hora >= MAX_SOS_FAMILIA_HORA:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitos pedidos de SOS desta família na última hora",
+        )
+
     dono = db.query(User).filter(User.id == aparelho.child_user_id).first()
     if dono is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Aparelho não pareado ou token revogado.")
     ultimo = ultimo_ponto(db, dono.id)
-    if dados.latitude is not None and dados.longitude is not None:
+    momento_do_celular = como_utc(dados.recorded_at) if dados.recorded_at else None
+    # Horário no futuro ou antigo demais: não recusa o SOS (seria pior numa emergência), mas descarta
+    # a posição enviada e usa a última conhecida pelo servidor.
+    horario_valido = momento_do_celular is None or (agora - PONTO_ANTIGO_MAX <= momento_do_celular <= agora + FUTURO_MAX)
+    if dados.latitude is not None and dados.longitude is not None and horario_valido:
         latitude, longitude, precisao = dados.latitude, dados.longitude, dados.accuracy_m
-        posicao_em = como_utc(dados.recorded_at) if dados.recorded_at else agora
+        posicao_em = momento_do_celular or agora
     elif ultimo is not None:
         latitude, longitude, precisao = ultimo.latitude, ultimo.longitude, ultimo.accuracy_m
         posicao_em = como_utc(ultimo.recorded_at)
@@ -147,6 +167,7 @@ def registrar_sos(db: Session, aparelho: LocationDevice, dados: SosIn) -> dict:
     url = f"/localizacao?sos={sos.id}"
     avisados = 0
     for adulto in destinatarios(db, aparelho.family_id, dono.id):
+        db.add(LocationSosAvisado(sos_id=sos.id, user_id=adulto.id))
         avisos_app.enfileirar(db, adulto, titulo, texto, url, tipo=f"sos-{sos.id}", validade=VALIDADE_AVISO_SOS)
         _push_navegador(db, adulto, titulo, texto, url)
         avisados += 1
@@ -175,13 +196,18 @@ def _serializar(db: Session, sos: LocationSos) -> dict:
     }
 
 
-def listar_sos(db: Session, adulto: User) -> list[dict]:
-    """SOS ainda não vistos e os das últimas 24 h, só das famílias do adulto."""
+def _do_avisado(db: Session, adulto: User):
+    """SOS das famílias do adulto em que ELE foi avisado. Quem não foi avisado não vê nem marca."""
     familias = familias_do_adulto(adulto, db)
+    avisado_em = db.query(LocationSosAvisado.sos_id).filter(LocationSosAvisado.user_id == adulto.id)
+    return db.query(LocationSos).filter(LocationSos.family_id.in_(familias), LocationSos.id.in_(avisado_em))
+
+
+def listar_sos(db: Session, adulto: User) -> list[dict]:
+    """SOS ainda não vistos e os das últimas 24 h, só os que avisaram este adulto."""
     corte = datetime.now(timezone.utc) - RECENTES
     lista = (
-        db.query(LocationSos)
-        .filter(LocationSos.family_id.in_(familias))
+        _do_avisado(db, adulto)
         .filter((LocationSos.visto_em.is_(None)) | (LocationSos.created_at >= corte))
         .order_by(LocationSos.id.desc())
         .limit(50)
@@ -191,8 +217,7 @@ def listar_sos(db: Session, adulto: User) -> list[dict]:
 
 
 def marcar_visto(db: Session, adulto: User, sos_id: int) -> dict:
-    familias = familias_do_adulto(adulto, db)
-    sos = db.query(LocationSos).filter(LocationSos.id == sos_id, LocationSos.family_id.in_(familias)).first()
+    sos = _do_avisado(db, adulto).filter(LocationSos.id == sos_id).first()
     if sos is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SOS não encontrado nesta família.")
     if sos.visto_em is None:

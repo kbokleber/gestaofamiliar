@@ -250,6 +250,11 @@ function DestinatariosSos() {
       <p className="mt-1 text-sm text-gray-600">
         O botão SOS do app avisa só as pessoas marcadas, com nome, última posição, horário e bateria. Sem nenhuma marcada, avisa todos os adultos que veem o mapa.
       </p>
+      {atuais.length === 0 && (
+        <p role="status" className="mt-2 rounded-md bg-amber-50 p-2 text-sm text-amber-800">
+          Nenhum familiar marcado: hoje o SOS avisa todos os adultos que veem o mapa. Marque quem deve receber.
+        </p>
+      )}
       <div className="mt-3 space-y-2">
         {dados.data.opcoes.map((pessoa) => (
           <label key={pessoa.id} className="flex min-h-11 items-center gap-3 text-base text-gray-800">

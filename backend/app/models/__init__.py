@@ -41,6 +41,7 @@ from app.models.location import (
     LocationPlaceState,
     LocationPoint,
     LocationSos,
+    LocationSosAvisado,
     LocationSosDestinatario,
 )
 

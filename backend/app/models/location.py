@@ -158,3 +158,14 @@ class LocationSosDestinatario(Base):
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class LocationSosAvisado(Base):
+    """Quem recebeu o aviso de um SOS: só essas pessoas veem o SOS (com posição) e marcam "Visto"."""
+
+    __tablename__ = "location_sos_avisado"
+    __table_args__ = (UniqueConstraint("sos_id", "user_id", name="uq_location_sos_avisado"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    sos_id = Column(Integer, ForeignKey("location_sos.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("auth_user.id"), nullable=False, index=True)
