@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -32,6 +32,18 @@ class ParearDispositivoOut(BaseModel):
     mensagem: str
 
 
+class ChecklistIn(BaseModel):
+    """Estado do celular que o app 2.0.7+ manda junto com a posição (checklist de envio).
+    Só ajustes do Android: nenhum dado pessoal novo. Campos desconhecidos são ignorados."""
+    gps: Optional[bool] = None  # localização do aparelho ligada
+    sempre: Optional[bool] = None  # "Permitir o tempo todo"
+    precisa: Optional[bool] = None  # localização precisa e GPS (alta precisão)
+    bateria_livre: Optional[bool] = None  # bateria do app "Sem restrições"
+    # O Android não deixa o app conferir o início automático (Xiaomi, Redmi etc.): só o que a pessoa confirmou.
+    inicio_automatico: Optional[Literal["confirmado", "pendente", "nao_se_aplica"]] = None
+    inicio_automatico_em: Optional[date] = None
+
+
 class PosicaoIn(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
@@ -43,6 +55,7 @@ class PosicaoIn(BaseModel):
     app_versao: Optional[int] = Field(default=None, ge=0)
     notificacoes: Optional[bool] = None
     avisos_recebidos: list[int] = Field(default_factory=list, max_length=50)
+    checklist: Optional[ChecklistIn] = None
 
 
 class AvisoOut(BaseModel):
@@ -93,9 +106,26 @@ class CriancaOut(BaseModel):
     aparelhos: list[AparelhoOut]
 
 
+class ChecklistOut(BaseModel):
+    gps: Optional[bool] = None
+    sempre: Optional[bool] = None
+    precisa: Optional[bool] = None
+    bateria_livre: Optional[bool] = None
+    inicio_automatico: Optional[str] = None
+    inicio_automatico_em: Optional[date] = None
+
+
+class AparelhoMembroOut(AparelhoOut):
+    """Celular no /membros: o de /criancas mais o checklist que o app informou (null no app antigo)."""
+    checklist: Optional[ChecklistOut] = None
+    checklist_em: Optional[datetime] = None
+    app_versao: Optional[int] = None
+
+
 class MembroOut(CriancaOut):
     """Item de /membros: o mesmo de /criancas mais o campo "adulto". /criancas fica igual ao do app 2.0.4."""
     adulto: bool = False
+    aparelhos: list[AparelhoMembroOut]
 
 
 class PontoTrajeto(BaseModel):

@@ -11,10 +11,11 @@ import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import {
   corBateria, formatarDuracao, formatarHora, haQuantoTempo, hojeSaoPaulo, localizacaoApi,
   mensagemDeErro, sugerirPreposicao,
-  type Crianca, type Lugar, type LugarEntrada, type Pareamento, type Preposicao, type Sos, type Trajeto,
+  type Aparelho, type Crianca, type Lugar, type LugarEntrada, type Pareamento, type Preposicao, type Sos, type Trajeto,
 } from './api'
 import { CirculosLugares, MapaBase, iconeBolinha, iconeGrupo } from './Mapa'
 import { agruparProximos, casarFotos } from './fotosEGrupos'
+import { checklistDoCelular, pendencias, type EstadoItemSite } from './checklistDoCelular'
 import BaixarApp from './BaixarApp'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -758,7 +759,8 @@ function AbaCelulares({ criancas }: { criancas: Crianca[] }) {
           ) : (
             <ul className="mt-3 divide-y divide-gray-100">
               {crianca.aparelhos.map((aparelho) => (
-                <li key={aparelho.id} className="flex items-center justify-between gap-3 py-2">
+                <li key={aparelho.id} className="py-2">
+                  <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className={`text-sm font-medium ${aparelho.revogado ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                       {aparelho.nome}
@@ -783,6 +785,8 @@ function AbaCelulares({ criancas }: { criancas: Crianca[] }) {
                       </button>
                     )}
                   </div>
+                  </div>
+                  {!aparelho.revogado && <ChecklistCelular aparelho={aparelho} />}
                 </li>
               ))}
             </ul>
@@ -887,5 +891,56 @@ function ModalCodigo({ pareamento, onFechar }: { pareamento: Pareamento; onFecha
         </div>
       </div>
     </Modal>
+  )
+}
+
+// ---------------------------------------------------------------- Checklist de envio do celular
+
+const MARCA_DO_ITEM: Record<EstadoItemSite, { simbolo: string; cor: string; rotulo: string }> = {
+  ok: { simbolo: '✓', cor: 'text-green-700', rotulo: '' },
+  manual: { simbolo: '✓', cor: 'text-green-700', rotulo: ' (confirmado no celular)' },
+  falta: { simbolo: '✗', cor: 'text-red-700', rotulo: '' },
+  atrasado: { simbolo: '!', cor: 'text-amber-700', rotulo: ' (atrasado)' },
+  manual_pendente: { simbolo: '?', cor: 'text-amber-700', rotulo: ' (confirmação manual)' },
+  sem_dado: { simbolo: '–', cor: 'text-gray-400', rotulo: ' (sem dado)' },
+}
+
+function ChecklistCelular({ aparelho }: { aparelho: Aparelho }) {
+  const itens = checklistDoCelular(aparelho)
+  const faltam = pendencias(itens)
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setAberto(!aberto)}
+        className={`text-xs font-medium ${faltam.length ? 'text-amber-700' : 'text-green-700'} hover:underline`}
+        aria-expanded={aberto}
+      >
+        {faltam.length
+          ? `Checklist de envio: ${faltam.length} ${faltam.length === 1 ? 'pendência' : 'pendências'}`
+          : 'Checklist de envio: tudo certo'}
+        {aberto ? ' ▲' : ' ▼'}
+      </button>
+      {aberto && (
+        <ul className="mt-1 space-y-1 rounded-md bg-gray-50 p-2 text-xs">
+          {itens.map((item) => {
+            const marca = MARCA_DO_ITEM[item.estado]
+            return (
+              <li key={item.chave}>
+                <span className={`font-medium ${marca.cor}`}>{marca.simbolo} {item.nome}{marca.rotulo}</span>
+                {item.detalhe && <span className="block text-gray-600">{item.detalhe}</span>}
+              </li>
+            )
+          })}
+          {aparelho.checklist_em && (
+            <li className="pt-1 text-gray-500">
+              Ajustes informados pelo celular em{' '}
+              {new Date(aparelho.checklist_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' })}.
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
   )
 }

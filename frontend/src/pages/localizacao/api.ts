@@ -1,3 +1,4 @@
+import type { ChecklistInformado } from './checklistDoCelular'
 import api from '../../lib/api'
 
 export type Preposicao = 'em' | 'na' | 'no'
@@ -9,6 +10,10 @@ export interface Aparelho {
   bateria: number | null
   atualizado_em: string | null
   visto_em: string | null
+  /** Só em /membros: checklist de envio informado pelo app 2.0.7+ (null no app antigo). */
+  checklist?: ChecklistInformado | null
+  checklist_em?: string | null
+  app_versao?: number | null
 }
 
 export interface Crianca {

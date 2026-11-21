@@ -3,9 +3,14 @@ package br.com.kbosolucoes.gestaofamiliar.crianca
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.PowerManager
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import java.io.File
 
 /**
@@ -41,6 +46,12 @@ class Configuracao(private val contexto: Context) {
     val ultimoEnvio: Long get() = prefs.getLong(ULTIMO_ENVIO, 0L)
     val ultimoErro: String? get() = prefs.getString(ULTIMO_ERRO, null)
     val foiDesconectado: Boolean get() = prefs.getBoolean(DESCONECTADO, false)
+    /** Quando a pessoa marcou "Já fiz" no início automático (0 = não marcou). O Android não deixa conferir. */
+    val inicioAutomaticoConfirmadoEm: Long get() = prefs.getLong(INICIO_AUTOMATICO_EM, 0L)
+    /** O checklist de envio já abriu sozinho para este pareamento (abre uma vez; depois, pelo menu). */
+    val checklistMostrado: Boolean get() = prefs.getBoolean(CHECKLIST_MOSTRADO, false)
+    val envioReligadoEm: Long get() = prefs.getLong(ENVIO_RELIGADO_EM, 0L)
+    val envioParadoDesde: Long get() = prefs.getLong(ENVIO_PARADO_DESDE, 0L)
 
     fun salvarPareamento(site: String, pareamento: Pareamento, perfil: String = PERFIL_CRIANCA) {
         prefs.edit()
@@ -54,7 +65,27 @@ class Configuracao(private val contexto: Context) {
             .putInt(CRIANCA_ID, pareamento.criancaId)
             .putBoolean(DESCONECTADO, false)
             .remove(ULTIMO_ERRO)
+            .remove(CHECKLIST_MOSTRADO)
             .apply()
+    }
+
+    fun confirmarInicioAutomatico(confirmado: Boolean) {
+        val editor = prefs.edit()
+        if (confirmado) editor.putLong(INICIO_AUTOMATICO_EM, System.currentTimeMillis()) else editor.remove(INICIO_AUTOMATICO_EM)
+        editor.apply()
+    }
+
+    /** O serviço foi achado parado e religado: guarda o intervalo para o checklist avisar. */
+    fun anotarParada(desde: Long, religadoEm: Long) {
+        prefs.edit().putLong(ENVIO_PARADO_DESDE, desde).putLong(ENVIO_RELIGADO_EM, religadoEm).apply()
+    }
+
+    fun esquecerParada() {
+        prefs.edit().remove(ENVIO_PARADO_DESDE).remove(ENVIO_RELIGADO_EM).apply()
+    }
+
+    fun marcarChecklistMostrado() {
+        prefs.edit().putBoolean(CHECKLIST_MOSTRADO, true).apply()
     }
 
     fun anotarCrianca(id: Int, nome: String) {
@@ -144,6 +175,45 @@ class Configuracao(private val contexto: Context) {
         return energia.isIgnoringBatteryOptimizations(contexto.packageName)
     }
 
+    /** Localização do aparelho ligada (qualquer fonte). */
+    fun localizacaoLigada(): Boolean {
+        val gerenciador = contexto.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return LocationManagerCompat.isLocationEnabled(gerenciador)
+    }
+
+    /** GPS ligado (precisão alta, não só rede). */
+    fun gpsLigado(): Boolean {
+        val gerenciador = contexto.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        return runCatching { gerenciador.isProviderEnabled(LocationManager.GPS_PROVIDER) }.getOrDefault(false)
+    }
+
+    /** Há uma rede com internet agora (Wi-Fi ou dados). */
+    fun temInternet(): Boolean {
+        val conexao = contexto.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val rede = conexao.activeNetwork ?: return false
+        val capacidades = conexao.getNetworkCapabilities(rede) ?: return false
+        return capacidades.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    /** Lê do Android tudo o que o checklist de envio precisa. */
+    fun estadoDoCelular(servicoRodando: Boolean): EstadoDoCelular = EstadoDoCelular(
+        localizacaoLigada = localizacaoLigada(),
+        gpsLigado = gpsLigado(),
+        permissaoLocalizacao = temLocalizacao(),
+        permissaoSempre = temLocalizacaoSempre(),
+        localizacaoPrecisa = temLocalizacaoPrecisa(),
+        semEconomiaDeBateria = semEconomiaDeBateria(),
+        servicoRodando = servicoRodando,
+        religadoEmMs = envioReligadoEm,
+        paradoDesdeMs = envioParadoDesde,
+        ultimoEnvioMs = ultimoEnvio,
+        agoraMs = System.currentTimeMillis(),
+        internet = temInternet(),
+        notificacoes = NotificationManagerCompat.from(contexto).areNotificationsEnabled(),
+        fabricante = Build.MANUFACTURER ?: "",
+        inicioAutomaticoConfirmadoMs = inicioAutomaticoConfirmadoEm,
+    )
+
     private fun concedida(permissao: String) =
         ContextCompat.checkSelfPermission(contexto, permissao) == PackageManager.PERMISSION_GRANTED
 
@@ -169,5 +239,9 @@ class Configuracao(private val contexto: Context) {
         private const val DESCONECTADO = "desconectado"
         private const val AVISOS_CONFIRMAR = "avisos_confirmar"
         private const val AVISOS_MOSTRADOS = "avisos_mostrados"
+        private const val INICIO_AUTOMATICO_EM = "inicio_automatico_confirmado_em"
+        private const val CHECKLIST_MOSTRADO = "checklist_mostrado"
+        private const val ENVIO_RELIGADO_EM = "envio_religado_em"
+        private const val ENVIO_PARADO_DESDE = "envio_parado_desde"
     }
 }

@@ -1365,3 +1365,76 @@ def test_qa_unica_escolhida_perde_o_menu_sos_fica_com_zero_avisados_e_alerta_o_a
     # Repetir o toque não diz que alguém foi avisado.
     de_novo = cliente.post("/api/v1/localizacao/dispositivos/sos", json={}, headers={"X-Device-Token": token}).json()
     assert de_novo["repetido"] is True and de_novo["avisados"] == 0 and de_novo["motivo"] == "sem destinatário elegível"
+
+
+# ---------------------------------------------------------------- checklist de envio (app 2.0.7)
+
+CHECKLIST_OK = {
+    "gps": True, "sempre": True, "precisa": True, "bateria_livre": True,
+    "inicio_automatico": "confirmado", "inicio_automatico_em": "2026-11-21",
+}
+FORMATO_APARELHO_204 = {"id", "nome", "revogado", "bateria", "atualizado_em", "visto_em"}
+
+
+def test_checklist_chega_com_a_posicao_e_aparece_so_no_membros(ambiente):
+    cliente, db, estado = ambiente
+    gui = _parear(cliente, 16, "Redmi do Gui")
+    agora = datetime.now(timezone.utc)
+    # App antigo (sem checklist): o site mostra "sem dado".
+    assert _enviar(cliente, gui["device_token"], latitude=-23.55, longitude=-46.63,
+                   recorded_at=_iso(agora - timedelta(minutes=3))).status_code == 200
+    membros = {m["id"]: m for m in cliente.get("/api/v1/localizacao/membros").json()}
+    aparelho = membros[16]["aparelhos"][0]
+    assert aparelho["checklist"] is None and aparelho["checklist_em"] is None
+
+    # App 2.0.7: manda o checklist; campo desconhecido é ignorado (não é guardado).
+    com_falta = dict(CHECKLIST_OK, bateria_livre=False, inicio_automatico="pendente", inicio_automatico_em=None,
+                     fabricante="Xiaomi")
+    r = _enviar(cliente, gui["device_token"], latitude=-23.55, longitude=-46.63,
+                recorded_at=_iso(agora - timedelta(minutes=1)), app_versao=11, checklist=com_falta)
+    assert r.status_code == 200, r.text
+    aparelho = {m["id"]: m for m in cliente.get("/api/v1/localizacao/membros").json()}[16]["aparelhos"][0]
+    assert aparelho["checklist"] == {
+        "gps": True, "sempre": True, "precisa": True, "bateria_livre": False,
+        "inicio_automatico": "pendente", "inicio_automatico_em": None,
+    }
+    assert aparelho["checklist_em"] is not None and aparelho["app_versao"] == 11
+
+    # Ponto repetido (mesmo horário) também atualiza o checklist: o envio chegou.
+    r = _enviar(cliente, gui["device_token"], latitude=-23.55, longitude=-46.63,
+                recorded_at=_iso(agora - timedelta(minutes=1)), checklist=CHECKLIST_OK)
+    assert r.status_code == 200 and r.json()["repetido"] is True
+    aparelho = {m["id"]: m for m in cliente.get("/api/v1/localizacao/membros").json()}[16]["aparelhos"][0]
+    assert aparelho["checklist"]["bateria_livre"] is True
+    assert aparelho["checklist"]["inicio_automatico_em"] == "2026-11-21"
+
+    # /criancas (app e site 2.0.4) continua exatamente com os mesmos campos do aparelho.
+    for crianca in cliente.get("/api/v1/localizacao/criancas").json():
+        assert all(set(a) == FORMATO_APARELHO_204 for a in crianca["aparelhos"])
+
+
+def test_checklist_com_valor_invalido_e_recusado_e_nao_apaga_o_anterior(ambiente):
+    cliente, db, estado = ambiente
+    gui = _parear(cliente, 16, "Redmi do Gui")
+    token = gui["device_token"]
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63, checklist=CHECKLIST_OK).status_code == 200
+    ruim = _enviar(cliente, token, latitude=-23.55, longitude=-46.63,
+                   checklist=dict(CHECKLIST_OK, inicio_automatico="talvez"))
+    assert ruim.status_code == 422
+    aparelho = {m["id"]: m for m in cliente.get("/api/v1/localizacao/membros").json()}[16]["aparelhos"][0]
+    assert aparelho["checklist"]["inicio_automatico"] == "confirmado"
+
+
+def test_checklist_do_adulto_que_compartilha_aparece_para_quem_ve_o_mapa_e_nao_para_o_avo(ambiente):
+    cliente, db, estado = ambiente
+    token_mae = _parear_adulto(cliente, estado, db, 3).json()["device_token"]
+    assert _enviar(cliente, token_mae, latitude=-23.55, longitude=-46.63,
+                   checklist=dict(CHECKLIST_OK, inicio_automatico="nao_se_aplica", inicio_automatico_em=None)).status_code == 200
+    estado["user"] = db.query(User).get(1)
+    mae = {m["id"]: m for m in cliente.get("/api/v1/localizacao/membros").json()}[3]
+    assert mae["adulto"] is True
+    assert mae["aparelhos"][0]["checklist"]["inicio_automatico"] == "nao_se_aplica"
+    # Quem só compartilha (avô) não vê o mapa nem o checklist de ninguém.
+    _avo(db)
+    estado["user"] = db.query(User).get(30)
+    assert cliente.get("/api/v1/localizacao/membros").status_code == 403

@@ -23,6 +23,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import org.json.JSONArray
+import org.json.JSONObject
 import java.time.Instant
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -64,6 +65,9 @@ class LocationService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        val agora = System.currentTimeMillis()
+        if (deveAnotarParada(rodando, configuracao.ultimoEnvio, agora)) configuracao.anotarParada(configuracao.ultimoEnvio, agora)
+        rodando = true
         iniciarAtualizacoes()
         if (intent?.action == ACAO_ENVIAR_AGORA) pedirPosicaoAgora()
         return START_STICKY
@@ -114,7 +118,10 @@ class LocationService : Service() {
         val api = ApiClient(configuracao.site)
         val notificacoes = NotificationManagerCompat.from(this).areNotificationsEnabled()
         val registro = configuracao.registroDeAvisos()
+        // Checklist de envio (2.0.7): o adulto vê no site se este celular está pronto para enviar sempre.
+        val checklist = runCatching { JSONObject(checklistParaServidor(configuracao.estadoDoCelular(servicoRodando = true))) }.getOrNull()
         val resultado = configuracao.fila().esvaziar { ponto ->
+            if (checklist != null) ponto.put("checklist", checklist)
             // Junto com a posição: versão do app, notificações liberadas e avisos já mostrados.
             val confirmando = registro.aConfirmar()
             ponto.put("app_versao", BuildConfig.VERSION_CODE)
@@ -184,12 +191,14 @@ class LocationService : Service() {
     }
 
     private fun pararServico() {
+        rodando = false
         cliente.removeLocationUpdates(retorno)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     override fun onDestroy() {
+        rodando = false
         cliente.removeLocationUpdates(retorno)
         rede.shutdown()
         super.onDestroy()
@@ -198,6 +207,11 @@ class LocationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        /** O serviço de envio está de pé neste processo (se o Android matar o app, volta a false). */
+        @Volatile
+        var rodando: Boolean = false
+            private set
+
         const val ACAO_ENVIAR_AGORA = "br.com.kbosolucoes.gestaofamiliar.crianca.ENVIAR_AGORA"
         private const val CANAL_ID = Notificador.CANAL_LOCALIZACAO
         private const val NOTIFICACAO_ID = 10

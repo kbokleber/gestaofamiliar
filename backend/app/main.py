@@ -138,6 +138,13 @@ def startup_create_tables():
             conn.execute(text(
                 "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS alerta_sem_sinal_em TIMESTAMP WITH TIME ZONE"
             ))
+            # Checklist de envio (app 2.0.7+).
+            conn.execute(text(
+                "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS checklist TEXT"
+            ))
+            conn.execute(text(
+                "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS checklist_em TIMESTAMP WITH TIME ZONE"
+            ))
         from app.db.base import SessionLocal
         from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
         db = SessionLocal()

@@ -217,3 +217,24 @@ Não fazer esse deploy agora.
 
 - **Só compartilhar** (`allowed_menus` com `compartilhar_localizacao`, sem `localizacao`): o adulto (ex.: avô ou avó) pareia pelo app e envia a própria posição, aparece no mapa de quem tem Localização, mas **não vê ninguém**: toda rota de leitura de localização e de SOS responde 403 para ele. Ele não recebe alertas nem SOS de outros. No site, só tem a tela "Minha localização" (`/minha-localizacao`).
 - **SOS** (`POST /api/v1/localizacao/dispositivos/sos`, com o token do celular): o app só envia depois de **segurar 3 s** e de uma **contagem de 5 s com Cancelar**. O servidor guarda o pedido (`location_sos`) com nome, posição do momento ou a última conhecida, horário e bateria, e avisa **só os familiares escolhidos** (`location_sos_destinatario`, configurável em Localização › Celulares; só adultos que veem o mapa). Sem nenhum escolhido, avisa todos os adultos que veem o mapa. Quem pediu nunca recebe o próprio aviso. Canal: a fila de avisos do app e o Web Push do navegador (sem Firebase). Repetição em menos de 2 min devolve o mesmo pedido, sem novo aviso (a linha do celular é travada até gravar), e há teto de 10 SOS por família por hora (429). Um horário enviado no futuro ou antigo demais não recusa o SOS: a posição enviada é descartada e vale a última conhecida. A lista escolhida, quando não está vazia, precisa de **pelo menos 2 adultos que veem o mapa** (quem pede não recebe o próprio aviso; com 2, o SOS de qualquer um ainda avisa o outro). Quem perde o acesso continua na lista, marcado "sem acesso". Os destinatários são recalculados a cada SOS; se não sobrar ninguém, o pedido fica com `avisados=0` e o motivo "sem destinatário elegível", e o admin vê um alerta no mapa (`GET /sos/sem-destinatario`, sem posição). Quem foi avisado fica gravado (`location_sos_avisado`): **só essas pessoas** listam o SOS (`GET /sos`, com posição) e marcam "Visto"; os outros adultos não veem. No mapa, a faixa vermelha e o selo SOS ficam até alguém avisado tocar em "Visto". **Prazo:** posição e bateria do SOS são apagadas em 7 dias e o pedido inteiro em 30 dias (`limpar_historico_antigo`); quando o adulto para de compartilhar ou é revogado, a posição dos SOS dele é apagada na hora. O texto de consentimento do app cita esses prazos. Quando o SOS falha ou ninguém é avisado, o app mostra 190, 192 e 193.
+
+## Checklist de envio (app 2.0.7)
+
+Motivo: em 21/11 o Android (Redmi/Xiaomi) encerrou o app do Guilherme e a posição ficou 5 h parada, com o mapa mostrando "em Casa" pelo último ponto.
+
+- **App, em Configurações de envio**, vale para qualquer celular que envia (criança ou adulto). Ordem dos itens:
+  1. Localização do celular ligada.
+  2. "Permitir o tempo todo".
+  3. Precisão alta (localização precisa + GPS).
+  4. Bateria sem restrição.
+  5. Envio com o app fechado (serviço de pé, último envio há menos de 30 min, e aviso de parada recente).
+  6. Início automático, só nas marcas que têm essa chave.
+  7. Internet.
+  8. Notificação fixa.
+- **Início automático:** o Android não deixa o app conferir. O item é sempre "confirmação manual" ("Já fiz", com data) e nunca aparece como verificado.
+- **Parada:** quando o serviço é religado depois de mais de 30 min sem envio, o app anota o intervalo e mostra o aviso por 24 h ou até a pessoa tocar em "Entendi". Também acontece se o celular ficou desligado, e o texto diz isso.
+- **Quando aparece:** abre sozinho uma vez por pareamento (inclusive para quem atualizar da 2.0.6). Depois, pelo menu "Configurações de envio".
+- **Site:** o app manda junto com a posição só os ajustes do Android (gps, sempre, precisa, bateria_livre, inicio_automatico e a data). Isso fica em `location_device.checklist` e `checklist_em`, só o último estado e sem dado pessoal.
+  - Em Localização › Celulares, cada celular mostra os mesmos itens. Envio e internet são calculados pelo site a partir do último ponto e do último contato.
+  - Celular com app antigo mostra "sem dado".
+- **Privacidade:** o checklist sai só em `/membros`, para quem vê o mapa. `/criancas` (formato 2.0.4) não muda. Quem só compartilha (avós) continua sem acesso.

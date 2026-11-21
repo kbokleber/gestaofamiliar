@@ -3,6 +3,7 @@ package br.com.kbosolucoes.gestaofamiliar.crianca
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -18,7 +19,6 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.core.app.NotificationManagerCompat
 
 /**
  * Configurações do celular da criança: mostra, passo a passo, o que falta liberar para a
@@ -72,6 +72,7 @@ class ConfiguracaoActivity : Activity() {
             cinza = true,
         )
         if (configuracao.pareado) {
+            configuracao.marcarChecklistMostrado()
             telaPareado()
         } else {
             // Adulto no próprio celular: primeiro a opção de compartilhar; o código continua disponível embaixo.
@@ -146,18 +147,30 @@ class ConfiguracaoActivity : Activity() {
         val nome = configuracao.criancaNome.ifBlank { if (adulto) "você" else "criança" }
         subtitulo(if (adulto) "Compartilhando a localização de $nome" else "Conectado como $nome")
 
-        subtitulo("Para funcionar sempre")
-        val checagens = checagensDeEnvio(
-            localizacao = configuracao.temLocalizacao(),
-            notificacao = NotificationManagerCompat.from(this).areNotificationsEnabled(),
-            localizacaoSempre = configuracao.temLocalizacaoSempre(),
-            semEconomiaDeBateria = configuracao.semEconomiaDeBateria(),
-        )
-        for (checagem in checagens) {
-            passo(checagem.nome, checagem.ok, checagem.explicacao, "Abrir ajuste") { abrirAjuste(checagem.ajuste) }
+        subtitulo("Checklist de envio")
+        val itens = checklistDeEnvio(configuracao.estadoDoCelular(servicoRodando = LocationService.rodando))
+        val faltam = itensQueFaltam(itens)
+        if (faltam.isEmpty()) {
+            texto("Tudo certo: a localização deve continuar chegando com o app fechado.")
+        } else {
+            aviso(
+                if (faltam.size == 1) "Falta 1 item para o envio funcionar sempre, mesmo com o app fechado."
+                else "Faltam ${faltam.size} itens para o envio funcionar sempre, mesmo com o app fechado.",
+            )
         }
-        if (configuracao.temLocalizacao() && !configuracao.temLocalizacaoPrecisa()) {
-            aviso("A localização está aproximada. Para mostrar \"está em Casa\" com segurança, ative \"Localização precisa\" nas configurações do app.")
+        for (item in itens) {
+            val extra: Pair<String, () -> Unit>? = when (item.estado) {
+                EstadoItem.MANUAL_PENDENTE -> "Já fiz" to {
+                    configuracao.confirmarInicioAutomatico(true)
+                    desenhar()
+                }
+                EstadoItem.MANUAL_CONFIRMADO -> "Desfazer" to {
+                    configuracao.confirmarInicioAutomatico(false)
+                    desenhar()
+                }
+                else -> null
+            }
+            passo(item, extra) { item.ajuste?.let { abrirAjuste(it) } }
         }
 
         subtitulo("Envio")
@@ -200,6 +213,25 @@ class ConfiguracaoActivity : Activity() {
     private fun abrirAjuste(ajuste: AjusteAndroid) {
         val detalhesDoApp = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
         when (ajuste) {
+            AjusteAndroid.GPS -> runCatching { startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+                .onFailure { runCatching { startActivity(detalhesDoApp) } }
+            // Android 12+: pedir a permissão de novo mostra a troca de "aproximada" para "precisa".
+            AjusteAndroid.PRECISAO -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) pedirLocalizacao()
+                else runCatching { startActivity(detalhesDoApp) }.onFailure { pedirLocalizacao() }
+            AjusteAndroid.ENVIO -> {
+                LocationService.iniciar(this, enviarAgora = true)
+                raiz.postDelayed({ desenhar() }, 4000)
+            }
+            AjusteAndroid.ENTENDI_PARADA -> {
+                configuracao.esquecerParada()
+                desenhar()
+            }
+            AjusteAndroid.INICIO_AUTOMATICO -> abrirInicioAutomatico(detalhesDoApp)
+            AjusteAndroid.REDE -> {
+                val painel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)
+                    else Intent(Settings.ACTION_WIRELESS_SETTINGS)
+                runCatching { startActivity(painel) }.onFailure { runCatching { startActivity(Intent(Settings.ACTION_SETTINGS)) } }
+            }
             AjusteAndroid.LOCALIZACAO -> runCatching { startActivity(detalhesDoApp) }.onFailure { pedirLocalizacao() }
             AjusteAndroid.NOTIFICACOES -> {
                 val notificacoes = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
@@ -211,6 +243,21 @@ class ConfiguracaoActivity : Activity() {
                 else runCatching { startActivity(detalhesDoApp) }.onFailure { pedirLocalizacaoSempre() }
             AjusteAndroid.BATERIA -> pedirSemEconomia()
         }
+    }
+
+    /** Tela de "Início automático" da marca, quando existe; senão, os ajustes do app. O app não consegue ler o resultado. */
+    private fun abrirInicioAutomatico(detalhesDoApp: Intent) {
+        val candidatos = listOf(
+            ComponentName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"),
+            ComponentName("com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"),
+            ComponentName("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity"),
+            ComponentName("com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"),
+            ComponentName("com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"),
+        )
+        for (componente in candidatos) {
+            if (runCatching { startActivity(Intent().setComponent(componente)) }.isSuccess) return
+        }
+        runCatching { startActivity(detalhesDoApp) }
     }
 
     private fun pedirLocalizacao() {
@@ -295,30 +342,44 @@ class ConfiguracaoActivity : Activity() {
         raiz.addView(this, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(16) })
     }
 
-    private fun passo(nome: String, ok: Boolean, explicacao: String, rotulo: String, acao: () -> Unit) {
+    private fun passo(item: ItemChecklist, extra: Pair<String, () -> Unit>?, acao: () -> Unit) {
         val linha = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(8), 0, dp(8))
         }
         val textos = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val (marca, cor, sufixo) = when (item.estado) {
+            EstadoItem.OK -> Triple("✓ ", Color.rgb(21, 128, 61), "")
+            EstadoItem.MANUAL_CONFIRMADO -> Triple("✓ ", Color.rgb(21, 128, 61), " (confirmado por você)")
+            EstadoItem.FALTA -> Triple("✗ ", Color.rgb(185, 28, 28), "")
+            EstadoItem.ATRASADO -> Triple("! ", Color.rgb(180, 83, 9), " (atrasado)")
+            EstadoItem.MANUAL_PENDENTE -> Triple("? ", Color.rgb(180, 83, 9), " (confirmação manual)")
+        }
         textos.addView(TextView(this).apply {
-            text = (if (ok) "✓ " else "✗ ") + nome
+            text = marca + item.nome + sufixo
             textSize = 16f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(if (ok) Color.rgb(21, 128, 61) else Color.rgb(185, 28, 28))
+            setTextColor(cor)
         })
-        if (!ok) textos.addView(TextView(this).apply {
-            text = explicacao
+        if (item.explicacao.isNotBlank()) textos.addView(TextView(this).apply {
+            text = item.explicacao
             textSize = 14f
             setTextColor(Color.rgb(75, 85, 99))
         })
         linha.addView(textos, LinearLayout.LayoutParams(0, -2, 1f))
-        if (!ok) linha.addView(Button(this).apply {
-            text = rotulo
+        val botoes = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        if (item.estado != EstadoItem.OK && item.rotuloAjuste != null) botoes.addView(Button(this).apply {
+            text = item.rotuloAjuste
             isAllCaps = false
             setOnClickListener { acao() }
         })
+        if (extra != null) botoes.addView(Button(this).apply {
+            text = extra.first
+            isAllCaps = false
+            setOnClickListener { extra.second() }
+        })
+        if (botoes.childCount > 0) linha.addView(botoes)
         raiz.addView(linha)
         raiz.addView(View(this).apply { setBackgroundColor(Color.rgb(229, 231, 235)) }, LinearLayout.LayoutParams(-1, dp(1)))
     }

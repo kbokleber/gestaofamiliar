@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import secrets
 from datetime import date, datetime, time, timedelta, timezone
@@ -330,6 +331,12 @@ def _resumo_no_mapa(db: Session, familias: list[int], criancas: list[User], com_
                 "atualizado_em": como_utc(ultimo.recorded_at) if ultimo is not None else None,
                 "visto_em": como_utc(aparelho.last_seen_at) if aparelho.last_seen_at else None,
             })
+            if com_adulto:
+                aparelhos[-1].update({
+                    "checklist": ler_checklist(aparelho.checklist),
+                    "checklist_em": como_utc(aparelho.checklist_em) if aparelho.checklist_em else None,
+                    "app_versao": aparelho.app_versao,
+                })
         da_familia = [lugar for lugar in lugares if lugar.family_id == crianca.family_id]
         atualizado = como_utc(ponto.recorded_at) if ponto is not None else None
         saida.append({
@@ -868,9 +875,28 @@ def registrar_posicao(db: Session, aparelho: LocationDevice, dados: PosicaoIn) -
     return {"id": ponto.id, "recebido": True, "repetido": False, "avisos": avisos}
 
 
+def ler_checklist(valor: Optional[str]) -> Optional[dict]:
+    if not valor:
+        return None
+    try:
+        dados = json.loads(valor)
+    except (TypeError, ValueError):
+        return None
+    return dados if isinstance(dados, dict) else None
+
+
+def anotar_checklist(aparelho: LocationDevice, dados: PosicaoIn, agora: Optional[datetime] = None) -> None:
+    """Guarda o último checklist que o app mandou (só os campos conhecidos, já validados)."""
+    if dados.checklist is None:
+        return
+    aparelho.checklist = json.dumps(dados.checklist.model_dump(mode="json"), sort_keys=True)
+    aparelho.checklist_em = agora or datetime.now(timezone.utc)
+
+
 def _avisos_do_aparelho(db: Session, aparelho: LocationDevice, dados: PosicaoIn, adulto: bool) -> list[dict]:
     """Criança recebe os lembretes junto com a posição. O adulto já recebe os alertas pelo canal próprio
     (/app-android/dispositivos/avisos): aqui só anota a versão e não consome a fila dele."""
+    anotar_checklist(aparelho, dados)
     if not adulto:
         return avisos_app.atualizar_e_entregar(db, aparelho, dados.app_versao, dados.notificacoes, dados.avisos_recebidos)
     if dados.app_versao is not None:

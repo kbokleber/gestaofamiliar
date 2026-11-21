@@ -1,5 +1,5 @@
 """Localização dos celulares das crianças e lugares da família."""
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.sql import func
 
 from app.db.base import Base
@@ -37,6 +37,9 @@ class LocationDevice(Base):
     notificacoes_ativas = Column(Boolean, nullable=True)
     # Quando o alerta "sem enviar há 30 min" já foi dado; zera ao chegar um ponto novo.
     alerta_sem_sinal_em = Column(DateTime(timezone=True), nullable=True)
+    # Checklist de envio informado pelo app 2.0.7+ (JSON só com ajustes do Android) e quando chegou.
+    checklist = Column(Text, nullable=True)
+    checklist_em = Column(DateTime(timezone=True), nullable=True)
     created_by_id = Column(Integer, ForeignKey("auth_user.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

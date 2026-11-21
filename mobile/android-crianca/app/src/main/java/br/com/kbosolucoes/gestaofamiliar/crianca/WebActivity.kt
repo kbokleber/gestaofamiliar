@@ -110,6 +110,8 @@ class WebActivity : Activity() {
         super.onResume()
         web.onResume()
         if (configuracao.pareado) LocationService.iniciar(this)
+        // Checklist de envio: abre sozinho uma vez por pareamento (inclusive para quem atualizou da 2.0.6).
+        if (configuracao.pareado && !configuracao.checklistMostrado) abrirConfiguracoes()
         if (configuracao.tokenAdulto != null) fundo.execute { AlertasAdulto.buscar(applicationContext) }
         if (configuracao.pararPendente) fundo.execute { PararCompartilhamento.tentar(applicationContext) }
         conferirVersao()
@@ -653,6 +655,7 @@ class WebActivity : Activity() {
             if (configuracao.temLocalizacao() && configuracao.temLocalizacaoSempre()) {
                 LocationService.iniciar(this, enviarAgora = true)
                 Toast.makeText(this, "Pronto. Os adultos da família já veem você no mapa.", Toast.LENGTH_LONG).show()
+                if (!configuracao.checklistMostrado) abrirConfiguracoes()
             } else {
                 Toast.makeText(this, "Falta liberar a localização \"o tempo todo\".", Toast.LENGTH_LONG).show()
                 abrirConfiguracoes()
@@ -685,6 +688,7 @@ class WebActivity : Activity() {
             desenharFaixas()
             if (configuracao.temLocalizacao() && configuracao.temLocalizacaoSempre()) {
                 LocationService.iniciar(this, enviarAgora = true)
+                if (!configuracao.checklistMostrado) abrirConfiguracoes()
             } else {
                 Toast.makeText(this, "Celular conectado. Agora libere a localização.", Toast.LENGTH_LONG).show()
                 abrirConfiguracoes()
