@@ -122,3 +122,17 @@ export function checklistDoCelular(celular: CelularParaChecklist, agoraMs: numbe
 export function pendencias(itens: ItemSite[]): ItemSite[] {
   return itens.filter((item) => item.estado === 'falta' || item.estado === 'atrasado' || item.estado === 'manual_pendente')
 }
+
+/**
+ * Linha de resumo do checklist. "Tudo certo" só quando o app informou os ajustes e nada pede ação:
+ * celular com app antigo (sem checklist) ou com item sem dado nunca aparece como "tudo certo".
+ */
+export function resumoDoChecklist(itens: ItemSite[]): { texto: string; tom: 'ok' | 'alerta' | 'neutro' } {
+  const faltam = pendencias(itens).length
+  const semDado = itens.some((item) => item.estado === 'sem_dado')
+  const pend = faltam === 1 ? '1 pendência' : `${faltam} pendências`
+  if (faltam && semDado) return { texto: `Checklist de envio: ${pend}; ajustes sem dado (atualize para a versão 2.0.7)`, tom: 'alerta' }
+  if (faltam) return { texto: `Checklist de envio: ${pend}`, tom: 'alerta' }
+  if (semDado) return { texto: 'Checklist de envio: sem dado, atualize para a versão 2.0.7', tom: 'neutro' }
+  return { texto: 'Checklist de envio: tudo certo', tom: 'ok' }
+}

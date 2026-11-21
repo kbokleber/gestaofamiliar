@@ -30,7 +30,9 @@ from app.models.location import (
 )
 from app.models.user import User
 from app.services import alertas_adultos, avisos_app
-from app.schemas.location import LugarIn, PosicaoIn
+from pydantic import ValidationError
+
+from app.schemas.location import ChecklistIn, LugarIn, PosicaoIn
 
 logger = logging.getLogger(__name__)
 
@@ -886,10 +888,18 @@ def ler_checklist(valor: Optional[str]) -> Optional[dict]:
 
 
 def anotar_checklist(aparelho: LocationDevice, dados: PosicaoIn, agora: Optional[datetime] = None) -> None:
-    """Guarda o último checklist que o app mandou (só os campos conhecidos, já validados)."""
+    """Guarda o último checklist que o app mandou (só os campos conhecidos).
+    Inválido (valor novo, data em outro formato, tipo errado): ignora, mantém o anterior e anota no log.
+    A posição já foi gravada antes e nunca se perde por causa do checklist."""
     if dados.checklist is None:
         return
-    aparelho.checklist = json.dumps(dados.checklist.model_dump(mode="json"), sort_keys=True)
+    try:
+        checklist = ChecklistIn.model_validate(dados.checklist)
+    except ValidationError as erro:
+        campos = sorted({".".join(str(parte) for parte in e["loc"]) or "checklist" for e in erro.errors()})
+        logger.warning("checklist ignorado device_id=%s campos=%s", aparelho.id, ",".join(campos))
+        return
+    aparelho.checklist = json.dumps(checklist.model_dump(mode="json"), sort_keys=True)
     aparelho.checklist_em = agora or datetime.now(timezone.utc)
 
 

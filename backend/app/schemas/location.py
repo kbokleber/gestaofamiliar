@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -55,7 +55,8 @@ class PosicaoIn(BaseModel):
     app_versao: Optional[int] = Field(default=None, ge=0)
     notificacoes: Optional[bool] = None
     avisos_recebidos: list[int] = Field(default_factory=list, max_length=50)
-    checklist: Optional[ChecklistIn] = None
+    # Validado à parte (anotar_checklist): checklist inválido é ignorado e nunca derruba a posição.
+    checklist: Optional[Any] = None
 
 
 class AvisoOut(BaseModel):

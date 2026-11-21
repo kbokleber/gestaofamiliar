@@ -1413,16 +1413,40 @@ def test_checklist_chega_com_a_posicao_e_aparece_so_no_membros(ambiente):
         assert all(set(a) == FORMATO_APARELHO_204 for a in crianca["aparelhos"])
 
 
-def test_checklist_com_valor_invalido_e_recusado_e_nao_apaga_o_anterior(ambiente):
+def test_checklist_invalido_e_ignorado_mas_a_posicao_e_gravada_e_o_anterior_fica(ambiente, caplog):
+    """QA-B: com 422 a fila do app descartava o ponto. Agora o checklist ruim é ignorado e a posição entra."""
+    import logging
+
+    from app.models.location import LocationPoint
+
     cliente, db, estado = ambiente
     gui = _parear(cliente, 16, "Redmi do Gui")
     token = gui["device_token"]
-    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63, checklist=CHECKLIST_OK).status_code == 200
-    ruim = _enviar(cliente, token, latitude=-23.55, longitude=-46.63,
-                   checklist=dict(CHECKLIST_OK, inicio_automatico="talvez"))
-    assert ruim.status_code == 422
+    agora = datetime.now(timezone.utc)
+    assert _enviar(cliente, token, latitude=-23.55, longitude=-46.63,
+                   recorded_at=_iso(agora - timedelta(minutes=20)), checklist=CHECKLIST_OK).status_code == 200
+    invalidos = [
+        dict(CHECKLIST_OK, inicio_automatico="talvez"),  # enum novo (app mais novo que o servidor)
+        dict(CHECKLIST_OK, inicio_automatico_em="21/11/2026"),  # data em outro formato
+        dict(CHECKLIST_OK, gps="sim"),  # tipo errado
+        "tudo certo",  # nem é objeto
+        [True, False],
+    ]
+    caplog.set_level(logging.WARNING, logger="app.services.localizacao")
+    for i, checklist in enumerate(invalidos):
+        r = _enviar(cliente, token, latitude=-23.55, longitude=-46.63,
+                    recorded_at=_iso(agora - timedelta(minutes=15 - i)), checklist=checklist)
+        assert r.status_code == 200, (checklist, r.text)
+        assert r.json()["recebido"] is True and r.json()["repetido"] is False
+    # Todas as posições foram gravadas (1 boa + 5 com checklist ruim).
+    assert db.query(LocationPoint).filter(LocationPoint.child_user_id == 16).count() == 6
+    # O checklist anterior continua intacto.
     aparelho = {m["id"]: m for m in cliente.get("/api/v1/localizacao/membros").json()}[16]["aparelhos"][0]
-    assert aparelho["checklist"]["inicio_automatico"] == "confirmado"
+    assert aparelho["checklist"] == CHECKLIST_OK
+    # Cada um ficou registrado no log, sem o conteúdo (só os campos).
+    avisos = [r.getMessage() for r in caplog.records if "checklist ignorado" in r.getMessage()]
+    assert len(avisos) == 5
+    assert any("inicio_automatico_em" in a for a in avisos) and any("gps" in a for a in avisos)
 
 
 def test_checklist_do_adulto_que_compartilha_aparece_para_quem_ve_o_mapa_e_nao_para_o_avo(ambiente):

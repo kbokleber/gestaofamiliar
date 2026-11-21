@@ -238,3 +238,6 @@ Motivo: em 21/11 o Android (Redmi/Xiaomi) encerrou o app do Guilherme e a posiç
   - Em Localização › Celulares, cada celular mostra os mesmos itens. Envio e internet são calculados pelo site a partir do último ponto e do último contato.
   - Celular com app antigo mostra "sem dado".
 - **Privacidade:** o checklist sai só em `/membros`, para quem vê o mapa. `/criancas` (formato 2.0.4) não muda. Quem só compartilha (avós) continua sem acesso.
+- **Robustez (QA-B):** um checklist inválido, como um valor novo, uma data em outro formato ou um tipo errado, é ignorado. O servidor guarda a posição normalmente, mantém o checklist anterior e registra no log só os nomes dos campos, sem o conteúdo. A posição nunca se perde por causa do checklist.
+- **Site (QA-A):** "tudo certo" só aparece quando o app informou os ajustes e nada pede ação. Sem checklist, quando o app é antigo, o site mostra "sem dado, atualize para a versão 2.0.7".
+- **Limitação conhecida (QA-C, baixa):** o checklist é substituído inteiro a cada envio. Se o app mandar só parte dos campos, os ausentes ficam nulos e aparecem como "sem dado" no site. O app 2.0.7 sempre manda os campos completos.

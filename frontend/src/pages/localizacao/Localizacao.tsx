@@ -15,7 +15,7 @@ import {
 } from './api'
 import { CirculosLugares, MapaBase, iconeBolinha, iconeGrupo } from './Mapa'
 import { agruparProximos, casarFotos } from './fotosEGrupos'
-import { checklistDoCelular, pendencias, type EstadoItemSite } from './checklistDoCelular'
+import { checklistDoCelular, resumoDoChecklist, type EstadoItemSite } from './checklistDoCelular'
 import BaixarApp from './BaixarApp'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -907,19 +907,18 @@ const MARCA_DO_ITEM: Record<EstadoItemSite, { simbolo: string; cor: string; rotu
 
 function ChecklistCelular({ aparelho }: { aparelho: Aparelho }) {
   const itens = checklistDoCelular(aparelho)
-  const faltam = pendencias(itens)
+  const resumo = resumoDoChecklist(itens)
+  const corDoResumo = resumo.tom === 'ok' ? 'text-green-700' : resumo.tom === 'alerta' ? 'text-amber-700' : 'text-gray-500'
   const [aberto, setAberto] = useState(false)
   return (
     <div className="mt-1">
       <button
         type="button"
         onClick={() => setAberto(!aberto)}
-        className={`text-xs font-medium ${faltam.length ? 'text-amber-700' : 'text-green-700'} hover:underline`}
+        className={`text-xs font-medium ${corDoResumo} hover:underline`}
         aria-expanded={aberto}
       >
-        {faltam.length
-          ? `Checklist de envio: ${faltam.length} ${faltam.length === 1 ? 'pendência' : 'pendências'}`
-          : 'Checklist de envio: tudo certo'}
+        {resumo.texto}
         {aberto ? ' ▲' : ' ▼'}
       </button>
       {aberto && (

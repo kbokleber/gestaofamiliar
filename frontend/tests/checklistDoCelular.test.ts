@@ -1,6 +1,6 @@
 // Rodar: node --experimental-strip-types tests/checklistDoCelular.test.ts (Node 22+)
 import assert from 'node:assert/strict'
-import { checklistDoCelular, duracao, pendencias } from '../src/pages/localizacao/checklistDoCelular.ts'
+import { checklistDoCelular, duracao, pendencias, resumoDoChecklist } from '../src/pages/localizacao/checklistDoCelular.ts'
 
 let ok = 0
 const teste = (nome: string, fn: () => void) => { fn(); ok++; console.log('ok -', nome) }
@@ -64,4 +64,29 @@ teste('durações', () => {
   assert.equal(duracao(26 * 3600), '1 dia')
 })
 
-console.log(`${ok}/6 OK`)
+teste('QA-A: app antigo em dia (sem checklist) nunca aparece como "tudo certo"', () => {
+  const itens = checklistDoCelular({ revogado: false, atualizado_em: ha(3), visto_em: ha(3), checklist: null }, agora)
+  assert.deepEqual(pendencias(itens), [])
+  assert.deepEqual(resumoDoChecklist(itens), { texto: 'Checklist de envio: sem dado, atualize para a versão 2.0.7', tom: 'neutro' })
+  // Sem o campo (resposta antiga) é igual.
+  assert.equal(resumoDoChecklist(checklistDoCelular({ revogado: false, atualizado_em: ha(3), visto_em: ha(3) }, agora)).tom, 'neutro')
+})
+
+teste('resumo: pendências com e sem dado, e tudo certo só com checklist completo', () => {
+  const atrasadoSemDado = checklistDoCelular({ revogado: false, atualizado_em: ha(332), visto_em: ha(332), checklist: null }, agora)
+  assert.deepEqual(resumoDoChecklist(atrasadoSemDado), {
+    texto: 'Checklist de envio: 2 pendências; ajustes sem dado (atualize para a versão 2.0.7)', tom: 'alerta',
+  })
+  const umaFalta = checklistDoCelular({
+    revogado: false, atualizado_em: ha(2), visto_em: ha(2), checklist: { ...tudoCerto, bateria_livre: false },
+  }, agora)
+  assert.deepEqual(resumoDoChecklist(umaFalta), { texto: 'Checklist de envio: 1 pendência', tom: 'alerta' })
+  const parcial = checklistDoCelular({
+    revogado: false, atualizado_em: ha(2), visto_em: ha(2), checklist: { ...tudoCerto, precisa: null },
+  }, agora)
+  assert.equal(resumoDoChecklist(parcial).tom, 'neutro')
+  const certo = checklistDoCelular({ revogado: false, atualizado_em: ha(2), visto_em: ha(2), checklist: tudoCerto }, agora)
+  assert.deepEqual(resumoDoChecklist(certo), { texto: 'Checklist de envio: tudo certo', tom: 'ok' })
+})
+
+console.log(`${ok}/8 OK`)
