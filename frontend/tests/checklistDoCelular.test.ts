@@ -67,7 +67,7 @@ teste('durações', () => {
 teste('QA-A: app antigo em dia (sem checklist) nunca aparece como "tudo certo"', () => {
   const itens = checklistDoCelular({ revogado: false, atualizado_em: ha(3), visto_em: ha(3), checklist: null }, agora)
   assert.deepEqual(pendencias(itens), [])
-  assert.deepEqual(resumoDoChecklist(itens), { texto: 'Checklist de envio: sem dado, atualize para a versão 2.0.7', tom: 'neutro' })
+  assert.deepEqual(resumoDoChecklist(itens), { texto: 'Checklist de envio: sem dado, atualize o app para a versão mais nova', tom: 'neutro' })
   // Sem o campo (resposta antiga) é igual.
   assert.equal(resumoDoChecklist(checklistDoCelular({ revogado: false, atualizado_em: ha(3), visto_em: ha(3) }, agora)).tom, 'neutro')
 })
@@ -75,7 +75,7 @@ teste('QA-A: app antigo em dia (sem checklist) nunca aparece como "tudo certo"',
 teste('resumo: pendências com e sem dado, e tudo certo só com checklist completo', () => {
   const atrasadoSemDado = checklistDoCelular({ revogado: false, atualizado_em: ha(332), visto_em: ha(332), checklist: null }, agora)
   assert.deepEqual(resumoDoChecklist(atrasadoSemDado), {
-    texto: 'Checklist de envio: 2 pendências; ajustes sem dado (atualize para a versão 2.0.7)', tom: 'alerta',
+    texto: 'Checklist de envio: 2 pendências; ajustes sem dado (atualize o app para a versão mais nova)', tom: 'alerta',
   })
   const umaFalta = checklistDoCelular({
     revogado: false, atualizado_em: ha(2), visto_em: ha(2), checklist: { ...tudoCerto, bateria_livre: false },
@@ -89,4 +89,14 @@ teste('resumo: pendências com e sem dado, e tudo certo só com checklist comple
   assert.deepEqual(resumoDoChecklist(certo), { texto: 'Checklist de envio: tudo certo', tom: 'ok' })
 })
 
-console.log(`${ok}/8 OK`)
+teste('nenhum número de versão fixo nos textos do checklist', () => {
+  const textos = [
+    ...checklistDoCelular({ revogado: false, atualizado_em: ha(332), visto_em: ha(332), checklist: null }, agora).map((i) => i.detalhe),
+    resumoDoChecklist(checklistDoCelular({ revogado: false, atualizado_em: ha(3), visto_em: ha(3), checklist: null }, agora)).texto,
+    resumoDoChecklist(checklistDoCelular({ revogado: false, atualizado_em: ha(332), visto_em: ha(332), checklist: null }, agora)).texto,
+  ]
+  for (const texto of textos) assert.doesNotMatch(texto, /\d+\.\d+\.\d+/, texto)
+  assert.ok(textos.some((t) => t.includes('versão mais nova')))
+})
+
+console.log(`${ok}/9 OK`)

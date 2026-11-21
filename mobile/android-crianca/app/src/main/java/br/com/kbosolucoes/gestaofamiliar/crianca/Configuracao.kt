@@ -51,6 +51,8 @@ class Configuracao(private val contexto: Context) {
     /** O checklist de envio já abriu sozinho para este pareamento (abre uma vez; depois, pelo menu). */
     val checklistMostrado: Boolean get() = prefs.getBoolean(CHECKLIST_MOSTRADO, false)
     val envioReligadoEm: Long get() = prefs.getLong(ENVIO_RELIGADO_EM, 0L)
+    /** Quando o app consultou a versão publicada no site pela última vez. */
+    val ultimaConsultaVersao: Long get() = prefs.getLong(ULTIMA_CONSULTA_VERSAO, 0L)
     val envioParadoDesde: Long get() = prefs.getLong(ENVIO_PARADO_DESDE, 0L)
 
     fun salvarPareamento(site: String, pareamento: Pareamento, perfil: String = PERFIL_CRIANCA) {
@@ -78,6 +80,10 @@ class Configuracao(private val contexto: Context) {
     /** O serviço foi achado parado e religado: guarda o intervalo para o checklist avisar. */
     fun anotarParada(desde: Long, religadoEm: Long) {
         prefs.edit().putLong(ENVIO_PARADO_DESDE, desde).putLong(ENVIO_RELIGADO_EM, religadoEm).apply()
+    }
+
+    fun anotarConsultaVersao(quando: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong(ULTIMA_CONSULTA_VERSAO, quando).apply()
     }
 
     fun esquecerParada() {
@@ -243,5 +249,6 @@ class Configuracao(private val contexto: Context) {
         private const val CHECKLIST_MOSTRADO = "checklist_mostrado"
         private const val ENVIO_RELIGADO_EM = "envio_religado_em"
         private const val ENVIO_PARADO_DESDE = "envio_parado_desde"
+        private const val ULTIMA_CONSULTA_VERSAO = "ultima_consulta_versao"
     }
 }

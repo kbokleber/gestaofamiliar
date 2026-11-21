@@ -82,7 +82,6 @@ class WebActivity : Activity() {
     private val relogio = Handler(Looper.getMainLooper())
     /** Último pedido de login do Keycloak aberto aqui (para refazer no navegador quando for pelo Google). */
     private var pedidoDeLogin: String? = null
-    private var versaoConferidaEm = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -753,18 +752,19 @@ class WebActivity : Activity() {
         }
     }
 
+    /** A cada abertura (no máximo 1 vez por minuto): a versão publicada vem do site, nunca fixa no app. */
     private fun conferirVersao() {
-        val agora = System.currentTimeMillis()
-        if (agora - versaoConferidaEm < INTERVALO_VERSAO_MS) return
-        versaoConferidaEm = agora
+        if (!deveConsultarVersao(System.currentTimeMillis(), configuracao.ultimaConsultaVersao, forcar = false)) return
+        configuracao.anotarConsultaVersao()
         fundo.execute {
-            val resposta = ApiClient(configuracao.site).ultimaVersao()
-            val publicada = (resposta as? Resposta.Ok)?.corpo?.optString("versao").orEmpty()
-            if (publicada.isNotBlank() && compararVersoes(publicada, BuildConfig.VERSION_NAME) > 0) {
-                runOnUiThread {
-                    versaoNova = publicada
-                    desenharFaixas()
+            val estado = Atualizador.consultar(configuracao.site)
+            runOnUiThread {
+                when (estado) {
+                    is EstadoAtualizacao.Disponivel -> versaoNova = estado.publicada
+                    is EstadoAtualizacao.JaAtualizado -> versaoNova = null
+                    else -> Unit // falha: mantém o que já sabia e tenta de novo na próxima abertura
                 }
+                desenharFaixas()
             }
         }
     }
@@ -776,7 +776,6 @@ class WebActivity : Activity() {
         const val MARCA_USER_AGENT = "GestaoFamiliarApp/"
         private const val PEDIDO_ARQUIVO = 20
         private const val PEDIDO_NOTIFICACAO = 21
-        private const val INTERVALO_VERSAO_MS = 60 * 60 * 1000L
         private const val OFERTA_PAUSA_MS = 30L * 24 * 60 * 60 * 1000
 
         const val TEXTO_COMPARTILHAR =

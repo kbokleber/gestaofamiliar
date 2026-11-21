@@ -48,7 +48,7 @@ function dataBr(iso: string): string {
   return `${dia}/${mes}/${ano}`
 }
 
-const SEM_DADO = 'O app deste celular ainda não informa este item. Atualize para a versão 2.0.7.'
+const SEM_DADO = 'O app deste celular ainda não informa este item. Atualize o app para a versão mais nova.'
 
 function booleano(chave: string, nome: string, valor: boolean | null | undefined, falta: string, temChecklist: boolean): ItemSite {
   if (!temChecklist || valor == null) return { chave, nome, estado: 'sem_dado', detalhe: SEM_DADO }
@@ -131,8 +131,8 @@ export function resumoDoChecklist(itens: ItemSite[]): { texto: string; tom: 'ok'
   const faltam = pendencias(itens).length
   const semDado = itens.some((item) => item.estado === 'sem_dado')
   const pend = faltam === 1 ? '1 pendência' : `${faltam} pendências`
-  if (faltam && semDado) return { texto: `Checklist de envio: ${pend}; ajustes sem dado (atualize para a versão 2.0.7)`, tom: 'alerta' }
+  if (faltam && semDado) return { texto: `Checklist de envio: ${pend}; ajustes sem dado (atualize o app para a versão mais nova)`, tom: 'alerta' }
   if (faltam) return { texto: `Checklist de envio: ${pend}`, tom: 'alerta' }
-  if (semDado) return { texto: 'Checklist de envio: sem dado, atualize para a versão 2.0.7', tom: 'neutro' }
+  if (semDado) return { texto: 'Checklist de envio: sem dado, atualize o app para a versão mais nova', tom: 'neutro' }
   return { texto: 'Checklist de envio: tudo certo', tom: 'ok' }
 }

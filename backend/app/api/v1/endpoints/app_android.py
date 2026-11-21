@@ -48,8 +48,10 @@ def _ultima(db: Session, com_conteudo: bool = False):
 
 
 @router.get("/ultima")
-def ultima_versao(db: Session = Depends(get_db)):
-    """Versão disponível para download. Público: o celular da criança não precisa de login."""
+def ultima_versao(response: Response, db: Session = Depends(get_db)):
+    """Versão disponível para download. Público: o celular da criança não precisa de login.
+    no-store: nenhum proxy ou cache guarda a versão antiga; toda publicação nova aparece na hora."""
+    response.headers["Cache-Control"] = "no-store"
     app = _ultima(db)
     if app is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma versão do app foi enviada ainda.")

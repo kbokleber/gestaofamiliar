@@ -29,6 +29,9 @@ class ConfiguracaoActivity : Activity() {
     private lateinit var configuracao: Configuracao
     private lateinit var raiz: LinearLayout
     private var pareando = false
+    private var atualizacao: EstadoAtualizacao = EstadoAtualizacao.NaoConsultado
+    private var progressoAtualizacao: String? = null
+    private var aguardandoPermissaoInstalar = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +51,12 @@ class ConfiguracaoActivity : Activity() {
         if (configuracao.pararPendente) Thread {
             if (PararCompartilhamento.tentar(applicationContext)) runOnUiThread { desenhar() }
         }.start()
+        if (aguardandoPermissaoInstalar && packageManager.canRequestPackageInstalls()) {
+            aguardandoPermissaoInstalar = false
+            atualizarApp()
+        } else if (atualizacao == EstadoAtualizacao.NaoConsultado) {
+            verificarAtualizacao()
+        }
     }
 
     override fun onRequestPermissionsResult(codigo: Int, permissoes: Array<out String>, resultados: IntArray) {
@@ -79,6 +88,62 @@ class ConfiguracaoActivity : Activity() {
             if (configuracao.tokenAdulto != null) telaAdulto()
             telaParear()
         }
+        telaAtualizacao()
+    }
+
+    // ------------------------------------------------------------ atualização do app
+
+    /** Versão instalada × publicada no site. Nenhum número fixo: a publicada vem sempre do /ultima. */
+    private fun telaAtualizacao() {
+        subtitulo("Atualização do app")
+        texto("Versão instalada: ${BuildConfig.VERSION_NAME}", cinza = true)
+        texto(progressoAtualizacao ?: textoAtualizacao(atualizacao))
+        texto(textoUltimaConsulta(configuracao.ultimaConsultaVersao), cinza = true)
+        val disponivel = atualizacao as? EstadoAtualizacao.Disponivel
+        if (disponivel != null) {
+            botao("Atualizar para a ${disponivel.publicada}") { atualizarApp() }
+        }
+        botao(if (atualizacao == EstadoAtualizacao.Consultando) "Consultando..." else "Verificar atualização") {
+            verificarAtualizacao()
+        }
+    }
+
+    private fun verificarAtualizacao() {
+        if (atualizacao == EstadoAtualizacao.Consultando) return
+        atualizacao = EstadoAtualizacao.Consultando
+        progressoAtualizacao = null
+        desenhar()
+        Thread {
+            val estado = Atualizador.consultar(configuracao.site)
+            configuracao.anotarConsultaVersao()
+            runOnUiThread {
+                atualizacao = estado
+                desenhar()
+            }
+        }.start()
+    }
+
+    /** Baixa e instala a versão publicada (o Android pede a confirmação). */
+    private fun atualizarApp() {
+        if (progressoAtualizacao?.endsWith("...") == true) return
+        if (!packageManager.canRequestPackageInstalls()) {
+            aguardandoPermissaoInstalar = true
+            android.widget.Toast.makeText(this, "Permita que o Gestão Familiar instale a atualização e volte.", android.widget.Toast.LENGTH_LONG).show()
+            runCatching { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) }
+            return
+        }
+        Thread {
+            Atualizador.atualizar(applicationContext, configuracao.site) { etapa ->
+                runOnUiThread {
+                    progressoAtualizacao = when (etapa) {
+                        Atualizador.Etapa.Baixando -> "Baixando a versão nova..."
+                        Atualizador.Etapa.Instalando -> "Instalando... confirme na tela do Android."
+                        is Atualizador.Etapa.Falhou -> "Não deu para atualizar (${etapa.motivo}). Toque em \"Atualizar\" para tentar de novo."
+                    }
+                    desenhar()
+                }
+            }
+        }.start()
     }
 
     // ------------------------------------------------------------ adulto

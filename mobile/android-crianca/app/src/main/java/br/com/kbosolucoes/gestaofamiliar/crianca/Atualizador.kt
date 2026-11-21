@@ -27,6 +27,16 @@ object Atualizador {
         data class Falhou(val motivo: String) : Etapa()
     }
 
+    /** Consulta a versão publicada no site e compara com a instalada. Roda fora da tela. */
+    fun consultar(site: String): EstadoAtualizacao {
+        val resposta = ApiClient(site).ultimaVersao()
+        return decidirAtualizacao(
+            instalada = BuildConfig.VERSION_NAME,
+            publicada = (resposta as? Resposta.Ok)?.corpo?.optString("versao"),
+            erro = motivoDaFalhaDeVersao(resposta),
+        )
+    }
+
     /** Roda fora da tela. Avisa as etapas em [aoMudar]. */
     fun atualizar(contexto: Context, site: String, aoMudar: (Etapa) -> Unit) {
         val base = ApiClient.normalizarEndereco(site)

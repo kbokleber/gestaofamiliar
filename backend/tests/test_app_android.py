@@ -139,7 +139,10 @@ def test_versao_nova_substitui_e_guarda_so_tres(ambiente):
     cliente, db, _estado, _adulto = ambiente
     for i in range(5):
         assert _enviar(cliente, versao=f"1.0.{i}", conteudo=APK + bytes([i])).status_code == 201
-    assert cliente.get("/api/v1/app-android/ultima").json()["versao"] == "1.0.4"
+    ultima = cliente.get("/api/v1/app-android/ultima")
+    assert ultima.json()["versao"] == "1.0.4"
+    # Atualização dinâmica: nenhum cache guarda a versão antiga; a publicação nova aparece na hora.
+    assert ultima.headers["cache-control"] == "no-store"
     assert cliente.get("/api/v1/app-android/download").content == APK + bytes([4])
     assert db.query(AppAndroid).count() == 3
 
