@@ -10,8 +10,12 @@ import { authService } from './services/authService'
 import { useAuthStore } from './stores/authStore'
 import { canSeeMenu } from './lib/menus'
 import { avisarSessaoAoApp, dentroDoApp } from './lib/appNativo'
+import { capturarErro, iniciarMonitoramento } from './lib/monitoramento'
 import './index.css'
 import { registerSW } from 'virtual:pwa-register'
+
+// Erros para o GlitchTip, sem dados pessoais. Sem DSN na compilação, não faz nada.
+iniciarMonitoramento()
 
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(async (registros) => {
@@ -162,6 +166,7 @@ iniciar
   .then(renderApp)
   .catch((error) => {
     console.error(error)
+    capturarErro(error)
     const root = document.getElementById('root')
     if (root) {
       root.textContent = 'Não foi possível iniciar o login.'

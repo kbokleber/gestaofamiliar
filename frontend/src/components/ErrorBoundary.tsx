@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
+import { capturarErro } from '../lib/monitoramento'
 
 interface Props {
   children: ReactNode
@@ -25,6 +26,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    capturarErro(error)
     if (import.meta.env.DEV) {
       console.error('ErrorBoundary caught:', error, errorInfo)
     }

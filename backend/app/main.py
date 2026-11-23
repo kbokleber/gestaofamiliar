@@ -2,7 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import settings
+from app.core.monitoramento import iniciar_monitoramento
 from app.core.version import get_app_version_info
+
+# Antes de criar o app, para pegar também os erros da inicialização. Sem DSN, não faz nada.
+iniciar_monitoramento(
+    settings.GF_SENTRY_DSN_BACKEND, settings.GF_SENTRY_ENVIRONMENT, get_app_version_info()["commit"],
+)
+
 from app.api.v1.api import api_router
 from app.db.base import Base, engine
 

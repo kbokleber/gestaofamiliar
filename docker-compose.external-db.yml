@@ -26,6 +26,9 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:gestaofamiliar@localhost}
+      # Erros para o GlitchTip (vazio = desligado)
+      GF_SENTRY_DSN_BACKEND: ${GF_SENTRY_DSN_BACKEND:-}
+      GF_SENTRY_ENVIRONMENT: ${GF_SENTRY_ENVIRONMENT:-production}
     restart: unless-stopped
 
   frontend:
@@ -37,6 +40,8 @@ services:
         VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-https://auth.kbosolucoes.com.br}
         VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-família}
         VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-gestaofamiliar}
+        # Entra no JavaScript na compilação: GF_SENTRY_DSN_SITE precisa existir no build (vazio = desligado)
+        VITE_GF_SENTRY_DSN_SITE: ${GF_SENTRY_DSN_SITE:-}
     container_name: sistema-familiar-frontend
     environment:
       TZ: America/Sao_Paulo

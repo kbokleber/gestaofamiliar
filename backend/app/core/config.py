@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # Não é configurável por ambiente de propósito: mudar o prazo exige mudar o texto do app junto.
     # Proxies na frente da API (Traefik + nginx do frontend). Define de onde sai o IP do cliente.
     PROXIES_CONFIAVEIS: int = 2
+    # Erros para o GlitchTip, sem dados pessoais (app/core/monitoramento.py). Vazio = desligado.
+    GF_SENTRY_DSN_BACKEND: str = ""
+    GF_SENTRY_ENVIRONMENT: str = "production"
     # SHA-256 do certificado que assina o app da família (separe vários por vírgula). Vazio = não confere.
     APP_ASSINATURA_SHA256: str = "2ec1e1ef0c72cd1f3d22f0989a0ac159ce0d53a38bed1810ada3fbb03181466a"
     
