@@ -3,6 +3,7 @@ import gzip
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -161,7 +162,7 @@ def _app():
 
     @app.post("/api/v1/log/{nome}")
     def registra(nome: str, corpo: Crianca):
-        logging.getLogger("app.services.teste").error(f"erro de {nome}: %s", corpo.remedio, extra={"paciente": nome})
+        logging.getLogger("app.core.monitoramento").error(f"erro de {nome}: %s", corpo.remedio, extra={"paciente": nome})
         return {"ok": True}
 
     @app.post("/api/v1/encadeado/{nome}")
@@ -215,7 +216,10 @@ def test_erro_em_rota_chega_sem_dado_pessoal(glitchtip, caminho, tipo):
     assert excecoes[-1]["type"] == tipo
     assert {e["value"] for e in excecoes} == {m.SEM_TEXTO}
     quadros = excecoes[-1]["stacktrace"]["frames"]
-    assert any(q["filename"].endswith("test_monitoramento.py") and q["lineno"] > 0 for q in quadros)
+    assert any(q.get("filename", "").endswith("test_monitoramento.py") and q["lineno"] > 0 for q in quadros)
+    # O endurecimento não pode custar o diagnóstico: quase todo quadro real mantém arquivo e função.
+    completos = [q for q in quadros if {"filename", "module", "function", "lineno"} <= set(q)]
+    assert len(completos) >= 0.9 * len(quadros), [q for q in quadros if q not in completos]
     assert evento["release"] == "gf-backend@abc1234" and evento["environment"] == "teste"
     assert evento["tags"] == {"servico": "gf-backend", "metodo": "POST"}
     assert evento["transaction"].startswith("tests.test_monitoramento._app") or "test_monitoramento" in evento["transaction"]
@@ -235,8 +239,9 @@ def test_logger_error_leva_so_o_lugar_e_nao_o_texto(glitchtip):
     eventos = glitchtip.eventos()
     assert len(eventos) == 1
     evento = eventos[0][1]
-    assert evento["logger"] == "app.services.teste"
-    assert evento["message"].startswith("log de erro em app.services.teste.registra:")
+    assert evento["logger"] == "app.core.monitoramento"
+    # A função "registra" não é do módulo do logger: vira "?", a linha fica.
+    assert re.fullmatch(r"log de erro em app\.core\.monitoramento\.\?:\d+", evento["message"])
     _sem_segredos(glitchtip.tudo())
 
 
@@ -329,3 +334,147 @@ def test_filtro_aguenta_formato_estranho(ruim):
 def test_se_o_filtro_falhar_o_evento_e_descartado(monkeypatch):
     monkeypatch.setattr(m, "_filtrar", lambda *a: 1 / 0)
     assert m.filtrar_evento({"exception": {}}, None) is None
+
+
+# ---------------------------------------------------------------- palavra única (QA): sem espaço para ajudar o filtro
+
+PALAVRAS = [
+    "Guilhermina", "Conceição", "Guilhermina-Segredo", "guilhermina", "Ritalinassegredo", "Guilhermina_Segredo",
+    "-23.987654", "23.987654", "203.0.113.77", "13999887766", "crianca.segredo@example.com", "a/b@c",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxNiJ9.c2VncmVkbw", "device-token-segredo-123", "Guilhermina.py",
+    "app/Guilhermina.py", "app/-23.987654.py", "app/core/Guilhermina.py", "app.Guilhermina", "app.core.monitoramento.Guilhermina",
+    "Guilhermina.<locals>.x", "<Guilhermina>",
+]
+
+
+def _limpo_de(palavra, saida):
+    assert palavra not in json.dumps(saida, ensure_ascii=False, default=str), f"vazou: {palavra} em {saida}"
+
+
+def _quadro_com(**campos):
+    base = {"filename": "app/core/monitoramento.py", "module": "app.core.monitoramento", "function": "filtrar_evento", "lineno": 1}
+    return {"exception": {"values": [{"type": "ValueError", "stacktrace": {"frames": [{**base, **campos}]}}]}}
+
+
+CAMPOS = {
+    "type": lambda p: {"exception": {"values": [{"type": p}]}},
+    "type com módulo real": lambda p: {"exception": {"values": [{"type": p, "module": "app.core.monitoramento"}]}},
+    "type como palavra do módulo": lambda p: {"exception": {"values": [{"type": p, "module": p}]}},
+    "module da exceção": lambda p: {"exception": {"values": [{"type": "ValueError", "module": p}]}},
+    "mecanismo": lambda p: {"exception": {"values": [{"type": "ValueError", "mechanism": {"type": p, "handled": p}}]}},
+    "value": lambda p: {"exception": {"values": [{"type": "ValueError", "value": p}]}},
+    "function": lambda p: _quadro_com(function=p),
+    "function sem módulo": lambda p: _quadro_com(function=p, module=None),
+    "module do quadro": lambda p: _quadro_com(module=p),
+    "filename": lambda p: _quadro_com(filename=p),
+    "quadro inteiro": lambda p: _quadro_com(filename=p, module=p, function=p, lineno=p, colno=p, vars={p: p}),
+    "logger": lambda p: {"logger": p},
+    "rota por componente": lambda p: {"transaction": p, "transaction_info": {"source": "component"}},
+    "rota por url": lambda p: {"transaction": p, "transaction_info": {"source": "url"}},
+    "rota por route": lambda p: {"transaction": p, "transaction_info": {"source": "route"}},
+    "rota sem origem": lambda p: {"transaction": p},
+    "timestamp": lambda p: {"timestamp": p},
+    "environment": lambda p: {"environment": p},
+    "release": lambda p: {"release": p},
+    "level": lambda p: {"level": p},
+    "platform": lambda p: {"platform": p},
+    "event_id": lambda p: {"event_id": p},
+    "método": lambda p: {"request": {"method": p, "url": p}},
+    "etiqueta causas_cortadas": lambda p: {"tags": {"causas_cortadas": p, p: p}},
+    "campo novo do SDK": lambda p: {"campo_novo": p, p: p},
+}
+
+
+@pytest.mark.parametrize("campo", CAMPOS)
+@pytest.mark.parametrize("palavra", PALAVRAS)
+def test_palavra_unica_nao_passa_em_nenhum_campo(campo, palavra):
+    _limpo_de(palavra, m.filtrar_evento(CAMPOS[campo](palavra), None))
+
+
+@pytest.mark.parametrize("palavra", PALAVRAS)
+def test_palavra_unica_no_registro_de_log(palavra):
+    for nome, funcao in ((palavra, "x"), ("app.core.monitoramento", palavra), (palavra, palavra)):
+        registro = logging.LogRecord(nome, logging.ERROR, palavra, 1, palavra, None, None, func=funcao)
+        _limpo_de(palavra, m.filtrar_evento({"level": "error", "logger": nome}, {"log_record": registro}))
+
+
+def test_rota_verdadeira_so_sai_quando_a_origem_e_a_funcao():
+    rota = "app.core.monitoramento.filtrar_evento"
+    assert m.filtrar_evento({"transaction": rota, "transaction_info": {"source": "component"}}, None)["transaction"] == rota
+    for origem in ("url", "route", "custom", None):
+        assert "transaction" not in m.filtrar_evento({"transaction": rota, "transaction_info": {"source": origem}}, None)
+
+
+@pytest.mark.parametrize("ruim", ["a b", "a-b", "a@b", "é", "Conceição", "1a", "-23.98", "a/b", "a:b", "a\n", "a\nb", "", "a" * 121])
+def test_formato_de_codigo(ruim):
+    assert m._texto(ruim, m._CODIGO) is None
+
+
+@pytest.mark.parametrize("ruim", [
+    "-23.987654.py", "23.py", "203.0.113.77", "13999887766.py", "eyJhbGciOiJIUzI1NiJ9.segredo", "a.b.py", "a-b.py", "é.py",
+    "Conceição.py", "a b.py", "../a.py", "/etc/a.py", "a//b.py", "a.txt", "a", "a.py\n", "a@b.py", "C:/a.py",
+])
+def test_formato_de_arquivo(ruim):
+    assert m._texto(ruim, m._ARQUIVO) is None
+
+
+@pytest.mark.parametrize("ruim", [
+    -23.987654, 1795438618.5, 13999887766, "13999887766", "-23.987654", "203.0.113.77", "2026-11-23", "2026-11-23T10:00:00",
+    "2026-11-23T10:00:00Z-23.98", "1300-11-23T10:00:00Z", "2026-11-23T10:00:00.1234567Z", "2026-11-23T10:00:00+23:98", True, None, [], {},
+])
+def test_formato_de_hora(ruim):
+    assert "timestamp" not in m.filtrar_evento({"timestamp": ruim}, None)
+
+
+def test_hora_verdadeira_e_quadro_verdadeiro_passam():
+    hora = "2026-11-23T22:10:33.528691Z"
+    assert m.filtrar_evento({"timestamp": hora}, None)["timestamp"] == hora
+    quadro = m.filtrar_evento(_quadro_com(), None)["exception"]["values"][0]["stacktrace"]["frames"][0]
+    assert quadro == {"filename": "app/core/monitoramento.py", "module": "app.core.monitoramento", "function": "filtrar_evento", "lineno": 1}
+    assert m._tipo("sqlalchemy.exc", "OperationalError") == "OperationalError"
+    assert m._tipo(None, "ExceptionGroup") == "ExceptionGroup"
+    # Existe, mas não é exceção; ou não é do módulo informado.
+    assert m._tipo("app.core.monitoramento", "filtrar_evento") == "Erro" and m._tipo(None, "print") == "Erro"
+
+
+def test_logger_e_classe_criados_com_dado_pessoal_nao_vazam(glitchtip):
+    import sentry_sdk
+
+    logging.getLogger("Guilhermina").error("x")
+    sentry_sdk.capture_exception(type("Guilhermina", (Exception,), {})("x"))
+    sentry_sdk.capture_exception(type("Guilhermina", (Exception,), {"__module__": "app.core.monitoramento"})("y"))
+    espaco = {}
+    exec(compile("def Guilhermina():\n    raise ValueError('z')", "app/Guilhermina.py", "exec"), {"__name__": "Guilhermina"}, espaco)
+    try:
+        espaco["Guilhermina"]()
+    except ValueError as erro:
+        sentry_sdk.capture_exception(erro)
+    assert len(glitchtip.eventos()) == 4
+    assert "Guilhermina" not in glitchtip.tudo()
+
+
+# ---------------------------------------------------------------- cadeia longa
+
+@pytest.mark.parametrize("causas,cortadas", [(8, None), (9, "1"), (30, "22")])
+def test_cadeia_longa_avisa_quantas_causas_foram_cortadas(glitchtip, caplog, causas, cortadas):
+    import sentry_sdk
+
+    caplog.set_level(logging.WARNING)
+    erro = KeyError(SEGREDOS["nome"])
+    for _ in range(causas):
+        novo = ValueError(SEGREDOS["nome"])
+        novo.__cause__ = erro
+        erro = novo
+    final = RuntimeError(SEGREDOS["nome"])
+    final.__cause__ = erro
+    sentry_sdk.capture_exception(final)
+    eventos = glitchtip.eventos()
+    assert len(eventos) == 1  # o aviso no log não vira outro evento
+    evento = eventos[0][1]
+    assert evento["tags"].get("causas_cortadas") == cortadas
+    assert len(evento["exception"]["values"]) == 10
+    # Fica a ponta da cadeia, que é o erro que de fato estourou.
+    assert evento["exception"]["values"][-1]["type"] == "RuntimeError"
+    avisos = [r.getMessage() for r in caplog.records if "cortadas" in r.getMessage()]
+    assert len(avisos) == (1 if cortadas else 0)
+    _sem_segredos(glitchtip.tudo() + "".join(avisos))

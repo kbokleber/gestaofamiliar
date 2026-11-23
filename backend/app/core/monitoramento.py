@@ -6,22 +6,37 @@ do erro, URL, cabeçalho, corpo, usuário, variável local ou log não sai, porq
 
 Desligado quando GF_SENTRY_DSN_BACKEND está vazia: o SDK nem é importado.
 """
+import builtins
 import logging
 import re
+import sys
+from functools import lru_cache
+from types import ModuleType
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 SEM_TEXTO = "[texto removido]"
+MAX_CAUSAS = 10
 
 _NIVEIS = {"fatal", "error", "warning", "info", "debug"}
-# Identificadores de código (tipos, funções, módulos): nunca texto livre.
-_CODIGO = re.compile(r"^[A-Za-z_<][\w.<>]{0,119}$")
-_ARQUIVO = re.compile(r"^[\w./\-]{1,200}$")
-_VERSAO = re.compile(r"^[\w.@+\-]{1,80}$")
-_ID = re.compile(r"^[0-9a-f]{32}$")
-_MECANISMO = re.compile(r"^[a-z_]{1,40}$")
 _METODOS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
+_MECANISMOS = {"generic", "chained", "starlette", "fastapi", "logging", "excepthook", "threading"}
+_FUNCOES_DO_PYTHON = {"<module>", "<lambda>", "<listcomp>", "<dictcomp>", "<setcomp>", "<genexpr>"}
+# Loggers conhecidos que não têm o nome de um módulo.
+_LOGGERS_CONHECIDOS = {"uvicorn.error"}
+
+# Primeira triagem, só pelo formato. Uma palavra qualquer ("Guilhermina") também tem formato de nome,
+# por isso cada campo ainda precisa EXISTIR no código carregado (funções _modulo, _tipo, _funcao...).
+_CODIGO = re.compile(r"[A-Za-z_<][\w.<>]{0,119}", re.ASCII)
+_ARQUIVO = re.compile(r"(?:[A-Za-z_]\w{0,59}/){0,12}[A-Za-z_]\w{0,59}\.py", re.ASCII)
+_VERSAO = re.compile(r"[\w.@+\-]{1,80}", re.ASCII)
+_ID = re.compile(r"[0-9a-f]{32}")
+_MOMENTO = re.compile(r"20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-6][0-9](?:\.[0-9]{1,6})?(?:Z|\+00:00)")
+_DEFINICAO = re.compile(r"\b(?:def|class)\s+([A-Za-z_]\w*)", re.ASCII)
+
+# Ambiente e versão configurados ao ligar: só estes valores saem.
+_identidade: dict = {}
 
 
 def _texto(valor: Any, formato: re.Pattern) -> Optional[str]:
@@ -29,21 +44,81 @@ def _texto(valor: Any, formato: re.Pattern) -> Optional[str]:
 
 
 def _inteiro(valor: Any) -> Optional[int]:
-    return valor if isinstance(valor, int) and not isinstance(valor, bool) and 0 <= valor < 10_000_000 else None
+    return valor if isinstance(valor, int) and not isinstance(valor, bool) and 0 <= valor < 1_000_000 else None
 
 
 def _limpo(dados: dict) -> dict:
     return {chave: valor for chave, valor in dados.items() if valor is not None}
 
 
+# ---------------------------------------------------------------- só o que existe no código carregado
+
+def _modulo(nome: Any) -> Optional[str]:
+    nome = _texto(nome, _CODIGO)
+    return nome if nome and isinstance(sys.modules.get(nome), ModuleType) else None
+
+
+def _arquivo_do_modulo(modulo: str) -> str:
+    arquivo = vars(sys.modules[modulo]).get("__file__")
+    return arquivo if isinstance(arquivo, str) else ""
+
+
+@lru_cache(maxsize=1024)
+def _definicoes(modulo: str) -> frozenset:
+    """Nomes de funções e classes escritos no arquivo do módulo."""
+    arquivo = _arquivo_do_modulo(modulo)
+    if not arquivo.endswith(".py"):
+        return frozenset()
+    try:
+        with open(arquivo, encoding="utf-8") as f:
+            return frozenset(_DEFINICAO.findall(f.read()))
+    except (OSError, UnicodeDecodeError):
+        return frozenset()
+
+
+def _arquivo(modulo: Optional[str], nome: Any) -> Optional[str]:
+    nome = _texto(nome, _ARQUIVO)
+    if not nome or not modulo:
+        return None
+    return nome if f"/{_arquivo_do_modulo(modulo)}".replace("\\", "/").endswith(f"/{nome}") else None
+
+
+def _funcao(modulo: Optional[str], nome: Any) -> Optional[str]:
+    nome = _texto(nome, _CODIGO)
+    if not nome or not modulo:
+        return None
+    return nome if nome in _FUNCOES_DO_PYTHON or nome in _definicoes(modulo) else None
+
+
+def _tipo(modulo: Any, nome: Any) -> str:
+    """Nome da classe da exceção, se ela existir no módulo informado. Classe criada na hora vira "Erro"."""
+    nome = _texto(nome, _CODIGO)
+    if not nome:
+        return "Erro"
+    if modulo is None or modulo == "builtins":
+        alvo: Any = builtins
+    else:
+        existente = _modulo(modulo)
+        if not existente:
+            return "Erro"
+        alvo = sys.modules[existente]
+    for parte in nome.split("."):
+        if not isinstance(alvo, (ModuleType, type)):
+            return "Erro"
+        # vars() não dispara __getattr__ de ninguém.
+        alvo = vars(alvo).get(parte)
+    return nome if isinstance(alvo, type) and issubclass(alvo, BaseException) else "Erro"
+
+
 def _quadro(quadro: Any) -> Optional[dict]:
     """Onde o erro passou: arquivo, função e linha. Sem variáveis locais e sem o texto do código."""
     if not isinstance(quadro, dict):
         return None
+    modulo = _modulo(quadro.get("module"))
     return _limpo({
-        "filename": _texto(quadro.get("filename"), _ARQUIVO),
-        "module": _texto(quadro.get("module"), _CODIGO),
-        "function": _texto(quadro.get("function"), _CODIGO),
+        "filename": _arquivo(modulo, quadro.get("filename")),
+        "module": modulo,
+        "function": _funcao(modulo, quadro.get("function")),
         "lineno": _inteiro(quadro.get("lineno")),
         "in_app": quadro.get("in_app") if isinstance(quadro.get("in_app"), bool) else None,
     })
@@ -55,14 +130,15 @@ def _excecao(valor: Any) -> Optional[dict]:
     pilha = valor.get("stacktrace")
     quadros = pilha.get("frames") if isinstance(pilha, dict) else None
     mecanismo = valor.get("mechanism") if isinstance(valor.get("mechanism"), dict) else {}
+    origem = mecanismo.get("type")
     saida = _limpo({
-        "type": _texto(valor.get("type"), _CODIGO) or "Erro",
-        "module": _texto(valor.get("module"), _CODIGO),
+        "type": _tipo(valor.get("module"), valor.get("type")),
+        "module": _modulo(valor.get("module")),
     })
     # A mensagem pode trazer nome, coordenada ou os valores de um INSERT: nunca vai.
     saida["value"] = SEM_TEXTO
     saida["mechanism"] = _limpo({
-        "type": _texto(mecanismo.get("type"), _MECANISMO) or "generic",
+        "type": origem if isinstance(origem, str) and origem in _MECANISMOS else "generic",
         "handled": mecanismo.get("handled") if isinstance(mecanismo.get("handled"), bool) else None,
     })
     if isinstance(quadros, list):
@@ -70,12 +146,14 @@ def _excecao(valor: Any) -> Optional[dict]:
     return saida
 
 
-def _lista_de_excecoes(evento: dict) -> list:
+def _lista_de_excecoes(evento: dict) -> tuple[list, int]:
+    """As últimas exceções da cadeia (a última é a que chegou ao fim) e quantas foram cortadas."""
     bruto = evento.get("exception")
     valores = bruto.get("values") if isinstance(bruto, dict) else bruto
     if not isinstance(valores, list):
-        return []
-    return [e for e in (_excecao(item) for item in valores[:10]) if e]
+        return [], 0
+    cortadas = max(0, len(valores) - MAX_CAUSAS)
+    return [e for e in (_excecao(item) for item in valores[-MAX_CAUSAS:]) if e], cortadas
 
 
 def _rota(evento: dict) -> Optional[str]:
@@ -83,16 +161,31 @@ def _rota(evento: dict) -> Optional[str]:
     info = evento.get("transaction_info")
     if not isinstance(info, dict) or info.get("source") != "component":
         return None
-    return _texto(evento.get("transaction"), _CODIGO)
+    nome = _texto(evento.get("transaction"), _CODIGO)
+    if not nome:
+        return None
+    partes = nome.split(".")
+    for corte in range(len(partes) - 1, 0, -1):
+        modulo = _modulo(".".join(partes[:corte]))
+        if modulo:
+            resto = [parte for parte in partes[corte:] if parte != "<locals>"]
+            return nome if all(parte in _definicoes(modulo) for parte in resto) else None
+    return None
+
+
+def _logger(nome: Any) -> Optional[str]:
+    if isinstance(nome, str) and nome in _LOGGERS_CONHECIDOS:
+        return nome
+    return _modulo(nome)
 
 
 def _origem_do_log(dica: Any) -> Optional[str]:
     """Onde o logger.error foi chamado (função e linha). O texto do log não é lido."""
     registro = dica.get("log_record") if isinstance(dica, dict) else None
-    nome = _texto(getattr(registro, "name", None), _CODIGO)
+    nome = _logger(getattr(registro, "name", None))
     if nome is None:
         return None
-    funcao = _texto(getattr(registro, "funcName", None), _CODIGO) or "?"
+    funcao = _funcao(_modulo(nome), getattr(registro, "funcName", None)) or "?"
     linha = _inteiro(getattr(registro, "lineno", None))
     return f"log de erro em {nome}.{funcao}:{linha if linha is not None else '?'}"
 
@@ -111,34 +204,31 @@ def _filtrar(evento: Any, dica: Any) -> Optional[dict]:
     # Transações, check-ins e afins têm "type"; aqui só passa erro.
     if evento.get("type"):
         return None
-    excecoes = _lista_de_excecoes(evento)
-    momento = evento.get("timestamp")
+    excecoes, cortadas = _lista_de_excecoes(evento)
     pedido = evento.get("request") if isinstance(evento.get("request"), dict) else {}
     metodo = pedido.get("method") if pedido.get("method") in _METODOS else None
     saida = _limpo({
         "event_id": _texto(evento.get("event_id"), _ID),
-        "timestamp": momento if _e_momento(momento) else None,
+        "timestamp": _texto(evento.get("timestamp"), _MOMENTO),
         "platform": "python",
         "level": evento.get("level") if evento.get("level") in _NIVEIS else "error",
-        "environment": _texto(evento.get("environment"), _VERSAO),
-        "release": _texto(evento.get("release"), _VERSAO),
-        "logger": _texto(evento.get("logger"), _CODIGO),
+        "environment": _identidade.get("environment"),
+        "release": _identidade.get("release"),
+        "logger": _logger(evento.get("logger")),
         "transaction": _rota(evento),
     })
-    saida["tags"] = _limpo({"servico": "gf-backend", "metodo": metodo})
+    saida["tags"] = _limpo({
+        "servico": "gf-backend", "metodo": metodo,
+        # Aviso de que a cadeia de causas foi cortada: só a quantidade.
+        "causas_cortadas": str(cortadas) if cortadas else None,
+    })
+    if cortadas:
+        logger.warning("Monitoramento: %s causas encadeadas cortadas do evento", cortadas)
     if excecoes:
         saida["exception"] = {"values": excecoes}
     else:
         saida["message"] = _origem_do_log(dica) or SEM_TEXTO
     return saida
-
-
-def _e_momento(valor: Any) -> bool:
-    from datetime import datetime
-
-    if isinstance(valor, (datetime, float)):
-        return True
-    return isinstance(valor, str) and re.fullmatch(r"[\dTZ:.+\-]{10,40}", valor) is not None
 
 
 def _nada(*_args, **_kwargs):
@@ -168,6 +258,10 @@ def iniciar_monitoramento(dsn: Optional[str], ambiente: str, commit: str, **opco
     if not dsn:
         return False
     try:
+        _identidade.update(
+            environment=_texto(ambiente, _VERSAO) or "production",
+            release=f"gf-backend@{_texto(commit, _VERSAO) or 'desconhecido'}",
+        )
         import sentry_sdk
         from sentry_sdk.integrations.atexit import AtexitIntegration
         from sentry_sdk.integrations.dedupe import DedupeIntegration
@@ -179,8 +273,7 @@ def iniciar_monitoramento(dsn: Optional[str], ambiente: str, commit: str, **opco
 
         sentry_sdk.init(**{
             "dsn": dsn,
-            "environment": _texto(ambiente, _VERSAO) or "production",
-            "release": f"gf-backend@{_texto(commit, _VERSAO) or 'desconhecido'}",
+            **_identidade,
             "server_name": "gf-backend",
             # Só as integrações desta lista: nada de SQL, HTTP de saída, argumentos ou módulos instalados.
             "default_integrations": False,

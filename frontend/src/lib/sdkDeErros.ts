@@ -8,6 +8,14 @@ import {
 import type { BrowserOptions, ErrorEvent as EventoDeErro } from '@sentry/react'
 import { envelopeSoDeErro, filtrarEvento } from './filtroLgpd'
 
+/** Scripts que a página carregou: os do HTML e os baixados depois (páginas sob demanda). */
+function scriptsCarregados(): Set<string> {
+  const doHtml = [...document.querySelectorAll<HTMLScriptElement | HTMLLinkElement>('script[src], link[rel="modulepreload"]')]
+    .map((el) => (el instanceof HTMLScriptElement ? el.src : el.href))
+  const baixados = performance.getEntriesByType('resource').map((r) => r.name)
+  return new Set([...doHtml, ...baixados].map((endereco) => endereco.split(/[?#]/, 1)[0]))
+}
+
 export function ligarSdk(dsn: string, ambiente: string, versao: string): void {
   const opcoes: BrowserOptions = {
     dsn,
@@ -23,7 +31,10 @@ export function ligarSdk(dsn: string, ambiente: string, versao: string): void {
     sendDefaultPii: false,
     maxBreadcrumbs: 0,
     beforeBreadcrumb: () => null,
-    beforeSend: (evento) => filtrarEvento(evento) as EventoDeErro | null,
+    beforeSend: (evento, dica) =>
+      filtrarEvento(evento, {
+        origem: window.location.origin, carregados: scriptsCarregados(), erro: dica.originalException,
+      }) as EventoDeErro | null,
     beforeSendTransaction: () => null,
     enableLogs: false,
     beforeSendLog: () => null,
