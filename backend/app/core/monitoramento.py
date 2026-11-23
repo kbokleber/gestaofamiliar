@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 
 SEM_TEXTO = "[texto removido]"
 MAX_CAUSAS = 10
+# Teste de ponta a ponta (GF_SENTRY_TESTE=1): o único texto de erro que sai, e só igual a este, letra por letra.
+MENSAGEM_DE_TESTE = "TESTE-GLITCHTIP (pode ignorar)"
+
+
+class ErroDeTesteGlitchTip(Exception):
+    """Erro provocado de propósito, com mensagem fixa. Não aceita texto de fora."""
+
+    def __init__(self) -> None:
+        super().__init__(MENSAGEM_DE_TESTE)
+
 
 _NIVEIS = {"fatal", "error", "warning", "info", "debug"}
 _METODOS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
@@ -136,7 +146,12 @@ def _excecao(valor: Any) -> Optional[dict]:
         "module": _modulo(valor.get("module")),
     })
     # A mensagem pode trazer nome, coordenada ou os valores de um INSERT: nunca vai.
-    saida["value"] = SEM_TEXTO
+    # A única exceção é a mensagem fixa do erro de teste, comparada por inteiro.
+    de_teste = (
+        saida["type"] == ErroDeTesteGlitchTip.__name__ and saida.get("module") == __name__
+        and valor.get("value") == MENSAGEM_DE_TESTE
+    )
+    saida["value"] = MENSAGEM_DE_TESTE if de_teste else SEM_TEXTO
     saida["mechanism"] = _limpo({
         "type": origem if isinstance(origem, str) and origem in _MECANISMOS else "generic",
         "handled": mecanismo.get("handled") if isinstance(mecanismo.get("handled"), bool) else None,

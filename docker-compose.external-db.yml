@@ -29,6 +29,8 @@ services:
       # Erros para o GlitchTip (vazio = desligado)
       GF_SENTRY_DSN_BACKEND: ${GF_SENTRY_DSN_BACKEND:-}
       GF_SENTRY_ENVIRONMENT: ${GF_SENTRY_ENVIRONMENT:-production}
+      # "1" liga a rota de teste do GlitchTip (só administrador). Vazio = a rota não existe.
+      GF_SENTRY_TESTE: ${GF_SENTRY_TESTE:-}
     restart: unless-stopped
 
   frontend:

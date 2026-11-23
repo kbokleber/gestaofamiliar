@@ -5,6 +5,9 @@
  * Sem imports, para dar para testar sozinho.
  */
 export const SEM_TEXTO = '[texto removido]'
+// Teste de ponta a ponta: o único texto de erro que sai, e só igual a este, letra por letra.
+export const TIPO_DE_TESTE = 'ErroDeTesteGlitchTip'
+export const MENSAGEM_DE_TESTE = 'TESTE-GLITCHTIP (pode ignorar)'
 
 type Objeto = Record<string, unknown>
 
@@ -14,6 +17,7 @@ const TIPOS = new Set([
   'InternalError', 'UnhandledRejection', 'AxiosError', 'CanceledError', 'ChunkLoadError', 'DOMException', 'AbortError',
   'NetworkError', 'NotAllowedError', 'NotFoundError', 'NotSupportedError', 'NotReadableError', 'InvalidStateError',
   'QuotaExceededError', 'SecurityError', 'TimeoutError', 'DataCloneError', 'InvalidAccessError', 'OperationError',
+  TIPO_DE_TESTE,
 ])
 const MECANISMOS = new Set([
   'generic', 'chained', 'instrument', 'onerror', 'onunhandledrejection', 'auto.browser.global_handlers.onerror',
@@ -112,7 +116,8 @@ function excecao(v: unknown, comPilha: boolean, opcoes: Opcoes): Objeto {
   return {
     type: typeof e.type === 'string' && TIPOS.has(e.type) ? e.type : 'Erro',
     // A mensagem pode trazer nome, coordenada ou resposta da API: nunca vai.
-    value: SEM_TEXTO,
+    // A única exceção é a mensagem fixa do erro de teste, comparada por inteiro.
+    value: e.type === TIPO_DE_TESTE && e.value === MENSAGEM_DE_TESTE ? MENSAGEM_DE_TESTE : SEM_TEXTO,
     mechanism: limpo({
       type: typeof mecanismo.type === 'string' && MECANISMOS.has(mecanismo.type) ? mecanismo.type : 'generic',
       handled: booleano(mecanismo.handled),

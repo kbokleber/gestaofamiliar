@@ -1,6 +1,6 @@
 // Rodar: npx esbuild tests/monitoramento.test.ts --bundle --platform=node --format=esm --log-level=error | node --input-type=module -
 import assert from 'node:assert/strict'
-import { envelopeSoDeErro, filtrarEvento, MAX_CAUSAS, SEM_TEXTO } from '../src/lib/filtroLgpd.ts'
+import { envelopeSoDeErro, filtrarEvento, MAX_CAUSAS, MENSAGEM_DE_TESTE, SEM_TEXTO, TIPO_DE_TESTE } from '../src/lib/filtroLgpd.ts'
 
 let ok = 0
 const teste = (nome: string, fn: () => void) => { fn(); ok++; console.log('ok -', nome) }
@@ -203,4 +203,19 @@ teste('nome da função nunca sai', () => {
   assert.ok(!t.includes('function') && !t.includes('abrirMapa'))
 })
 
-console.log(`${ok}/14 OK`)
+teste('erro de teste: a mensagem fixa só passa inteira, no tipo certo, nas duas passadas', () => {
+  assert.equal(MENSAGEM_DE_TESTE, 'TESTE-GLITCHTIP (pode ignorar)')
+  const valor = (type: unknown, value: unknown) => {
+    const saida = filtrarEvento({ exception: { values: [{ type, value }] } }, AQUI) as any
+    const naRede = envelopeSoDeErro([{}, [[{ type: 'event' }, saida]]]) as any
+    assert.equal(naRede[1][0][1].exception.values[0].value, saida.exception.values[0].value)
+    return saida.exception.values[0].value
+  }
+  assert.equal(valor(TIPO_DE_TESTE, MENSAGEM_DE_TESTE), MENSAGEM_DE_TESTE)
+  for (const p of [...PALAVRAS, `${MENSAGEM_DE_TESTE} Guilhermina`, `Guilhermina ${MENSAGEM_DE_TESTE}`, `${MENSAGEM_DE_TESTE}\n`, MENSAGEM_DE_TESTE.toLowerCase(), [MENSAGEM_DE_TESTE], null]) {
+    assert.equal(valor(TIPO_DE_TESTE, p), SEM_TEXTO, String(p))
+  }
+  for (const tipo of ['Error', 'Guilhermina', null, [TIPO_DE_TESTE]]) assert.equal(valor(tipo, MENSAGEM_DE_TESTE), SEM_TEXTO, String(tipo))
+})
+
+console.log(`${ok}/15 OK`)

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.api.deps import require_menu
+from app.core.config import settings
 from app.api.v1.endpoints import auth, users, healthcare, maintenance, dashboard, families, telegram, finance, system, estudos, notificacoes, localizacao, app_android
 
 api_router = APIRouter()
@@ -46,3 +47,8 @@ api_router.include_router(
 )
 api_router.include_router(localizacao.router, prefix="/localizacao", tags=["localizacao"])
 api_router.include_router(app_android.router, prefix="/app-android", tags=["app-android"])
+
+# Teste do GlitchTip: sem a variável, a rota nem é criada (404).
+if settings.GF_SENTRY_TESTE == "1":
+    from app.api.v1.endpoints import teste_glitchtip
+    api_router.include_router(teste_glitchtip.router, prefix="/system")
