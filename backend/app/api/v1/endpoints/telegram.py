@@ -488,9 +488,9 @@ async def telegram_webhook(
         try:
             response_text = process_message_with_ai(text, user, db)
             reply(response_text)
-        except Exception as e:
+        except Exception:
             logger.exception("Erro ao processar mensagem com IA")
-            reply(f"Erro ao processar. Tente de novo ou use /ajuda. ({str(e)[:80]})")
+            reply("Erro ao processar. Tente de novo ou use /ajuda.")
     else:
         reply(_fallback_response())
 

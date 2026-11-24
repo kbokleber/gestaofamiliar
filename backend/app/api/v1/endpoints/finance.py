@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, extract
@@ -40,7 +41,13 @@ from app.utils.receipt_dates import resolve_receipt_date
 from app.utils.bank_category_suggest import suggest_category_for_bank_line
 from app.utils.import_category_rules import match_import_category_rule
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+class LancamentoInvalido(ValueError):
+    """Recusa nossa na importação em lote: a frase foi escrita aqui e pode ir para o usuário."""
+
 
 # ----- CATEGORIES -----
 
@@ -542,14 +549,14 @@ async def bulk_create_entries(
             with db.begin_nested():
                 dump = entry_data.model_dump()
                 if dump.get("type") not in ("INCOME", "EXPENSE"):
-                    raise ValueError("Tipo de lançamento inválido (use INCOME ou EXPENSE)")
+                    raise LancamentoInvalido("Tipo de lançamento inválido (use INCOME ou EXPENSE)")
                 cat_id = dump.get("category_id")
                 if cat_id is not None:
                     cat = cat_by_id.get(cat_id)
                     if cat is None:
-                        raise ValueError("Categoria não encontrada para esta família")
+                        raise LancamentoInvalido("Categoria não encontrada para esta família")
                     if cat.type != dump["type"]:
-                        raise ValueError(
+                        raise LancamentoInvalido(
                             "Categoria incompatível com o tipo do lançamento (receita/despesa)"
                         )
                 dump["is_paid"] = True
@@ -563,8 +570,12 @@ async def bulk_create_entries(
                 db.add(entry)
                 db.flush()
             created += 1
-        except Exception as e:
+        except LancamentoInvalido as e:
             errors.append(FinanceEntryBulkError(index=idx, detail=str(e)))
+        except Exception:
+            # O texto do banco traz o SQL e os valores do lançamento: fica só no log.
+            logger.exception("Erro ao importar o lançamento de índice %s", idx)
+            errors.append(FinanceEntryBulkError(index=idx, detail="Erro ao importar lançamento"))
 
     db.commit()
     return FinanceEntryBulkResult(created=created, errors=errors)
@@ -739,9 +750,10 @@ async def get_receipt(
             media_type=media_type,
             headers={"Content-Disposition": content_disposition(nome)},
         )
-    except Exception as e:
-        import logging
-        logging.error(f"Erro ao ler comprovante: {e}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Erro ao ler comprovante")
         raise HTTPException(status_code=500, detail="Erro ao ler comprovante")
 
 @router.post("/upload-receipt", response_model=EntrySchema)

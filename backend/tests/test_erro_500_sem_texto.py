@@ -14,12 +14,16 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  registra as tabelas usadas pelos relacionamentos
 from app.api.deps import get_current_admin, get_current_family, get_current_user
-from app.api.v1.endpoints import healthcare, maintenance, users
+from app.api.v1.endpoints import finance, healthcare, maintenance, telegram, users
+from app.core.keycloak_admin import KeycloakAdminError
 from app.db.base import Base, get_db
 from app.models.family import Family
+from app.models.finance import FinanceCategory, FinanceEntry
 from app.models.healthcare import FamilyMember
 from app.models.maintenance import Equipment, MaintenanceOrder
+from app.models.telegram import FamilyAIConfig, FamilyTelegramConfig, TelegramUserLink
 from app.models.user import User
+from app.telegram import ai_service
 from app.utils import file_response
 
 APP = Path(__file__).resolve().parents[1] / "app"
@@ -36,8 +40,6 @@ PERMITIDOS = {
     ("main.py", "global_exception_handler"),
     # Repassa um HTTPException nosso, com status e frase já escolhidos.
     ("api/v1/endpoints/estudos.py", "_processar_anexos_entrada"),
-    # KeycloakAdminError.detail é frase escrita em core/keycloak_admin.py (ou a regra recusada pelo Keycloak).
-    ("api/v1/endpoints/users.py", "_keycloak_or_http"),
 }
 
 
@@ -167,6 +169,99 @@ def test_a_varredura_nao_incomoda_quem_esta_certo(trecho):
     assert problemas(trecho) == []
 
 
+# Único uso do texto de um erro qualquer fora do log: só compara ("value too long") para escolher o 400.
+PERMITIDOS_USO = {("api/v1/endpoints/maintenance.py", "update_maintenance_order")}
+AMPLOS = {"Exception", "BaseException", "SQLAlchemyError", "DBAPIError", "IntegrityError", "OperationalError"}
+
+
+def _nomes_do_tipo(tipo):
+    if tipo is None:
+        return {"Exception"}
+    return {_nome(x) for x in (tipo.elts if isinstance(tipo, ast.Tuple) else [tipo])}
+
+
+def _percorrer(no):
+    """Todos os nós abaixo, sem entrar em funções internas."""
+    for filho in ast.iter_child_nodes(no):
+        if not isinstance(filho, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            yield filho
+            yield from _percorrer(filho)
+
+
+def capturas(codigo, arquivo="x.py"):
+    """Erro qualquer usado fora do log, e HTTPException nossa engolida por um except amplo."""
+    achados = []
+
+    def visitar(no, funcao):
+        if isinstance(no, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            funcao = no.name
+        if isinstance(no, ast.ExceptHandler) and _nomes_do_tipo(no.type) & AMPLOS:
+            livres = set()
+            for x in ast.walk(no):
+                if isinstance(x, ast.Call) and isinstance(x.func, ast.Attribute) and _nome(x.func.value) in {"logger", "logging"}:
+                    livres |= {id(y) for y in ast.walk(x)}
+                if isinstance(x, ast.Raise) and x.cause is not None:
+                    livres |= {id(y) for y in ast.walk(x.cause)}
+            for x in ast.walk(no):
+                if id(x) in livres or (arquivo, funcao) in PERMITIDOS_USO:
+                    continue
+                if isinstance(x, ast.Name) and (x.id == no.name or x.id == "traceback"):
+                    achados.append((x.lineno, "texto de um erro qualquer usado fora do log"))
+                if isinstance(x, ast.Attribute) and x.attr in {"exc_info", "exception"} and _nome(x.value) == "sys":
+                    achados.append((x.lineno, "texto de um erro qualquer usado fora do log"))
+        if isinstance(no, ast.Try):
+            corpo = [x for item in no.body for x in [item, *_percorrer(item)]]
+            lanca = any(isinstance(x, ast.Raise) and isinstance(x.exc, ast.Call) and _nome(x.exc.func) == "HTTPException" for x in corpo)
+            protegido = False
+            for h in no.handlers:
+                nomes = _nomes_do_tipo(h.type)
+                protegido = protegido or "HTTPException" in nomes
+                repassa = isinstance(h.body[-1], ast.Raise) and h.body[-1].exc is None
+                if lanca and not protegido and not repassa and nomes & {"Exception", "BaseException"}:
+                    achados.append((h.lineno, "HTTPException engolida por except amplo"))
+        for filho in ast.iter_child_nodes(no):
+            visitar(filho, funcao)
+
+    visitar(ast.parse(codigo), "")
+    return achados
+
+
+def test_erro_qualquer_so_vai_para_o_log_e_httpexception_nao_e_engolida():
+    achados = []
+    for caminho in sorted(APP.rglob("*.py")):
+        arquivo = caminho.relative_to(APP).as_posix()
+        achados += [f"app/{arquivo}:{linha}: {motivo}" for linha, motivo in capturas(caminho.read_text(encoding="utf-8"), arquivo)]
+    assert not achados, "\n".join(achados)
+
+
+@pytest.mark.parametrize("corpo,motivo", [
+    ("f()|Exception as e|return str(e)", "fora do log"),
+    ("f()|Exception as e|reply(f'Erro ({str(e)[:80]})')", "fora do log"),
+    ("f()|Exception as e|erros.append(Item(detail=str(e)))", "fora do log"),
+    ("f()|Exception as e|return json.dumps({'error': repr(e)})", "fora do log"),
+    ("f()|(ValueError, SQLAlchemyError) as e|return str(e)", "fora do log"),
+    ("f()|IntegrityError as e|return e.orig", "fora do log"),
+    ("f()|Exception|return traceback.format_exc()", "fora do log"),
+    ("f()|Exception|return str(sys.exc_info()[1])", "fora do log"),
+    ("raise HTTPException(404)|Exception|raise HTTPException(status_code=500, detail='x')", "engolida"),
+    ("if x: raise HTTPException(status_code=400, detail='x')|Exception|return None", "engolida"),
+])
+def test_a_varredura_de_capturas_pega(corpo, motivo):
+    tenta, tipo, trata = corpo.split("|")
+    achados = capturas(f"def g():\n    try:\n        {tenta}\n    except {tipo}:\n        {trata}\n")
+    assert any(motivo in m for _, m in achados), achados
+
+
+@pytest.mark.parametrize("codigo", [
+    "try:\n    f()\nexcept Exception as e:\n    logger.exception('x %s', e)\n",
+    "try:\n    f()\nexcept LancamentoInvalido as e:\n    x.append(str(e))\nexcept Exception:\n    logger.exception('x')\n",
+    "try:\n    raise HTTPException(404)\nexcept HTTPException:\n    raise\nexcept Exception:\n    pass\n",
+    "try:\n    raise HTTPException(404)\nexcept Exception:\n    db.rollback()\n    raise\n",
+])
+def test_a_varredura_de_capturas_nao_incomoda_quem_esta_certo(codigo):
+    assert capturas(codigo) == []
+
+
 # ---------------------------------------------------------------- 2) cada um dos 10 pontos, de verdade
 
 @pytest.fixture()
@@ -188,6 +283,8 @@ def ambiente(monkeypatch):
     app.include_router(healthcare.router, prefix="/h")
     app.include_router(maintenance.router, prefix="/m")
     app.include_router(users.router, prefix="/u")
+    app.include_router(finance.router, prefix="/f")
+    app.include_router(telegram.router, prefix="/t")
 
     def _db():
         yield db
@@ -273,3 +370,176 @@ def test_validacao_e_nao_encontrado_continuam_iguais(ambiente):
     monkeypatch.setattr(db, "commit", grande)
     r = cliente.put("/m/orders/1", json={"title": "X"})
     assert r.status_code == 400 and r.json()["detail"].startswith("Documento muito grande.")
+
+
+# ---------------------------------------------------------------- 4) pontos levantados pelo QA
+
+def _lancamento(**extra):
+    return {"description": "Mercado", "amount": 10, "date": "2026-11-23", "type": "EXPENSE", **extra}
+
+
+@pytest.mark.parametrize("erro", [RuntimeError, ValueError, KeyError])
+def test_importacao_em_lote_nao_devolve_o_texto_do_erro(ambiente, caplog, erro):
+    cliente, db, monkeypatch = ambiente
+
+    def falha(*_a, **_k):
+        raise erro(TEXTO)
+
+    caplog.set_level(logging.ERROR)
+    monkeypatch.setattr(db, "begin_nested", falha)
+    r = cliente.post("/f/entries/bulk", json={"entries": [_lancamento()]})
+    assert (r.status_code, r.json()) == (200, {"created": 0, "errors": [{"index": 0, "detail": "Erro ao importar lançamento"}]})
+    assert SEGREDO not in r.text
+    assert SEGREDO in caplog.text
+
+
+def test_importacao_em_lote_mantem_as_frases_proprias_e_o_que_deu_certo(ambiente):
+    cliente, db, _ = ambiente
+    agora = datetime.now(timezone.utc)
+    db.add(FinanceCategory(id=1, name="Salário", type="INCOME", family_id=1, is_active=True, created_by_id=1, created_at=agora))
+    db.commit()
+    r = cliente.post("/f/entries/bulk", json={"entries": [
+        _lancamento(), _lancamento(type="OUTRO"), _lancamento(category_id=99), _lancamento(category_id=1)]})
+    assert r.status_code == 200 and r.json() == {"created": 1, "errors": [
+        {"index": 1, "detail": "Tipo de lançamento inválido (use INCOME ou EXPENSE)"},
+        {"index": 2, "detail": "Categoria não encontrada para esta família"},
+        {"index": 3, "detail": "Categoria incompatível com o tipo do lançamento (receita/despesa)"}]}
+
+
+FERRAMENTAS = [t["function"]["name"] for t in ai_service.TOOLS]
+
+
+class ClienteIaFalso:
+    """Guarda tudo o que seria enviado ao provedor externo."""
+
+    def __init__(self, ferramenta=None, erro=None):
+        self.enviado, self.ferramenta, self.erro = [], ferramenta, erro
+        self.chat = self.completions = self
+
+    def create(self, **pedido):
+        from types import SimpleNamespace as N
+        self.enviado.append(json.dumps(pedido, default=str, ensure_ascii=False))
+        if self.erro:
+            raise self.erro
+        chamadas = [N(id="1", function=N(name=self.ferramenta, arguments="{}"))] if len(self.enviado) == 1 else None
+        return N(choices=[N(message=N(tool_calls=chamadas, content="pronto"))])
+
+
+@pytest.mark.parametrize("ferramenta", FERRAMENTAS)
+def test_nada_do_erro_vai_para_o_provedor_de_ia(ambiente, caplog, ferramenta):
+    _, db, monkeypatch = ambiente
+    usuario = db.get(User, 1)
+    assert usuario.family_id == 1
+    falso = ClienteIaFalso(ferramenta)
+    monkeypatch.setattr(ai_service, "_get_llm_client", lambda *_a: (falso, "m", "openai"))
+    monkeypatch.setattr(db, "query", _explode)
+    caplog.set_level(logging.ERROR)
+    assert ai_service.process_message_with_ai("oi", usuario, db) == "pronto"
+    assert len(falso.enviado) == 2
+    assert ai_service.ERRO_FERRAMENTA in falso.enviado[1]
+    assert SEGREDO not in "".join(falso.enviado) and "psycopg2" not in "".join(falso.enviado)
+    assert SEGREDO in caplog.text
+
+
+def test_falha_do_provedor_de_ia_vira_frase_fixa(ambiente, caplog):
+    _, db, monkeypatch = ambiente
+    falso = ClienteIaFalso(erro=RuntimeError(TEXTO))
+    monkeypatch.setattr(ai_service, "_get_llm_client", lambda *_a: (falso, "m", "openai"))
+    caplog.set_level(logging.ERROR)
+    assert ai_service.process_message_with_ai("oi", db.get(User, 1), db) == "Erro ao processar com IA. Tente de novo mais tarde."
+    assert SEGREDO in caplog.text
+
+
+@pytest.mark.parametrize("onde", ["processamento", "provedor"])
+def test_chat_do_telegram_recebe_so_frase_fixa(ambiente, caplog, onde):
+    cliente, db, monkeypatch = ambiente
+    agora = datetime.now(timezone.utc)
+    db.add(FamilyTelegramConfig(family_id=1, bot_token="t", created_at=agora, updated_at=agora))
+    db.add(FamilyAIConfig(family_id=1, enabled=True, provider="openai", openai_api_key="k", created_at=agora, updated_at=agora))
+    db.add(TelegramUserLink(user_id=1, telegram_user_id=7, telegram_chat_id=7, use_ai=True))
+    db.commit()
+    enviadas = []
+    monkeypatch.setattr(telegram, "_send_telegram_message", lambda _t, _c, texto: enviadas.append(texto))
+    monkeypatch.setattr(telegram, "get_user_family_ids", lambda *_a: [1])
+    if onde == "processamento":
+        monkeypatch.setattr(telegram, "process_message_with_ai", _explode)
+        frase = "Erro ao processar. Tente de novo ou use /ajuda."
+    else:
+        monkeypatch.setattr(ai_service, "_get_llm_client", lambda *_a: (ClienteIaFalso(erro=RuntimeError(TEXTO)), "m", "openai"))
+        frase = "Erro ao processar com IA. Tente de novo mais tarde."
+    caplog.set_level(logging.ERROR)
+    r = cliente.post("/t/webhook/1", json={"message": {"chat": {"id": 7}, "from": {"id": 7}, "text": "oi"}})
+    assert (r.status_code, r.json(), enviadas) == (200, {"ok": True}, [frase])
+    assert SEGREDO in caplog.text
+
+
+@pytest.mark.parametrize("codigo", [502, 503, 500])
+def test_mensagem_do_keycloak_fica_so_no_log(ambiente, caplog, codigo):
+    cliente, _, monkeypatch = ambiente
+    monkeypatch.setattr(users.settings, "AUTH_KEYCLOAK_ENABLED", True)
+    monkeypatch.setattr(users, "find_user_id", lambda _u: None)
+
+    def recusa(**_k):
+        raise KeycloakAdminError(f"Could not execute JDBC {SEGREDO}", status_code=codigo)
+
+    monkeypatch.setattr(users, "upsert_user", recusa)
+    caplog.set_level(logging.ERROR)
+    r = cliente.post("/u/", json=USUARIO)
+    assert (r.status_code, r.json()) == (codigo, {"detail": "Não foi possível concluir a operação no Keycloak."})
+    assert SEGREDO not in r.text
+    assert SEGREDO in caplog.text
+
+
+def test_404_do_keycloak_continua_404_com_a_frase_nossa(monkeypatch):
+    monkeypatch.setattr(users.settings, "AUTH_KEYCLOAK_ENABLED", True)
+
+    def nao_achou():
+        raise KeycloakAdminError("Usuário não encontrado no Keycloak.", status_code=404)
+
+    with pytest.raises(HTTPException) as erro:
+        users._keycloak_or_http(nao_achou)
+    assert (erro.value.status_code, erro.value.detail) == (404, "Usuário não encontrado no Keycloak.")
+
+
+def test_todo_erro_404_do_keycloak_tem_frase_escrita_no_codigo():
+    arvore = ast.parse((APP / "core/keycloak_admin.py").read_text(encoding="utf-8"))
+    com_404 = [no for no in ast.walk(arvore) if isinstance(no, ast.Call) and _nome(no.func) == "KeycloakAdminError"
+               and any(k.arg == "status_code" and _status(k.value) != 502 and _status(k.value) != 503 for k in no.keywords)]
+    assert com_404 and all(isinstance(no.args[0], ast.Constant) for no in com_404)
+
+
+# ---------------------------------------------------------------- 5) 400/404 que viravam 500
+
+@pytest.mark.parametrize("admin,frase", [(False, "Família não especificada"), (True, "Nenhuma família encontrada")])
+def test_reordenar_membros_sem_familia_volta_a_ser_400(ambiente, admin, frase):
+    cliente, db, _ = ambiente
+    from app.api import deps
+    usuario = User(id=50, username="x", is_superuser=admin, is_staff=False, family_id=None)
+    usuario._cached_family_ids = []
+    cliente.app.dependency_overrides[deps.get_current_user] = lambda: usuario
+    cliente.app.dependency_overrides[deps.get_current_family] = lambda: None
+    r = cliente.put("/h/members/reorder", json=[{"id": 1, "order": 2}])
+    assert (r.status_code, r.json()) == (400, {"detail": frase})
+
+
+@pytest.mark.parametrize("documentos,status", [("[]", 404), (None, 404), ("isto nao e json", 500), ('[{"name": "a"}]', 500)])
+def test_comprovante_vazio_volta_a_ser_404(ambiente, documentos, status):
+    cliente, db, _ = ambiente
+    agora = datetime.now(timezone.utc)
+    db.add(FinanceEntry(id=1, description="d", amount=1, date=date(2026, 11, 23), type="EXPENSE", family_id=1, created_by_id=1,
+                        created_at=agora, updated_at=agora, documents=documentos))
+    db.commit()
+    r = cliente.get("/f/entries/1/receipt")
+    assert r.status_code == status
+    if status == 500:
+        assert r.json() == {"detail": "Erro ao ler comprovante"}
+
+
+def test_comprovante_valido_continua_igual(ambiente):
+    cliente, db, _ = ambiente
+    agora = datetime.now(timezone.utc)
+    db.add(FinanceEntry(id=1, description="d", amount=1, date=date(2026, 11, 23), type="EXPENSE", family_id=1, created_by_id=1,
+                        created_at=agora, updated_at=agora, documents=json.dumps([{"name": "a.pdf", "type": "application/pdf", "content": "YQ=="}])))
+    db.commit()
+    r = cliente.get("/f/entries/1/receipt")
+    assert (r.status_code, r.content, r.headers["content-type"]) == (200, b"a", "application/pdf")

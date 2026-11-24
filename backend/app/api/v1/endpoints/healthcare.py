@@ -379,6 +379,8 @@ async def reorder_family_members(
         
         db.commit()
         return {"status": "success", "message": "Ordem atualizada com sucesso"}
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Erro ao atualizar ordem dos membros da família")
         db.rollback()

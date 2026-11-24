@@ -32,7 +32,15 @@ def _keycloak_or_http(action) -> None:
     try:
         action()
     except KeycloakAdminError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+        # "Usuário não encontrado no Keycloak": frase nossa, escrita em core/keycloak_admin.py.
+        if exc.status_code == status.HTTP_404_NOT_FOUND:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.detail) from exc
+        # As demais podem trazer a mensagem que o Keycloak devolveu: só no log.
+        logger.exception("Falha ao falar com o Keycloak (%s)", exc.status_code)
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail="Não foi possível concluir a operação no Keycloak.",
+        ) from exc
 
 @router.get("/me", response_model=UserWithProfile)
 async def read_user_me(

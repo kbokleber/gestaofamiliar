@@ -19,6 +19,10 @@ from sqlalchemy import func
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
+
+# Frases fixas: o texto do erro fica só no log do servidor.
+ERRO_FERRAMENTA = "Não foi possível consultar os dados agora."
+ERRO_IA = "Erro ao processar com IA. Tente de novo mais tarde."
 NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 MINIMAX_BASE_URL = "https://api.minimax.io/v1"
 
@@ -229,9 +233,10 @@ def _execute_tool(name: str, arguments: dict, db: Session, user: User) -> str:
             return json.dumps(list_data, ensure_ascii=False)
 
         return json.dumps({"error": f"Ferramenta desconhecida: {name}"})
-    except Exception as e:
+    except Exception:
         logger.exception("Erro ao executar tool %s", name)
-        return json.dumps({"error": str(e)})
+        # Este texto vai para o provedor de IA externo: nunca leva o erro, que pode ter dados da família.
+        return json.dumps({"error": ERRO_FERRAMENTA}, ensure_ascii=False)
 
 
 def _get_llm_client(family_id: Optional[int], db: Session) -> Optional[tuple[OpenAI | AzureOpenAI, str, str]]:
@@ -305,9 +310,9 @@ def process_message_with_ai(message: str, user: User, db: Session) -> str:
                 request_kwargs["extra_body"] = {"chat_template_kwargs": {"thinking": False}}
 
             response = client.chat.completions.create(**request_kwargs)
-        except Exception as e:
+        except Exception:
             logger.exception("Erro ao chamar LLM")
-            return f"Erro ao processar com IA: {str(e)[:200]}"
+            return ERRO_IA
 
         choice = response.choices[0]
         if not choice.message.tool_calls:
