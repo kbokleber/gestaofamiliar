@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     KEYCLOAK_ALLOW_SIGNUP: bool = False
     
     # Environment
-    ENVIRONMENT: str = "development"
+    # Padrão seguro: só "development", definido de propósito, devolve o texto do erro no 500.
+    ENVIRONMENT: str = "production"
     
     # ----- Telegram / IA (config por família; esta URL é usada para registrar webhook) -----
     BACKEND_PUBLIC_URL: Optional[str] = None  # ex: https://api.seudominio.com (para setWebhook por família)
