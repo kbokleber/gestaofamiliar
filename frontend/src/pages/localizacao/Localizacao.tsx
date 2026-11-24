@@ -127,7 +127,7 @@ function Rosto({ crianca, foto }: { crianca: Crianca; foto?: string }) {
   return (
     <div
       aria-hidden="true"
-      className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full text-lg font-bold text-white ${crianca.adulto ? 'bg-teal-700' : 'bg-purple-600'}`}
+      className={`flex h-12 w-12 shrink-0 sm:h-14 sm:w-14 items-center justify-center overflow-hidden rounded-full text-lg font-bold text-white ${crianca.adulto ? 'bg-teal-700' : 'bg-purple-600'}`}
     >
       {foto && foto !== quebrada
         ? <img src={foto} alt="" onError={() => setQuebrada(foto)} className="h-full w-full object-cover" />
@@ -194,21 +194,22 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
           <p className="text-sm text-amber-900">Motivo: {alerta.motivo}. Revise "Quem recebe o SOS" na aba Celulares.</p>
         </div>
       ))}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* grid-cols-1: coluna minmax(0,1fr), para o cartão nunca passar da tela no celular. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {criancas.map((crianca) => (
           <div key={crianca.id} className="rounded-lg bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-2 sm:gap-3">
               <Rosto crianca={crianca} foto={fotos[crianca.id]} />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
                 <p className="text-lg font-semibold text-gray-900">
-                  {crianca.nome}
-                  {crianca.adulto && <span className="ml-2 rounded-full bg-teal-100 px-2 py-0.5 align-middle text-xs font-medium text-teal-800">Adulto</span>}
+                  {crianca.nome}{' '}
+                  {crianca.adulto && <span className="inline-block whitespace-nowrap rounded-full bg-teal-100 px-2 py-0.5 align-middle text-xs font-medium text-teal-800">Adulto</span>}
                 </p>
                 <p className={`mt-1 text-base ${crianca.status.codigo === 'dentro' ? 'font-medium text-purple-700' : 'text-gray-700'}`}>
                   {crianca.status.frase}
                 </p>
               </div>
-              <Bateria nivel={crianca.bateria} grande />
+              <span className="shrink-0"><Bateria nivel={crianca.bateria} grande /></span>
             </div>
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
               <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{haQuantoTempo(crianca.ha_segundos)}</span>

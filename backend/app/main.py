@@ -157,6 +157,16 @@ def startup_create_tables():
                 "ALTER TABLE location_child_settings ADD COLUMN IF NOT EXISTS family_member_id INTEGER "
                 "REFERENCES healthcare_familymember(id) ON DELETE SET NULL"
             ))
+            # Um membro só pode ser uma pessoa. Repetido (só em banco de teste) sai antes, senão o índice não nasce.
+            conn.execute(text(
+                "UPDATE location_child_settings s SET family_member_id = NULL WHERE EXISTS ("
+                "SELECT 1 FROM location_child_settings o WHERE o.family_member_id = s.family_member_id "
+                "AND o.child_user_id < s.child_user_id)"
+            ))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_location_child_settings_member "
+                "ON location_child_settings (family_member_id)"
+            ))
         from app.db.base import SessionLocal
         from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
         db = SessionLocal()

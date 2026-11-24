@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import HTTPException, status
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_user_family_ids
@@ -1181,6 +1182,19 @@ def membros_da_familia(db: Session, adulto: User) -> list[dict]:
 
 def vincular_foto(db: Session, adulto: User, pessoa_id: int, family_member_id: Optional[int]) -> dict:
     """Diz qual membro da família é esta pessoa. Um membro só pode ser uma pessoa (foto trocada confunde o mapa)."""
+    for _ in range(2):
+        try:
+            return _gravar_vinculo(db, adulto, pessoa_id, family_member_id)
+        except IntegrityError:
+            # Outro pedido gravou no mesmo instante: olha de novo como ficou (e aí responde 409 ou grava).
+            db.rollback()
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Esse membro acabou de ser escolhido para outra pessoa. Atualize a tela.",
+    )
+
+
+def _gravar_vinculo(db: Session, adulto: User, pessoa_id: int, family_member_id: Optional[int]) -> dict:
     pessoa = obter_membro(db, familias_do_adulto(adulto, db), pessoa_id)
     if family_member_id is not None:
         membro = db.query(FamilyMember.id).filter(
@@ -1191,22 +1205,20 @@ def vincular_foto(db: Session, adulto: User, pessoa_id: int, family_member_id: O
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Membro não encontrado nesta família.",
             )
-        outro = (
-            db.query(User)
-            .join(LocationChildSettings, LocationChildSettings.child_user_id == User.id)
-            .filter(
-                LocationChildSettings.family_member_id == family_member_id,
-                User.id != pessoa.id,
-                User.family_id == pessoa.family_id,
-                User.is_active.is_(True),
-            )
-            .first()
-        )
-        if outro is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Esse membro já está ligado a {nome_de(outro)}. Tire de lá antes.",
-            )
+        no_mapa = {p.id: p for p in _pessoas_no_mapa(db, [pessoa.family_id])}
+        antigos = db.query(LocationChildSettings).filter(
+            LocationChildSettings.family_member_id == family_member_id,
+            LocationChildSettings.child_user_id != pessoa.id,
+        ).all()
+        for antigo in antigos:
+            if antigo.child_user_id in no_mapa:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Esse membro já está ligado a {nome_de(no_mapa[antigo.child_user_id])}. Tire de lá antes.",
+                )
+            # Quem saiu do mapa (parou de compartilhar, perdeu o menu, mudou de família) não segura o membro.
+            antigo.family_member_id = None
+        db.flush()  # libera o índice único antes de gravar o novo
     pref = db.query(LocationChildSettings).filter(LocationChildSettings.child_user_id == pessoa.id).first()
     if pref is None:
         pref = LocationChildSettings(child_user_id=pessoa.id, family_id=pessoa.family_id)

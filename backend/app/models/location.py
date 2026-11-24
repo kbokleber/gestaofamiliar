@@ -123,6 +123,8 @@ class LocationChildSettings(Base):
     """Preferências do mapa por criança, como o apelido que aparece no marcador."""
 
     __tablename__ = "location_child_settings"
+    # Um membro da família só pode ser uma pessoa do mapa, mesmo com dois pedidos ao mesmo tempo.
+    __table_args__ = (Index("uq_location_child_settings_member", "family_member_id", unique=True),)
 
     child_user_id = Column(Integer, ForeignKey("auth_user.id"), primary_key=True)
     family_id = Column(Integer, ForeignKey("families.id"), nullable=False, index=True)

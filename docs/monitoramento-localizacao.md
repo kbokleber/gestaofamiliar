@@ -260,7 +260,10 @@ Motivo: em 21/11 o Android (Redmi/Xiaomi) encerrou o app do Guilherme e a posiç
 - **Vínculo:** aba Celulares, campo "Quem é na família". Vale para criança e para adulto que compartilha. Nada é adivinhado pelo nome: a tentativa antiga por nome igual saiu (nunca funcionou, porque a lista da Saúde não devolvia a família do membro).
 - **Banco:** `location_child_settings.family_member_id` (aceita nulo, `ON DELETE SET NULL`), criada na subida da API. O código antigo funciona com a coluna nova.
 - **Rotas (menu Localização):** `GET /fotos` (miniaturas JPEG de até 144 px), `GET /membros-da-familia` (só id, nome, família e se tem foto) e `PUT /membros/{id}/foto` com `{"family_member_id": número ou null}`. `/membros` ganha `family_member_id`, sem a imagem. `/criancas` não muda.
-- **Regras:** pessoa e membro precisam ser da mesma família; um membro só pode ser uma pessoa (409). Se alguém muda de família ou o membro é apagado, a foto some.
+- **Regras:** pessoa e membro precisam ser da mesma família; um membro só pode ser uma pessoa (409, com índice único `uq_location_child_settings_member` para dois pedidos ao mesmo tempo). Se alguém muda de família ou o membro é apagado, a foto some.
+- **Quem saiu do mapa não segura o membro:** parou de compartilhar, perdeu o menu, foi desativado ou mudou de família. Ao escolher o membro para outra pessoa, o vínculo antigo é limpo.
+- **Imagem:** só JPEG (até 65 MP), PNG, WebP e GIF (até 25 MP), conferidos antes de descompactar. A miniatura sai sem metadados (comentário, EXIF, XMP, ICC). O Pillow não chama o Ghostscript em nenhum módulo.
+- **Excluir usuário:** o banco confere primeiro e o Keycloak vem depois. Com dados ligados, responde 409 e nada é excluído; apelido e vínculo de foto saem junto com o usuário.
 - **Sem foto:** sem vínculo, membro sem foto, imagem que não abre ou falha na rota: aparecem o apelido (marcador) ou as iniciais.
 - **Acesso:** quem vê o mapa vê as fotos vinculadas e os nomes dos membros da família, mesmo sem o menu Saúde. Nenhum dado de saúde sai por estas rotas.
 - **Apelido:** vale só no marcador de quem está sem foto. Apelido com palavra de mais de 5 letras usa letra menor e quebra a linha, para não ser cortado.

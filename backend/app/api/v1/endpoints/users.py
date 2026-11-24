@@ -1,11 +1,14 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timezone
 from app.db.base import get_db
 from app.models.user import User, Profile
 from app.models.family import Family
+from app.models.location import LocationChildSettings
 from app.schemas.user import User as UserSchema, UserWithProfile, ProfileUpdate, PasswordUpdate, UserCreate, PermissionsUpdate, UserUpdate, ApiTokenResponse
 from app.api.deps import get_current_user, get_current_admin
 from app.core.config import settings
@@ -487,15 +490,36 @@ async def delete_user(
             detail="Você não pode excluir sua própria conta"
         )
     
-    _keycloak_or_http(lambda: delete_keycloak_user(user.username))
+    username = user.username
+    try:
+        # Excluir perfil primeiro (se existir)
+        profile = db.query(Profile).filter(Profile.user_id == user_id).first()
+        if profile:
+            db.delete(profile)
 
-    # Excluir perfil primeiro (se existir)
-    profile = db.query(Profile).filter(Profile.user_id == user_id).first()
-    if profile:
-        db.delete(profile)
-    
-    # Excluir usuário
-    db.delete(user)
+        # Apelido e foto no mapa são só preferência: saem junto.
+        db.query(LocationChildSettings).filter(LocationChildSettings.child_user_id == user_id).delete()
+
+        # Excluir usuário
+        db.delete(user)
+        db.flush()
+        if db.get_bind().dialect.name == "postgresql":
+            # Chaves criadas pelo Django só são conferidas no commit: confere já, antes de mexer no Keycloak.
+            db.execute(text("SET CONSTRAINTS ALL IMMEDIATE"))
+    except IntegrityError:
+        db.rollback()
+        logger.exception("Usuário %s não pode ser excluído: tem dados ligados", user_id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este usuário tem dados ligados a ele e não pode ser excluído. Desative o usuário.",
+        )
+
+    # O Keycloak só depois de o banco aceitar. Se ele falhar, nada é excluído.
+    try:
+        _keycloak_or_http(lambda: delete_keycloak_user(username))
+    except HTTPException:
+        db.rollback()
+        raise
     db.commit()
     
     return {"message": "Usuário excluído com sucesso"}
