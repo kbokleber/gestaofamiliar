@@ -1048,7 +1048,7 @@ def test_qa3_criancas_mantem_o_formato_do_204_e_membros_traz_adulto(ambiente):
     criancas = cliente.get("/api/v1/localizacao/criancas").json()
     assert criancas and all(set(item) == formato_204 for item in criancas)
     membros = cliente.get("/api/v1/localizacao/membros").json()
-    assert all(set(item) == formato_204 | {"adulto"} for item in membros)
+    assert all(set(item) == formato_204 | {"adulto", "family_member_id"} for item in membros)
     assert {m["nome"]: m["adulto"] for m in membros} == {"Guilherme": False, "Giovana": False, "Mãe": True}
 
 

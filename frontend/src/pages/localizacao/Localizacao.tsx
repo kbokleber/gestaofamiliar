@@ -11,10 +11,10 @@ import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import {
   corBateria, formatarDuracao, formatarHora, haQuantoTempo, hojeSaoPaulo, localizacaoApi,
   mensagemDeErro, sugerirPreposicao,
-  type Aparelho, type Crianca, type Lugar, type LugarEntrada, type Pareamento, type Preposicao, type Sos, type Trajeto,
+  type Aparelho, type Crianca, type Lugar, type LugarEntrada, type MembroDaFamilia, type Pareamento, type Preposicao, type Sos, type Trajeto,
 } from './api'
 import { CirculosLugares, MapaBase, iconeBolinha, iconeGrupo } from './Mapa'
-import { agruparProximos, casarFotos } from './fotosEGrupos'
+import { agruparProximos, fotosPorPessoa, rotuloDaPessoa } from './fotosEGrupos'
 import { checklistDoCelular, resumoDoChecklist, type EstadoItemSite } from './checklistDoCelular'
 import BaixarApp from './BaixarApp'
 import { useAuthStore } from '../../stores/authStore'
@@ -30,6 +30,7 @@ const ABAS: Array<{ id: Aba; nome: string; icone: typeof MapPin }> = [
 
 export default function Localizacao() {
   const [aba, setAba] = useState<Aba>('agora')
+  const queryClient = useQueryClient()
   const criancas = useQuery({
     queryKey: ['localizacao', 'criancas'],
     queryFn: localizacaoApi.criancas,
@@ -48,7 +49,7 @@ export default function Localizacao() {
         </h1>
         <button
           type="button"
-          onClick={() => { void criancas.refetch(); void lugares.refetch() }}
+          onClick={() => { void criancas.refetch(); void lugares.refetch(); void queryClient.invalidateQueries({ queryKey: ['localizacao', 'fotos'] }) }}
           className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 hover:bg-gray-50"
           title="Atualizar"
         >
@@ -109,6 +110,32 @@ function Bateria({ nivel, grande = false }: { nivel: number | null; grande?: boo
   )
 }
 
+/** Foto de cada pessoa (por id). Falhou ou ainda não chegou: vazio, e a tela usa o apelido ou as iniciais. */
+function useFotos(): Record<number, string> {
+  const fotos = useQuery({
+    queryKey: ['localizacao', 'fotos'],
+    queryFn: localizacaoApi.fotos,
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  })
+  return useMemo(() => fotosPorPessoa(fotos.data ?? []), [fotos.data])
+}
+
+/** Círculo com a foto ou, sem foto (ou se ela não abrir), as iniciais. */
+function Rosto({ crianca, foto }: { crianca: Crianca; foto?: string }) {
+  const [quebrada, setQuebrada] = useState<string | null>(null)
+  return (
+    <div
+      aria-hidden="true"
+      className={`flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full text-lg font-bold text-white ${crianca.adulto ? 'bg-teal-700' : 'bg-purple-600'}`}
+    >
+      {foto && foto !== quebrada
+        ? <img src={foto} alt="" onError={() => setQuebrada(foto)} className="h-full w-full object-cover" />
+        : rotuloDaPessoa(crianca.nome)}
+    </div>
+  )
+}
+
 function SemCriancas() {
   return (
     <p className="rounded-lg bg-white p-4 text-sm text-gray-600 shadow-sm">
@@ -129,13 +156,7 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
     [comPosicao, lugares],
   )
   const chave = `${comPosicao.map((c) => c.id).join(',')}|${lugares.length}`
-  const membrosComFoto = useQuery({
-    queryKey: ['localizacao', 'fotos'],
-    queryFn: localizacaoApi.fotosDaFamilia,
-    staleTime: 10 * 60 * 1000,
-    retry: false,
-  })
-  const fotos = useMemo(() => casarFotos(criancas, membrosComFoto.data ?? []), [criancas, membrosComFoto.data])
+  const fotos = useFotos()
   const queryClient = useQueryClient()
   const pedidosSos = useQuery({ queryKey: ['localizacao', 'sos'], queryFn: localizacaoApi.sos, refetchInterval: 30_000 })
   const sosAbertos = (pedidosSos.data ?? []).filter((pedido) => !pedido.visto_em)
@@ -177,7 +198,8 @@ function AbaAgora({ criancas, lugares }: { criancas: Crianca[]; lugares: Lugar[]
         {criancas.map((crianca) => (
           <div key={crianca.id} className="rounded-lg bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+              <Rosto crianca={crianca} foto={fotos[crianca.id]} />
+              <div className="min-w-0 flex-1">
                 <p className="text-lg font-semibold text-gray-900">
                   {crianca.nome}
                   {crianca.adulto && <span className="ml-2 rounded-full bg-teal-100 px-2 py-0.5 align-middle text-xs font-medium text-teal-800">Adulto</span>}
@@ -707,6 +729,13 @@ function FormularioLugar({
 
 function AbaCelulares({ criancas }: { criancas: Crianca[] }) {
   const queryClient = useQueryClient()
+  const fotos = useFotos()
+  const membros = useQuery({
+    queryKey: ['localizacao', 'membros-da-familia'],
+    queryFn: localizacaoApi.membrosDaFamilia,
+    enabled: criancas.length > 0,
+    retry: false,
+  })
   const [codigo, setCodigo] = useState<Pareamento | null>(null)
   const [revogar, setRevogar] = useState<{ id: number; nome: string; crianca: string } | null>(null)
 
@@ -754,6 +783,7 @@ function AbaCelulares({ criancas }: { criancas: Crianca[] }) {
             )}
           </div>
           <CampoApelido crianca={crianca} />
+          <CampoFoto crianca={crianca} criancas={criancas} foto={fotos[crianca.id]} membros={membros.data} falhou={membros.isError} />
           {crianca.aparelhos.length === 0 ? (
             <p className="mt-2 text-sm text-gray-500">Nenhum celular pareado.</p>
           ) : (
@@ -844,6 +874,81 @@ function CampoApelido({ crianca }: { crianca: Crianca }) {
         {salvar.isPending ? 'Salvando...' : 'Salvar'}
       </Button>
       {salvo && !mudou && <span className="pb-2 text-xs text-green-700">Salvo</span>}
+    </form>
+  )
+}
+
+/** Liga a pessoa do mapa ao cadastro de Saúde (Membros da Família), de onde vem a foto. */
+function CampoFoto({ crianca, criancas, foto, membros, falhou }: {
+  crianca: Crianca
+  criancas: Crianca[]
+  foto?: string
+  membros?: MembroDaFamilia[]
+  falhou: boolean
+}) {
+  const queryClient = useQueryClient()
+  const atual = crianca.family_member_id ?? null
+  // Só muda de verdade no Salvar: as setas do teclado passam por várias opções.
+  const [escolha, setEscolha] = useState<number | null>(atual)
+  const [salvo, setSalvo] = useState(false)
+  useEffect(() => { setEscolha(atual) }, [atual])
+
+  const salvar = useMutation({
+    mutationFn: () => localizacaoApi.vincularFoto(crianca.id, escolha),
+    onSuccess: () => {
+      setSalvo(true)
+      void queryClient.invalidateQueries({ queryKey: ['localizacao', 'criancas'] })
+      void queryClient.invalidateQueries({ queryKey: ['localizacao', 'fotos'] })
+    },
+    onError: (e) => alert(mensagemDeErro(e, 'Não foi possível salvar quem é na família.')),
+  })
+  const opcoes = (membros ?? []).filter((membro) => membro.family_id === crianca.family_id)
+  const escolhido = opcoes.find((membro) => membro.id === escolha)
+  const donoDe = (membroId: number) => criancas.find((c) => c.id !== crianca.id && c.family_member_id === membroId)
+  const mudou = escolha !== atual
+
+  return (
+    <form
+      className="mt-3 flex items-center gap-3"
+      onSubmit={(e) => { e.preventDefault(); if (mudou) salvar.mutate() }}
+    >
+      <Rosto crianca={crianca} foto={foto} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-0 max-w-full text-sm font-medium text-gray-700">
+            Quem é na família (foto no mapa)
+            <select
+              value={escolha ?? ''}
+              disabled={!membros || salvar.isPending}
+              onChange={(e) => { setEscolha(e.target.value ? Number(e.target.value) : null); setSalvo(false) }}
+              className="mt-1 block min-h-10 w-full max-w-sm rounded-lg border border-gray-300 px-3"
+            >
+              <option value="">Ninguém (sem foto)</option>
+              {opcoes.map((membro) => {
+                const dono = donoDe(membro.id)
+                return (
+                  <option key={membro.id} value={membro.id} disabled={!!dono}>
+                    {membro.nome}{dono ? ` (já é ${dono.nome})` : membro.tem_foto ? '' : ' (sem foto no cadastro)'}
+                  </option>
+                )
+              })}
+            </select>
+          </label>
+          <Button type="submit" variant="outline" disabled={!mudou || salvar.isPending} className="min-h-10">
+            {salvar.isPending ? 'Salvando...' : 'Salvar'}
+          </Button>
+          {salvo && !mudou && <span className="pb-2 text-xs text-green-700">Salvo</span>}
+        </div>
+        <p className="mt-1 text-xs text-gray-500" role="status">
+          {falhou
+            ? 'Não foi possível carregar os membros da família.'
+            : membros && opcoes.length === 0
+              ? 'Nenhum membro cadastrado em Saúde › Membros da Família.'
+              : escolhido && !mudou && !foto
+                ? 'Esse membro não tem foto que dê para mostrar. Coloque uma em Saúde › Membros da Família.'
+                : 'A foto vem de Saúde › Membros da Família.'}
+        </p>
+      </div>
     </form>
   )
 }

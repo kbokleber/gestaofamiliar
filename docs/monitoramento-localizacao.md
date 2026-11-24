@@ -253,3 +253,14 @@ Motivo: em 21/11 o Android (Redmi/Xiaomi) encerrou o app do Guilherme e a posiç
 - **Versão mais antiga no site** (por exemplo, publicação desfeita): o app nunca oferece voltar.
 - **Servidor:** `/ultima` responde com `Cache-Control: no-store`.
 - **Site:** os textos do checklist dizem "atualize o app para a versão mais nova", sem número fixo.
+
+## Foto no marcador (vínculo manual)
+
+- **O que muda:** o marcador do mapa e o cartão da aba Agora mostram a foto da pessoa. A foto é a de Saúde › Membros da Família.
+- **Vínculo:** aba Celulares, campo "Quem é na família". Vale para criança e para adulto que compartilha. Nada é adivinhado pelo nome: a tentativa antiga por nome igual saiu (nunca funcionou, porque a lista da Saúde não devolvia a família do membro).
+- **Banco:** `location_child_settings.family_member_id` (aceita nulo, `ON DELETE SET NULL`), criada na subida da API. O código antigo funciona com a coluna nova.
+- **Rotas (menu Localização):** `GET /fotos` (miniaturas JPEG de até 144 px), `GET /membros-da-familia` (só id, nome, família e se tem foto) e `PUT /membros/{id}/foto` com `{"family_member_id": número ou null}`. `/membros` ganha `family_member_id`, sem a imagem. `/criancas` não muda.
+- **Regras:** pessoa e membro precisam ser da mesma família; um membro só pode ser uma pessoa (409). Se alguém muda de família ou o membro é apagado, a foto some.
+- **Sem foto:** sem vínculo, membro sem foto, imagem que não abre ou falha na rota: aparecem o apelido (marcador) ou as iniciais.
+- **Acesso:** quem vê o mapa vê as fotos vinculadas e os nomes dos membros da família, mesmo sem o menu Saúde. Nenhum dado de saúde sai por estas rotas.
+- **Apelido:** vale só no marcador de quem está sem foto. Apelido com palavra de mais de 5 letras usa letra menor e quebra a linha, para não ser cortado.

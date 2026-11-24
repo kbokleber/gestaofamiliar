@@ -126,6 +126,8 @@ class AparelhoMembroOut(AparelhoOut):
 class MembroOut(CriancaOut):
     """Item de /membros: o mesmo de /criancas mais o campo "adulto". /criancas fica igual ao do app 2.0.4."""
     adulto: bool = False
+    # Membro da família (Saúde) escolhido como "quem é" esta pessoa; a foto vem por /fotos.
+    family_member_id: Optional[int] = None
     aparelhos: list[AparelhoMembroOut]
 
 
@@ -215,6 +217,30 @@ class ApelidoIn(BaseModel):
 class ApelidoOut(BaseModel):
     crianca_id: int
     apelido: Optional[str] = None
+
+
+class VinculoFotoIn(BaseModel):
+    """Membro da família (Saúde) que é esta pessoa. null tira o vínculo."""
+    family_member_id: Optional[int] = Field(ge=1)
+
+
+class VinculoFotoOut(BaseModel):
+    pessoa_id: int
+    family_member_id: Optional[int] = None
+
+
+class MembroDaFamiliaOut(BaseModel):
+    """Opção da lista "Quem é na família": só o necessário para escolher."""
+    id: int
+    nome: str
+    family_id: int
+    tem_foto: bool
+
+
+class FotoNoMapaOut(BaseModel):
+    """Miniatura JPEG em base64, sem o prefixo data:."""
+    pessoa_id: int
+    foto: str
 
 
 class RevogacaoOut(BaseModel):

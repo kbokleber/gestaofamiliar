@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_user_family_ids
@@ -28,6 +28,7 @@ from app.models.location import (
     LocationSos,
     LocationSosAvisado,
 )
+from app.models.healthcare import FamilyMember
 from app.models.user import User
 from app.services import alertas_adultos, avisos_app
 from pydantic import ValidationError
@@ -312,6 +313,7 @@ def _resumo_no_mapa(db: Session, familias: list[int], criancas: list[User], com_
         pref.child_user_id: pref.apelido
         for pref in db.query(LocationChildSettings).filter(LocationChildSettings.family_id.in_(familias)).all()
     }
+    vinculos = _vinculos_de_foto(db, criancas) if com_adulto else {}
     agora = datetime.now(timezone.utc)
     saida = []
     for crianca in criancas:
@@ -358,6 +360,7 @@ def _resumo_no_mapa(db: Session, familias: list[int], criancas: list[User], com_
         })
         if com_adulto:
             saida[-1]["adulto"] = not crianca.is_child
+            saida[-1]["family_member_id"] = vinculos.get(crianca.id)
     return saida
 
 
@@ -1124,3 +1127,91 @@ def definir_apelido(db: Session, adulto: User, child_id: int, apelido: Optional[
     pref.apelido = limpo
     db.commit()
     return {"crianca_id": crianca.id, "apelido": limpo}
+
+
+# ---------------------------------------------------------------- foto no mapa
+
+def _vinculos_de_foto(db: Session, pessoas: list[User]) -> dict[int, int]:
+    """Pessoa do mapa → membro da família. Só vale se os dois são da mesma família hoje."""
+    ids = [pessoa.id for pessoa in pessoas]
+    if not ids:
+        return {}
+    linhas = (
+        db.query(LocationChildSettings.child_user_id, FamilyMember.id)
+        .join(FamilyMember, FamilyMember.id == LocationChildSettings.family_member_id)
+        .join(User, User.id == LocationChildSettings.child_user_id)
+        .filter(LocationChildSettings.child_user_id.in_(ids), FamilyMember.family_id == User.family_id)
+        .all()
+    )
+    return {pessoa_id: membro_id for pessoa_id, membro_id in linhas}
+
+
+def _pessoas_no_mapa(db: Session, familias: list[int]) -> list[User]:
+    criancas = db.query(User).filter(
+        User.is_child.is_(True), User.is_active.is_(True), User.family_id.in_(familias)
+    ).all()
+    return criancas + _adultos_no_mapa(db, familias)
+
+
+def fotos_no_mapa(db: Session, adulto: User) -> dict[int, str]:
+    """Foto original (base64 do cadastro) de cada pessoa vinculada que tem foto."""
+    vinculos = _vinculos_de_foto(db, _pessoas_no_mapa(db, familias_do_adulto(adulto, db)))
+    fotos = dict(
+        db.query(FamilyMember.id, FamilyMember.photo)
+        .filter(FamilyMember.id.in_(list(vinculos.values())), FamilyMember.photo.isnot(None))
+        .all()
+    )
+    return {pessoa_id: fotos[membro_id] for pessoa_id, membro_id in vinculos.items() if fotos.get(membro_id)}
+
+
+def membros_da_familia(db: Session, adulto: User) -> list[dict]:
+    """Opções de "Quem é na família". Não traz a foto nem dado de saúde."""
+    tem_foto = func.coalesce(func.length(FamilyMember.photo), 0) > 0
+    linhas = (
+        db.query(FamilyMember.id, FamilyMember.name, FamilyMember.family_id, tem_foto)
+        .filter(FamilyMember.family_id.in_(familias_do_adulto(adulto, db)))
+        .order_by(FamilyMember.order, FamilyMember.name)
+        .all()
+    )
+    return [
+        {"id": id_, "nome": nome, "family_id": family_id, "tem_foto": bool(com_foto)}
+        for id_, nome, family_id, com_foto in linhas
+    ]
+
+
+def vincular_foto(db: Session, adulto: User, pessoa_id: int, family_member_id: Optional[int]) -> dict:
+    """Diz qual membro da família é esta pessoa. Um membro só pode ser uma pessoa (foto trocada confunde o mapa)."""
+    pessoa = obter_membro(db, familias_do_adulto(adulto, db), pessoa_id)
+    if family_member_id is not None:
+        membro = db.query(FamilyMember.id).filter(
+            FamilyMember.id == family_member_id, FamilyMember.family_id == pessoa.family_id
+        ).first()
+        if membro is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Membro não encontrado nesta família.",
+            )
+        outro = (
+            db.query(User)
+            .join(LocationChildSettings, LocationChildSettings.child_user_id == User.id)
+            .filter(
+                LocationChildSettings.family_member_id == family_member_id,
+                User.id != pessoa.id,
+                User.family_id == pessoa.family_id,
+                User.is_active.is_(True),
+            )
+            .first()
+        )
+        if outro is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Esse membro já está ligado a {nome_de(outro)}. Tire de lá antes.",
+            )
+    pref = db.query(LocationChildSettings).filter(LocationChildSettings.child_user_id == pessoa.id).first()
+    if pref is None:
+        pref = LocationChildSettings(child_user_id=pessoa.id, family_id=pessoa.family_id)
+        db.add(pref)
+    pref.family_id = pessoa.family_id
+    pref.family_member_id = family_member_id
+    db.commit()
+    return {"pessoa_id": pessoa.id, "family_member_id": family_member_id}

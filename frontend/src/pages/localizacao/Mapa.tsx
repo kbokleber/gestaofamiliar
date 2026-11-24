@@ -3,6 +3,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Circle, MapContainer, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet'
 import { corBateria, type Lugar } from './api'
+import { fonteDoRotulo, rotuloDaPessoa } from './fotosEGrupos'
 
 /** Centro usado quando ainda não há nenhum ponto nem lugar: São Paulo. */
 export const CENTRO_PADRAO: [number, number] = [-23.55, -46.63]
@@ -83,21 +84,21 @@ export interface PessoaNoMarcador {
   bateria: number | null
   apelido?: string | null
   adulto?: boolean
-  /** data:image/... já conferido (fotoParaSrc). Sem foto, mostra a inicial. */
+  /** data:image/... já conferido (fotoParaSrc). Sem foto, mostra o apelido ou as iniciais. */
   foto?: string | null
   /** SOS aberto (ainda sem "Visto"): borda vermelha e selo SOS. */
   sos?: boolean
 }
 
 function rostoHtml(pessoa: PessoaNoMarcador): string {
-  // Sem foto: apelido ou as duas primeiras letras (irmãos com a mesma inicial não ficam iguais).
-  const letras = pessoa.nome.trim().slice(0, 2) || '?'
-  const rotulo = pessoa.apelido?.trim() || letras[0].toUpperCase() + letras.slice(1).toLowerCase()
-  const fonte = rotulo.length <= 2 ? 15 : rotulo.length === 3 ? 13 : 10
+  const rotulo = rotuloDaPessoa(pessoa.nome, pessoa.apelido)
+  const fonte = fonteDoRotulo(rotulo)
   const fundo = pessoa.sos ? '#dc2626' : pessoa.adulto ? '#0f766e' : '#7c3aed'
-  const conteudo = pessoa.foto
-    ? `<img src="${escaparHtml(pessoa.foto)}" alt="${escaparHtml(pessoa.nome)}" style="width:100%;height:100%;object-fit:cover;display:block" />`
-    : escaparHtml(rotulo)
+  // A foto fica por cima do rótulo: se a imagem não abrir (onerror), ela some e o rótulo aparece.
+  const imagem = pessoa.foto
+    ? `<img src="${escaparHtml(pessoa.foto)}" alt="" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;max-width:none;object-fit:cover" />`
+    : ''
+  const conteudo = `<span style="max-width:100%;overflow-wrap:anywhere">${escaparHtml(rotulo)}</span>${imagem}`
   const cor = corBateria(pessoa.bateria).hex
   const textoBateria = pessoa.bateria == null ? '—' : `${pessoa.bateria}%`
   const selo = pessoa.sos
@@ -105,7 +106,7 @@ function rostoHtml(pessoa: PessoaNoMarcador): string {
     : ''
   return `
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;width:44px">${selo}
-      <div style="width:40px;height:40px;border-radius:9999px;background:${fundo};color:#fff;font-weight:700;font-size:${fonte}px;line-height:1;text-align:center;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid ${pessoa.foto ? fundo : '#fff'};box-shadow:0 1px 4px rgba(0,0,0,.4)">${conteudo}</div>
+      <div role="img" aria-label="${escaparHtml(pessoa.nome)}" style="position:relative;width:40px;height:40px;border-radius:9999px;background:${fundo};color:#fff;font-weight:700;font-size:${fonte}px;line-height:1;text-align:center;overflow:hidden;display:flex;align-items:center;justify-content:center;border:3px solid ${pessoa.foto ? fundo : '#fff'};box-shadow:0 1px 4px rgba(0,0,0,.4)">${conteudo}</div>
       <div style="background:${cor};color:#fff;font-size:12px;font-weight:700;padding:0 6px;border-radius:9999px;box-shadow:0 1px 3px rgba(0,0,0,.3)">${textoBateria}</div>
     </div>`
 }

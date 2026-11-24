@@ -152,6 +152,11 @@ def startup_create_tables():
             conn.execute(text(
                 "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS checklist_em TIMESTAMP WITH TIME ZONE"
             ))
+            # Foto no mapa: qual membro da família (Saúde) é esta pessoa.
+            conn.execute(text(
+                "ALTER TABLE location_child_settings ADD COLUMN IF NOT EXISTS family_member_id INTEGER "
+                "REFERENCES healthcare_familymember(id) ON DELETE SET NULL"
+            ))
         from app.db.base import SessionLocal
         from app.api.v1.endpoints.maintenance import sincronizar_equipamentos_com_ordens_abertas
         db = SessionLocal()

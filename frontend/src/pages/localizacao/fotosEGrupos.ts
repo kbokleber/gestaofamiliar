@@ -1,31 +1,10 @@
 /**
- * Foto de cada pessoa no mapa e agrupamento de quem está no mesmo lugar.
+ * Foto e rótulo de cada pessoa no mapa, e agrupamento de quem está no mesmo lugar.
  * Sem React nem Leaflet, para dar para testar sozinho.
  *
- * A foto vem do cadastro de Saúde (Membros da Família), que não tem ligação com o usuário:
- * por isso o casamento é pelo nome completo e exato, dentro da mesma família, e só quando não há dúvida.
+ * A foto vem do cadastro de Saúde (Membros da Família), pelo vínculo que o adulto escolhe na aba Celulares.
+ * Nada é adivinhado pelo nome.
  */
-
-export interface PessoaNoMapa {
-  id: number
-  nome: string
-  family_id: number
-}
-
-export interface MembroComFoto {
-  name: string
-  family_id: number
-  photo?: string | null
-}
-
-export function normalizarNome(nome: string): string {
-  return nome
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-}
 
 /** Só aceita imagem embutida (data:image/...). Base64 puro vira JPEG, como no cadastro. */
 export function fotoParaSrc(photo: string | null | undefined): string | null {
@@ -40,26 +19,28 @@ export function fotoParaSrc(photo: string | null | undefined): string | null {
   return `data:image/jpeg;base64,${limpo}`
 }
 
-/**
- * Foto de cada pessoa (por id). Só casa pelo NOME COMPLETO e exato (sem acento e sem diferença de
- * maiúsculas), com UM só membro assim na mesma família, comparando contra todos os membros (com ou
- * sem foto); só depois pega a foto de quem casou. Não há regra de primeiro nome: "Guilherme" no mapa
- * não casa com "Guilherme Bueno Junior". Na dúvida, sem foto (o marcador mostra a inicial).
- * Nome vazio nunca casa.
- */
-export function casarFotos(pessoas: PessoaNoMapa[], membros: MembroComFoto[]): Record<number, string> {
-  const fotos: Record<number, string> = {}
-  for (const pessoa of pessoas) {
-    const nome = normalizarNome(pessoa.nome)
-    if (!nome) continue
-    const iguais = membros.filter(
-      (membro) => membro.family_id === pessoa.family_id && normalizarNome(membro.name) === nome,
-    )
-    if (iguais.length !== 1) continue
-    const src = fotoParaSrc(iguais[0].photo)
-    if (src) fotos[pessoa.id] = src
+/** Foto de cada pessoa (por id), só as que são imagem de verdade. */
+export function fotosPorPessoa(fotos: Array<{ pessoa_id: number; foto: string }>): Record<number, string> {
+  const saida: Record<number, string> = {}
+  for (const { pessoa_id, foto } of fotos) {
+    const src = fotoParaSrc(foto)
+    if (src) saida[pessoa_id] = src
   }
-  return fotos
+  return saida
+}
+
+/** Texto de quem não tem foto: o apelido ou as duas primeiras letras do nome (irmãos com a mesma inicial não ficam iguais). */
+export function rotuloDaPessoa(nome: string, apelido?: string | null): string {
+  const letras = nome.trim().slice(0, 2) || '?'
+  return apelido?.trim() || letras[0].toUpperCase() + letras.slice(1).toLowerCase()
+}
+
+/** Tamanho da letra (px) para o rótulo caber no círculo do marcador: manda a palavra mais comprida. */
+export function fonteDoRotulo(rotulo: string): number {
+  const maior = Math.max(...rotulo.split(/\s+/).map((palavra) => palavra.length))
+  if (rotulo.length <= 2) return 15
+  if (rotulo.length === 3) return 13
+  return maior <= 5 ? 10 : 8
 }
 
 export interface PontoDePessoa {

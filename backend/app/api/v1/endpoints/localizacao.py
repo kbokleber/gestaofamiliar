@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db, require_menu
+from app.api.v1.endpoints.healthcare import _member_photo_for_list
 from app.core.config import settings
 from app.models.location import LocationDevice
 from app.models.user import User
@@ -15,6 +16,8 @@ from app.schemas.location import (
     ApelidoIn,
     ApelidoOut,
     CriancaOut,
+    FotoNoMapaOut,
+    MembroDaFamiliaOut,
     MembroOut,
     GeocodificarIn,
     GeocodificarOut,
@@ -34,6 +37,8 @@ from app.schemas.location import (
     SosOut,
     SosSemDestinatarioOut,
     TrajetoOut,
+    VinculoFotoIn,
+    VinculoFotoOut,
 )
 from app.services.localizacao import (
     EnderecoNaoEncontrado,
@@ -43,11 +48,13 @@ from app.services.localizacao import (
     criar_lugar,
     definir_apelido,
     excluir_lugar,
+    fotos_no_mapa,
     geocodificar_endereco,
     gerar_pareamento,
     hoje_sao_paulo,
     listar_criancas,
     listar_membros,
+    membros_da_familia,
     parear_adulto_logado,
     listar_lugares,
     montar_trajeto,
@@ -55,10 +62,12 @@ from app.services.localizacao import (
     revogar_dispositivo,
     revogar_proprio,
     trocar_codigo,
+    vincular_foto,
     parear_crianca_logada,
 )
 from app.services.limite_tentativas import LimiteTentativas, ip_do_pedido
 from app.services import sos as servico_sos
+from app.utils.image import resize_photo_base64
 
 router = APIRouter()
 
@@ -142,6 +151,48 @@ def salvar_apelido_membro(
     adulto: User = Depends(adulto_localizacao),
 ):
     return definir_apelido(db, adulto, membro_id, dados.apelido, com_adultos=True)
+
+
+# Marcador de 40 px e cartão de 56 px, com folga para telas de alta densidade.
+FOTO_MAPA_PX = 144
+
+
+def _miniatura(photo) -> Optional[str]:
+    """JPEG pequeno, ou None se a foto não abre (aí o mapa mostra as iniciais)."""
+    original = _member_photo_for_list(photo)
+    menor = resize_photo_base64(original, max_size=FOTO_MAPA_PX) if original else None
+    # Quando não consegue abrir a imagem, o utilitário devolve o texto original: não serve.
+    return menor if menor and menor != original and menor.startswith("/9j/") else None
+
+
+@router.get("/fotos", response_model=list[FotoNoMapaOut])
+def ler_fotos_no_mapa(
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    """Miniatura de cada pessoa do mapa que tem vínculo e foto. À parte do /membros, que é lido a cada minuto."""
+    miniaturas = {pessoa_id: _miniatura(photo) for pessoa_id, photo in fotos_no_mapa(db, adulto).items()}
+    return [{"pessoa_id": pessoa_id, "foto": foto} for pessoa_id, foto in miniaturas.items() if foto]
+
+
+@router.get("/membros-da-familia", response_model=list[MembroDaFamiliaOut])
+def ler_membros_da_familia(
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    """Opções para ligar uma pessoa do mapa ao cadastro de Saúde (só id, nome e se tem foto)."""
+    return membros_da_familia(db, adulto)
+
+
+@router.put("/membros/{membro_id}/foto", response_model=VinculoFotoOut)
+def salvar_vinculo_de_foto(
+    membro_id: int,
+    dados: VinculoFotoIn,
+    db: Session = Depends(get_db),
+    adulto: User = Depends(adulto_localizacao),
+):
+    """Escolhe qual membro da família é esta pessoa (a foto dele vai para o mapa)."""
+    return vincular_foto(db, adulto, membro_id, dados.family_member_id)
 
 
 @router.post("/pareamentos", response_model=PareamentoOut)

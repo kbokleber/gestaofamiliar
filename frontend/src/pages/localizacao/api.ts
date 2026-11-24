@@ -30,6 +30,8 @@ export interface Crianca {
   speed_kmh: number | null
   /** Adulto que compartilha a própria posição pelo app (só aparece para adultos). */
   adulto?: boolean
+  /** Membro da família (Saúde) escolhido como esta pessoa: a foto do mapa é a dele. */
+  family_member_id?: number | null
   status: {
     codigo: 'dentro' | 'fora' | 'sem_posicao' | 'sem_lugares'
     frase: string
@@ -146,16 +148,25 @@ export interface SosDestinatarios {
   sem_acesso?: Array<{ id: number; nome: string }>
 }
 
+/** Opção de "Quem é na família" (cadastro de Saúde). */
+export interface MembroDaFamilia {
+  id: number
+  nome: string
+  family_id: number
+  tem_foto: boolean
+}
+
 const BASE = '/localizacao'
 
 export const localizacaoApi = {
   // Crianças e adultos que compartilham a posição (cada um com o campo "adulto").
   criancas: async () => (await api.get<Crianca[]>(`${BASE}/membros`)).data,
-  // Fotos do cadastro de Saúde (rota que já existe; foto reduzida). Sem acesso ou erro: o mapa usa a inicial.
-  fotosDaFamilia: async () =>
-    (await api.get<Array<{ name: string; family_id: number; photo?: string | null }>>('/healthcare/members', {
-      params: { include_photos: true, photo_thumb: true },
-    })).data,
+  // Miniaturas de quem tem vínculo e foto. Se falhar, o mapa usa o apelido ou as iniciais.
+  fotos: async () => (await api.get<Array<{ pessoa_id: number; foto: string }>>(`${BASE}/fotos`)).data,
+  membrosDaFamilia: async () => (await api.get<MembroDaFamilia[]>(`${BASE}/membros-da-familia`)).data,
+  vincularFoto: async (pessoaId: number, familyMemberId: number | null) => {
+    await api.put(`${BASE}/membros/${pessoaId}/foto`, { family_member_id: familyMemberId })
+  },
   trajeto: async (criancaId: number, dia: string) =>
     (await api.get<Trajeto>(`${BASE}/membros/${criancaId}/trajeto`, { params: { dia } })).data,
   lugares: async () => (await api.get<Lugar[]>(`${BASE}/lugares`)).data,
