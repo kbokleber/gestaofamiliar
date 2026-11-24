@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -21,6 +22,7 @@ from app.core.keycloak_admin import (
 )
 from app.core.security import get_password_hash
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -241,19 +243,17 @@ async def create_user(
         db.commit()
         
         return new_user
-    except Exception as e:
+    except Exception:
+        logger.exception("Erro ao criar usuário")
         db.rollback()
         if created_in_keycloak:
             try:
                 delete_keycloak_user(user_data.username)
             except KeycloakAdminError:
                 pass
-        import traceback
-        print(f"Erro ao criar usuário: {e}")
-        print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao criar usuário: {str(e)}"
+            detail="Erro ao criar usuário"
         )
 
 # Rotas específicas devem vir ANTES das rotas genéricas

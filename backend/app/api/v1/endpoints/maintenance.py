@@ -4,6 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 import json
+import logging
 from datetime import datetime, timezone
 from app.db.base import get_db
 from app.models.user import User
@@ -16,6 +17,7 @@ from app.schemas.maintenance import (
 )
 from app.api.deps import get_current_user, get_current_family
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 ORDENS_ABERTAS = ("PENDENTE", "EM_ANDAMENTO")
@@ -119,13 +121,12 @@ async def create_equipment(
         db.commit()
         db.refresh(equipment)
         return equipment
-    except Exception as e:
+    except Exception:
+        logger.exception("Erro ao criar equipamento")
         db.rollback()
-        import traceback
-        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao criar equipamento: {str(e)}"
+            detail="Erro ao criar equipamento"
         )
 
 @router.get("/equipment", response_model=List[EquipmentSchema])
@@ -357,13 +358,12 @@ async def delete_equipment(
     try:
         db.delete(equipment)
         db.commit()
-    except Exception as e:
+    except Exception:
+        logger.exception("Erro ao excluir equipamento")
         db.rollback()
-        import traceback
-        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao excluir equipamento: {str(e)}"
+            detail="Erro ao excluir equipamento"
         )
 
 # ===== MAINTENANCE ORDERS =====
@@ -588,13 +588,11 @@ async def get_maintenance_order(
         return order
     except HTTPException:
         raise
-    except Exception as e:
-        import traceback
-        logging.error(f"[ERROR] Erro inesperado no GET ORDER {order_id}: {e}")
-        logging.error(traceback.format_exc())
+    except Exception:
+        logger.exception("Erro inesperado no GET ORDER %s", order_id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao carregar detalhes da ordem: {str(e)}"
+            detail="Erro ao carregar detalhes da ordem"
         )
 
 @router.put("/orders/{order_id}", response_model=MaintenanceOrderSchema)
@@ -693,12 +691,8 @@ async def update_maintenance_order(
             logging.info(f"[DEBUG] ===== FIM UPDATE ORDER {order_id} (SUCESSO) =====")
             return order
         except Exception as e:
+            logger.exception("Erro ao fazer commit da ordem %s", order_id)
             db.rollback()
-            import logging
-            logging.error(f"Erro ao fazer commit da ordem {order_id}: {e}")
-            logging.error(f"Tipo do erro: {type(e).__name__}")
-            import traceback
-            logging.error(traceback.format_exc())
             
             # Verificar se é erro de tamanho de campo
             error_str = str(e).lower()
@@ -710,21 +704,18 @@ async def update_maintenance_order(
             
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Erro ao salvar ordem de manutenção: {str(e)}"
+                detail="Erro ao salvar ordem de manutenção"
             )
     except HTTPException:
         # Re-raise HTTPException para que FastAPI trate corretamente
         raise
-    except Exception as e:
+    except Exception:
         # Capturar qualquer outro erro não tratado
-        import logging
-        logging.error(f"ERRO NAO TRATADO no update_maintenance_order: {e}")
-        import traceback
-        logging.error(traceback.format_exc())
+        logger.exception("Erro não tratado ao atualizar a ordem %s", order_id)
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro inesperado ao atualizar ordem de manutenção: {str(e)}"
+            detail="Erro inesperado ao atualizar ordem de manutenção"
         )
 
 @router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -773,13 +764,12 @@ async def delete_maintenance_order(
         db.flush()
         sincronizar_status_equipamento(db, equipment_id)
         db.commit()
-    except Exception as e:
+    except Exception:
+        logger.exception("Erro ao excluir ordem de manutenção")
         db.rollback()
-        import traceback
-        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao excluir ordem de manutenção: {str(e)}"
+            detail="Erro ao excluir ordem de manutenção"
         )
 
 # ===== DASHBOARD & STATS =====

@@ -211,7 +211,7 @@ async def list_family_members(
         raise
     except Exception as e:
         logger.exception("list_family_members failed: %s", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erro ao carregar membros da família")
 
 @router.get(
     "/members/{member_id}",
@@ -379,11 +379,12 @@ async def reorder_family_members(
         
         db.commit()
         return {"status": "success", "message": "Ordem atualizada com sucesso"}
-    except Exception as e:
+    except Exception:
+        logger.exception("Erro ao atualizar ordem dos membros da família")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao atualizar ordem: {str(e)}"
+            detail="Erro ao atualizar ordem"
         )
 
 @router.put("/members/{member_id}", response_model=FamilyMemberSchema)

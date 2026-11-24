@@ -1,9 +1,12 @@
 import base64
 import io
 import json
+import logging
 from urllib.parse import quote
 from fastapi import HTTPException, status
 from fastapi.responses import StreamingResponse
+
+logger = logging.getLogger(__name__)
 
 
 def content_disposition(filename: str, disposition: str = "attachment") -> str:
@@ -60,8 +63,9 @@ def get_document_response(documents_json: str, doc_index: int, item_name: str = 
                 "Content-Disposition": content_disposition(doc_name)
             }
         )
-    except Exception as e:
+    except Exception:
+        logger.exception("Erro ao decodificar o anexo")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao decodificar o arquivo: {str(e)}"
+            detail="Erro ao decodificar o arquivo"
         )
