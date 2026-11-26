@@ -60,6 +60,26 @@ export default function LembreteCelular() {
     }
   }
 
+  // TEMPORÁRIO (teste do alarme): vai só para o celular do adulto logado, nunca para os filhos.
+  const testarAlarme = async () => {
+    setErro('')
+    setMensagem('')
+    setOcupado(true)
+    try {
+      const { data } = await api.post('/notificacoes/lembretes/testar-alarme', { som: 'padrao', volume: 'alto' })
+      setMensagem(
+        data?.precisa_atualizar
+          ? 'Teste enviado ao seu celular, mas o app dele ainda é antigo: atualize para a 2.0.9 para ouvir o alarme.'
+          : 'Teste enviado só ao seu celular. Ele toca em até 15 minutos, ou na hora se você abrir o app.',
+      )
+    } catch (exc) {
+      const detalhe = (exc as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setErro(typeof detalhe === 'string' ? detalhe : 'Não foi possível enviar o teste.')
+    } finally {
+      setOcupado(false)
+    }
+  }
+
   const disparar = async () => {
     setErro('')
     setMensagem('')
@@ -78,7 +98,7 @@ export default function LembreteCelular() {
   return (
     <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
       <p className="text-sm text-amber-950">
-        O alerta toca enquanto houver tarefa de hoje, de amanhã ou atrasada. O intervalo é o da família, só das 13h às 21h.
+        O alerta avisa enquanto houver tarefa de hoje, de amanhã ou atrasada. O intervalo é o da família, só das 13h às 21h.
       </p>
       <p className="mt-1 text-sm text-amber-900">
         Se o celular da criança tem o app Gestão Familiar conectado, o alerta chega pelo app (em até 5 minutos) e não pelo navegador.
@@ -93,6 +113,12 @@ export default function LembreteCelular() {
         {admin && (
           <button type="button" onClick={disparar} disabled={ocupado} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-amber-700 px-3 text-sm font-medium text-amber-900 disabled:opacity-60">
             Disparar lembrete agora
+          </button>
+        )}
+        {admin && (
+          <button type="button" onClick={testarAlarme} disabled={ocupado} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-amber-700 px-3 text-sm font-medium text-amber-900 disabled:opacity-60">
+            <Bell className="h-4 w-4" />
+            Testar alarme no meu celular
           </button>
         )}
       </div>

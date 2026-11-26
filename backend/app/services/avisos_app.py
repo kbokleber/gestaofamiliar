@@ -60,6 +60,8 @@ def enfileirar(
     tipo: str = "lembrete",
     validade: timedelta = VALIDADE_PADRAO,
     expira_em: Optional[datetime] = None,
+    som: Optional[str] = None,
+    volume: Optional[str] = None,
 ) -> AvisoApp:
     """Guarda o aviso. Um aviso novo do mesmo tipo substitui o anterior ainda não confirmado."""
     agora = datetime.now(timezone.utc)
@@ -67,7 +69,8 @@ def enfileirar(
         AvisoApp.child_user_id == crianca.id,
         AvisoApp.tipo == tipo,
         AvisoApp.entregue_em.is_(None),
-    ).delete(synchronize_session=False)
+    # "fetch" tira o aviso antigo da sessão: no SQLite o id pode ser reaproveitado pelo novo.
+    ).delete(synchronize_session="fetch")
     aviso = AvisoApp(
         family_id=crianca.family_id,
         child_user_id=crianca.id,
@@ -75,6 +78,8 @@ def enfileirar(
         titulo=titulo[:120],
         texto=texto[:500],
         url=(url or None) and url[:300],
+        som=None if som in (None, "desligado") else som,
+        volume=volume if som not in (None, "desligado") else None,
         created_at=agora,
         expira_em=expira_em or (agora + validade),
     )
@@ -128,13 +133,18 @@ def pendentes(db: Session, aparelho) -> list[dict]:
             db.delete(aviso)
             continue
         if len(saida) < MAX_POR_ENTREGA:
-            saida.append({
+            item = {
                 "id": aviso.id,
                 "tipo": aviso.tipo,
                 "titulo": aviso.titulo,
                 "texto": aviso.texto,
                 "url": aviso.url,
-            })
+            }
+            # App 2.0.9+: toca como alarme. Versões antigas ignoram os campos e só notificam.
+            if aviso.som:
+                item["som"] = aviso.som
+                item["volume"] = aviso.volume or "medio"
+            saida.append(item)
     return saida
 
 
@@ -153,3 +163,42 @@ def atualizar_e_entregar(db: Session, aparelho, versao: Optional[int], notificac
 def limpar_antigos(db: Session, dias: int = 7) -> int:
     corte = datetime.now(timezone.utc) - timedelta(days=dias)
     return db.query(AvisoApp).filter(AvisoApp.created_at < corte).delete(synchronize_session=False)
+
+
+# Primeira versão do app que toca o alarme (versionCode da 2.0.9).
+VERSAO_MINIMA_ALARME = 13
+
+
+class SemCelularDeAdulto(Exception):
+    """O adulto logado não tem celular com o app conectado como adulto."""
+
+
+def testar_alarme_no_adulto(db: Session, adulto: User, som: str, volume: str) -> dict:
+    """Teste do alarme SÓ no celular do próprio adulto logado.
+
+    Não consulta filhos nem celulares de criança: o destinatário é sempre `adulto`,
+    e o aviso só é entregue a celulares cujo dono é esse usuário (ver `pendentes`).
+    """
+    from app.models.app_android import AppDispositivoAdulto
+
+    if adulto.is_child:
+        raise SemCelularDeAdulto("Só um adulto pode testar o alarme.")
+    aparelhos = db.query(AppDispositivoAdulto).filter(
+        AppDispositivoAdulto.user_id == adulto.id,
+        AppDispositivoAdulto.family_id == adulto.family_id,
+        AppDispositivoAdulto.revoked_at.is_(None),
+    ).all()
+    if not aparelhos:
+        raise SemCelularDeAdulto(
+            "Nenhum celular seu está conectado ao app como adulto. Entre no app Gestão Familiar com a sua conta e tente de novo."
+        )
+    aviso = enfileirar(
+        db, adulto, "Teste do alarme", "Se você ouviu o som, o alarme do lembrete está funcionando.",
+        url=None, tipo="teste_alarme", validade=timedelta(hours=1), som=som, volume=volume,
+    )
+    db.commit()
+    return {
+        "aviso_id": aviso.id,
+        "aparelhos": len(aparelhos),
+        "precisa_atualizar": not any((a.app_versao or 0) >= VERSAO_MINIMA_ALARME for a in aparelhos),
+    }

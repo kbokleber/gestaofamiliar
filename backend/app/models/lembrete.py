@@ -16,6 +16,9 @@ class FamilyLembreteConfig(Base):
     enabled = Column(Boolean, nullable=False, default=False)
     intervalo = Column(Integer, nullable=False, default=2)
     unidade = Column(String(10), nullable=False, default="horas")
+    # Alarme no app Android: "desligado" (só notificação), "padrao" (toque do celular) ou "mp3" (som do app).
+    som = Column(String(20), nullable=False, default="desligado")
+    volume = Column(String(10), nullable=False, default="medio")
     ultimo_envio = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -54,6 +57,9 @@ class AvisoApp(Base):
     titulo = Column(String(120), nullable=False)
     texto = Column(String(500), nullable=False)
     url = Column(String(300), nullable=True)
+    # Alarme pedido para este aviso (None = só notificação).
+    som = Column(String(20), nullable=True)
+    volume = Column(String(10), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expira_em = Column(DateTime(timezone=True), nullable=False)
     entregue_em = Column(DateTime(timezone=True), nullable=True)

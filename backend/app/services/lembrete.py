@@ -125,7 +125,11 @@ def enviar_para_usuario(db: Session, usuario: User, atividades: list[Atividade])
         return 0
     # Com o app ativo, o lembrete vai só pelo app (não pelo navegador).
     if avisos_app.tem_app(db, usuario):
-        avisos_app.enfileirar(db, usuario, TITULO, _texto(atividades), URL_PENDENTES, expira_em=fim_da_janela())
+        config = db.query(FamilyLembreteConfig).filter(FamilyLembreteConfig.family_id == usuario.family_id).first()
+        avisos_app.enfileirar(
+            db, usuario, TITULO, _texto(atividades), URL_PENDENTES, expira_em=fim_da_janela(),
+            som=getattr(config, "som", None), volume=getattr(config, "volume", None),
+        )
         return 1
     inscricoes = db.query(PushInscricao).filter(PushInscricao.user_id == usuario.id).all()
     if not inscricoes or not atividades:

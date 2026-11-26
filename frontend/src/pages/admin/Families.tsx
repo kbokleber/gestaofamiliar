@@ -81,6 +81,8 @@ export default function AdminFamilies() {
   const [alertaEnabled, setAlertaEnabled] = useState(false)
   const [alertaIntervalo, setAlertaIntervalo] = useState(2)
   const [alertaUnidade, setAlertaUnidade] = useState<'horas' | 'minutos'>('horas')
+  const [alertaSom, setAlertaSom] = useState<'desligado' | 'padrao' | 'mp3'>('desligado')
+  const [alertaVolume, setAlertaVolume] = useState<'medio' | 'alto'>('medio')
   const [savingAlerta, setSavingAlerta] = useState(false)
   const [alertaSuccess, setAlertaSuccess] = useState('')
   const [alertaError, setAlertaError] = useState('')
@@ -135,7 +137,7 @@ export default function AdminFamilies() {
     },
     enabled: !!familyIdForConfig,
   })
-  const { data: familyLembreteConfig } = useQuery<{ enabled: boolean; intervalo: number; unidade: 'horas' | 'minutos' }>({
+  const { data: familyLembreteConfig } = useQuery<{ enabled: boolean; intervalo: number; unidade: 'horas' | 'minutos'; som?: 'desligado' | 'padrao' | 'mp3'; volume?: 'medio' | 'alto' }>({
     queryKey: ['families', 'lembrete', familyIdForConfig],
     queryFn: async () => {
       const { data } = await api.get(`/lembretes/${familyIdForConfig}`)
@@ -238,6 +240,8 @@ export default function AdminFamilies() {
     setAlertaEnabled(familyLembreteConfig.enabled)
     setAlertaIntervalo(familyLembreteConfig.intervalo || 2)
     setAlertaUnidade(familyLembreteConfig.unidade === 'minutos' ? 'minutos' : 'horas')
+    setAlertaSom(familyLembreteConfig.som ?? 'desligado')
+    setAlertaVolume(familyLembreteConfig.volume === 'alto' ? 'alto' : 'medio')
   }, [familyLembreteConfig])
 
   // Limpar campos sensíveis e mensagens ao trocar de família
@@ -289,6 +293,8 @@ export default function AdminFamilies() {
         enabled: alertaEnabled,
         intervalo: Number(alertaIntervalo),
         unidade: alertaUnidade,
+        som: alertaSom,
+        volume: alertaVolume,
       })
       queryClient.invalidateQueries({ queryKey: ['families', 'lembrete', selectedFamily.id] })
       setAlertaSuccess('Alerta salvo. Cada filho ainda precisa ativar o aviso no próprio celular.')
@@ -1269,6 +1275,35 @@ export default function AdminFamilies() {
                   </select>
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Alarme no app</label>
+                  <select
+                    value={alertaSom}
+                    onChange={(e) => setAlertaSom(e.target.value as 'desligado' | 'padrao' | 'mp3')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  >
+                    <option value="desligado">Desligado (só avisa)</option>
+                    <option value="padrao">Toque padrão do celular</option>
+                    {alertaSom === 'mp3' && <option value="mp3">MP3 da família</option>}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Volume do alarme</label>
+                  <select
+                    value={alertaVolume}
+                    onChange={(e) => setAlertaVolume(e.target.value as 'medio' | 'alto')}
+                    disabled={alertaSom === 'desligado'}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
+                  >
+                    <option value="medio">Médio</option>
+                    <option value="alto">Alto</option>
+                  </select>
+                </div>
+              </div>
+              <p className="text-xs text-gray-600">
+                Com o alarme ligado, o app Android (2.0.9 ou mais novo) toca por até 10 segundos no volume de alarme, mesmo no silencioso. A criança pode tocar em Parar.
+              </p>
               <Button onClick={handleSaveAlerta} disabled={savingAlerta} className="inline-flex items-center gap-2">
                 {savingAlerta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
                 Salvar alerta

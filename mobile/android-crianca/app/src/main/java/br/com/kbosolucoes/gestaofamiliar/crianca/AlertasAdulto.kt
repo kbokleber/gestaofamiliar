@@ -48,6 +48,8 @@ object AlertasAdulto {
                     Notificador.mostrarAviso(contexto, configuracao.site, it, canal)
                 }
                 configuracao.salvarRegistroDeAvisosAdulto(registro)
+                // Em segundo plano o processo pode ser encerrado ao fim do trabalho: espera o alarme acabar.
+                Alarme.esperarTerminar(Alarme.DURACAO_MAXIMA_MS + 1_000)
                 true
             }
             Resposta.Desconectado -> {

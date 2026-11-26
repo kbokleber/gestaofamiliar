@@ -145,6 +145,15 @@ def startup_create_tables():
             conn.execute(text(
                 "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS alerta_sem_sinal_em TIMESTAMP WITH TIME ZONE"
             ))
+            # Alarme do lembrete (app 2.0.9+): começa desligado em todas as famílias.
+            conn.execute(text(
+                "ALTER TABLE family_lembrete_config ADD COLUMN IF NOT EXISTS som VARCHAR(20) NOT NULL DEFAULT 'desligado'"
+            ))
+            conn.execute(text(
+                "ALTER TABLE family_lembrete_config ADD COLUMN IF NOT EXISTS volume VARCHAR(10) NOT NULL DEFAULT 'medio'"
+            ))
+            conn.execute(text("ALTER TABLE app_aviso ADD COLUMN IF NOT EXISTS som VARCHAR(20)"))
+            conn.execute(text("ALTER TABLE app_aviso ADD COLUMN IF NOT EXISTS volume VARCHAR(10)"))
             # Checklist de envio (app 2.0.7+).
             conn.execute(text(
                 "ALTER TABLE location_device ADD COLUMN IF NOT EXISTS checklist TEXT"

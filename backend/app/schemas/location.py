@@ -65,6 +65,9 @@ class AvisoOut(BaseModel):
     titulo: str
     texto: str
     url: Optional[str] = None
+    # App 2.0.9+: alarme do lembrete ("padrao" ou "mp3", e "medio" ou "alto"). Null = só notificação.
+    som: Optional[str] = None
+    volume: Optional[str] = None
 
 
 class PosicaoOut(BaseModel):

@@ -12,7 +12,9 @@ from app.schemas.lembrete import (
     FamilyLembreteConfigResponse,
     FamilyLembreteConfigUpdate,
     PushInscricaoCreate,
+    TesteAlarmeIn,
 )
+from app.services import avisos_app
 from app.services.lembrete import chave_publica_vapid, disparar_familia, processar_lembretes_pendentes
 from app.api.v1.endpoints.families import _familia_do_admin
 
@@ -27,6 +29,8 @@ def _resposta(config: FamilyLembreteConfig | None) -> FamilyLembreteConfigRespon
         enabled=config.enabled,
         intervalo=config.intervalo,
         unidade=config.unidade,
+        som=config.som or "desligado",
+        volume=config.volume or "medio",
     )
 
 
@@ -60,6 +64,10 @@ async def salvar_lembrete(
     config.enabled = payload.enabled
     config.intervalo = payload.intervalo
     config.unidade = payload.unidade
+    if payload.som is not None:
+        config.som = payload.som
+    if payload.volume is not None:
+        config.volume = payload.volume
     db.commit()
     db.refresh(config)
     return _resposta(config)
@@ -100,6 +108,20 @@ async def disparar_agora(
     if current_user.family_id is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Família não encontrada.")
     return disparar_familia(db, current_user.family_id)
+
+
+@router.post("/notificacoes/lembretes/testar-alarme")
+async def testar_alarme(
+    payload: TesteAlarmeIn | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin),
+):
+    """TEMPORÁRIO: toca o alarme só no celular do adulto logado (nunca nos filhos)."""
+    dados = payload or TesteAlarmeIn()
+    try:
+        return avisos_app.testar_alarme_no_adulto(db, current_user, dados.som, dados.volume)
+    except avisos_app.SemCelularDeAdulto as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 async def ciclo_de_lembretes() -> None:
