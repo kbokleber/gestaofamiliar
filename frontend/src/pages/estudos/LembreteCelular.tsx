@@ -66,10 +66,10 @@ export default function LembreteCelular() {
     setMensagem('')
     setOcupado(true)
     try {
-      const { data } = await api.post('/notificacoes/lembretes/testar-alarme', { som: 'padrao', volume: 'alto' })
+      const { data } = await api.post('/notificacoes/lembretes/testar-alarme', { som: 'mp3', volume: 'alto' })
       setMensagem(
         data?.precisa_atualizar
-          ? 'Teste enviado ao seu celular, mas o app dele ainda é antigo: atualize para a 2.0.9 para ouvir o alarme.'
+          ? 'Teste enviado ao seu celular, mas o app dele ainda é antigo: atualize para a 2.0.10 para ouvir o som próprio.'
           : 'Teste enviado só ao seu celular. Ele toca em até 15 minutos, ou na hora se você abrir o app.',
       )
     } catch (exc) {

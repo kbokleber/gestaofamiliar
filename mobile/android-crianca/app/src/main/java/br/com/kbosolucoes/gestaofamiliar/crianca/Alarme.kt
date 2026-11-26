@@ -23,12 +23,11 @@ import kotlin.math.ceil
  * silencioso e na vibração. Por no máximo [DURACAO_MAXIMA_MS]; o botão "Parar" da notificação
  * interrompe antes. O volume de alarme volta ao valor anterior quando o som acaba.
  *
- * Som "mp3": arquivo res/raw/lembrete_mp3 (quando existir no app); sem ele, usa o toque padrão.
+ * Som "mp3": res/raw/lembrete_mp3.mp3, o som próprio da família (2.0.10+); "padrao": toque do celular.
  */
 object Alarme {
     const val DURACAO_MAXIMA_MS = 10_000L
     private const val TAG = "Alarme"
-    private const val RECURSO_MP3 = "lembrete_mp3"
 
     private val principal = Handler(Looper.getMainLooper())
     private val trava = Any()
@@ -108,8 +107,8 @@ object Alarme {
 
     private fun fonte(contexto: Context, som: String): Uri? {
         if (som == "mp3") {
-            val id = contexto.resources.getIdentifier(RECURSO_MP3, "raw", contexto.packageName)
-            if (id != 0) return Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${contexto.packageName}/$id")
+            // Referência direta: o empacotador encurta o nome do arquivo, então não buscamos por nome.
+            return Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${contexto.packageName}/${R.raw.lembrete_mp3}")
         }
         return RingtoneManager.getActualDefaultRingtoneUri(contexto, RingtoneManager.TYPE_NOTIFICATION)
             ?: RingtoneManager.getActualDefaultRingtoneUri(contexto, RingtoneManager.TYPE_ALARM)

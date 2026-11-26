@@ -167,6 +167,8 @@ def limpar_antigos(db: Session, dias: int = 7) -> int:
 
 # Primeira versão do app que toca o alarme (versionCode da 2.0.9).
 VERSAO_MINIMA_ALARME = 13
+# Primeira versão com o som próprio (mp3) dentro do app (versionCode da 2.0.10).
+VERSAO_MINIMA_MP3 = 14
 
 
 class SemCelularDeAdulto(Exception):
@@ -200,5 +202,7 @@ def testar_alarme_no_adulto(db: Session, adulto: User, som: str, volume: str) ->
     return {
         "aviso_id": aviso.id,
         "aparelhos": len(aparelhos),
-        "precisa_atualizar": not any((a.app_versao or 0) >= VERSAO_MINIMA_ALARME for a in aparelhos),
+        "precisa_atualizar": not any(
+            (a.app_versao or 0) >= (VERSAO_MINIMA_MP3 if som == "mp3" else VERSAO_MINIMA_ALARME) for a in aparelhos
+        ),
     }

@@ -113,3 +113,21 @@ def test_som_e_volume_da_familia_comecam_desligados_e_vao_no_lembrete(ambiente):
     assert [(a["som"], a["volume"]) for a in r] == [("mp3", "alto")], r
     config = db.query(FamilyLembreteConfig).filter(FamilyLembreteConfig.family_id == 1).one()
     assert config.som == "mp3"
+
+
+def test_teste_com_mp3_pede_app_2_0_10(ambiente):
+    cliente, db, estado = ambiente
+    _preparar(cliente, db, estado)
+    _app_adulto(db, 1)
+    from app.models.app_android import AppDispositivoAdulto
+    aparelho = db.query(AppDispositivoAdulto).filter(AppDispositivoAdulto.user_id == 1).one()
+    estado["user"] = db.query(User).get(1)
+    aparelho.app_versao = avisos_app.VERSAO_MINIMA_ALARME
+    db.commit()
+    r = cliente.post("/api/v1/notificacoes/lembretes/testar-alarme", json={"som": "mp3", "volume": "alto"})
+    assert r.status_code == 200 and r.json()["precisa_atualizar"] is True
+    aparelho.app_versao = avisos_app.VERSAO_MINIMA_MP3
+    db.commit()
+    r = cliente.post("/api/v1/notificacoes/lembretes/testar-alarme", json={"som": "mp3", "volume": "alto"})
+    assert r.status_code == 200 and r.json()["precisa_atualizar"] is False
+    assert {a.child_user_id for a in db.query(AvisoApp).all()} == {1}

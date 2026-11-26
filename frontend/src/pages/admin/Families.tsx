@@ -1285,7 +1285,7 @@ export default function AdminFamilies() {
                   >
                     <option value="desligado">Desligado (só avisa)</option>
                     <option value="padrao">Toque padrão do celular</option>
-                    {alertaSom === 'mp3' && <option value="mp3">MP3 da família</option>}
+                    <option value="mp3">Som próprio da família (MP3)</option>
                   </select>
                 </div>
                 <div>
@@ -1302,7 +1302,7 @@ export default function AdminFamilies() {
                 </div>
               </div>
               <p className="text-xs text-gray-600">
-                Com o alarme ligado, o app Android (2.0.9 ou mais novo) toca por até 10 segundos no volume de alarme, mesmo no silencioso. A criança pode tocar em Parar.
+                Com o alarme ligado, o app Android (2.0.10 ou mais novo para o som próprio) toca por até 10 segundos no volume de alarme, mesmo no silencioso. A criança pode tocar em Parar.
               </p>
               <Button onClick={handleSaveAlerta} disabled={savingAlerta} className="inline-flex items-center gap-2">
                 {savingAlerta ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
