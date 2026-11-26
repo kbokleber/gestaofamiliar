@@ -8,6 +8,7 @@ import DocumentUpload, { Document } from '../../components/DocumentUpload'
 import Loading from '../../components/Loading'
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal'
 import { formatDateBR, toDateInputValue } from '../../utils/dateUtils'
+import { lerDocumentos } from '../../utils/documentos'
 
 interface Equipment {
   id: number
@@ -218,7 +219,19 @@ export default function Equipment() {
     }
   }
 
-  const startEdit = (equipmentItem: Equipment) => {
+  const startEdit = async (listItem: Equipment) => {
+    // A lista vem sem anexos (include_documents=false). Buscar o equipamento
+    // completo antes de editar; sem isso o Salvar enviaria documents=null e
+    // apagaria os anexos.
+    let equipmentItem: Equipment
+    try {
+      const response = await api.get(`/maintenance/equipment/${listItem.id}`)
+      equipmentItem = response.data
+    } catch (err) {
+      console.error('Erro ao carregar detalhes do equipamento:', err)
+      alert('Erro ao carregar os detalhes do equipamento para edição')
+      return
+    }
     setEditingEquipment(equipmentItem)
     setFormData({
       name: equipmentItem.name,
@@ -231,16 +244,7 @@ export default function Equipment() {
       status: equipmentItem.status || 'OPERACIONAL',
       notes: equipmentItem.notes || ''
     })
-    // Carregar documentos
-    if (equipmentItem.documents) {
-      try {
-        setDocuments(JSON.parse(equipmentItem.documents))
-      } catch (e) {
-        setDocuments([])
-      }
-    } else {
-      setDocuments([])
-    }
+    setDocuments(lerDocumentos(equipmentItem.documents))
     setIsEditingInline(true)
   }
 
